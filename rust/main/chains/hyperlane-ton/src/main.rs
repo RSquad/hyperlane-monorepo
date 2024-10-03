@@ -1,5 +1,7 @@
 use anyhow::anyhow;
 
+mod types;
+
 mod providers;
 use crate::providers::provider::TonProvider;
 
