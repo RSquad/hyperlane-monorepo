@@ -1,9 +1,10 @@
 use anyhow::anyhow;
-
-mod types;
+use reqwest::Client;
+use tonlib::client::TonClient;
 
 mod client;
-use crate::client::provider::TonProvider;
+mod traits;
+mod types;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
