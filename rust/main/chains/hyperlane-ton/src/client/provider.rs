@@ -13,41 +13,29 @@ use reqwest::{Client, Response};
 use tokio::{sync::RwLock, time::Sleep};
 
 use crate::types::transaction::TransactionResponse;
+use tonlib::tl::{AccountState, BlockIdExt};
 use tonlib::{
     address::{TonAddress, TonAddressParseError},
-    cell::{BagOfCells, Cell, CellBuilder, CellSlice},
     client::{
         TonClient, TonClientBuilder, TonClientError, TonClientInterface, TonConnection,
         TonConnectionParams,
     },
-    config::{MAINNET_CONFIG, TESTNET_CONFIG},
-    contract::{JettonMasterContract, TonContractError, TonContractFactory, TonContractInterface},
-    message::TransferMessage,
-    mnemonic::{self, KeyPair, Mnemonic},
-    tl::AccountState::WalletV4,
-    tl::{
-        AccountAddress, AccountState, BlockId, BlockIdExt, BlocksHeader, Config, FullAccountState,
-        InternalTransactionId, Options, TvmSlice,
-    },
-    types::{TvmStackEntry, TvmSuccess},
-    wallet::TonWallet,
 };
 
 #[derive(Clone, new)]
 pub struct TonProvider {
     pub ton_client: TonClient,
-    pub client: Client,
+    pub http_client: Client,
     pub domain: HyperlaneDomain,
 }
 impl std::fmt::Debug for TonProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TonProvider")
-            .field("client", &self.client)
+            .field("client", &self.http_client)
             .field("domain", &self.domain)
             .finish()
     }
 }
-
 impl HyperlaneChain for TonProvider {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
@@ -87,13 +75,11 @@ impl HyperlaneProvider for TonProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
-        let url = "https://toncenter.com/api/v3/transactions";
-
-        // let mut request = self.client.read().await.get(url).query(&[("hash", hash)]);
+        // we need to implement something like ConfConnection later
+        let url = "";
 
         let response = self
-            .client
-            .await
+            .http_client
             .get(url)
             .query(&[("hash", format!("{:?}", hash))])
             .send()
@@ -136,7 +122,10 @@ impl HyperlaneProvider for TonProvider {
         } else {
             warn!("No transaction found for the provided hash");
             Err(ChainCommunicationError::Other(
-                HyperlaneCustomErrorWrapper::new(Box::new("No transactions found")),
+                HyperlaneCustomErrorWrapper::new(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "No transactions found",
+                ))),
             ))
         }
     }
@@ -175,11 +164,16 @@ impl HyperlaneProvider for TonProvider {
         let address = TonAddress::from_base64_url(address.as_str());
         match address {
             Ok(address) => {
-                let read_guard = self.ton_client.await;
-                let account_state = read_guard.get_account_state(&address).await.map_err(|e| {
-                    info!("Error while getting account state: {:?}", e);
-                    ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
-                })?;
+                let account_state =
+                    self.ton_client
+                        .get_account_state(&address)
+                        .await
+                        .map_err(|e| {
+                            info!("Error while getting account state: {:?}", e);
+                            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(
+                                Box::new(e),
+                            ))
+                        })?;
 
                 info!("Get account state success, data: {:?}", account_state);
 
