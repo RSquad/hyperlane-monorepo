@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use derive_new::new;
 use log::{debug, info, warn};
+use std::error::Error;
 use std::sync::Arc;
 
 use hyperlane_core::{
@@ -12,7 +13,6 @@ use hyperlane_core::{
 use reqwest::{Client, Response};
 use tokio::{sync::RwLock, time::Sleep};
 
-use crate::types::transaction::TransactionResponse;
 use tonlib::tl::{AccountState, BlockIdExt};
 use tonlib::{
     address::{TonAddress, TonAddressParseError},
@@ -20,6 +20,11 @@ use tonlib::{
         TonClient, TonClientBuilder, TonClientError, TonClientInterface, TonConnection,
         TonConnectionParams,
     },
+};
+
+use crate::{
+    traits::ton_api_center::TonApiCenter,
+    types::{message::MessageResponse, transaction::TransactionResponse},
 };
 
 #[derive(Clone, new)]
@@ -190,5 +195,66 @@ impl HyperlaneProvider for TonProvider {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         Ok(None)
+    }
+}
+
+#[async_trait]
+impl TonApiCenter for TonProvider {
+    /// Implements a method to retrieve messages from the TON network based on specified filters.
+    /// Parameters include message hashes, source and destination addresses,
+    /// and time or other filters for querying messages.
+    /// Returns the results in a `MessageResponse` format.
+    async fn get_messages(
+        &self,
+        msg_hash: Option<Vec<String>>,
+        body_hash: Option<String>,
+        source: Option<String>,
+        destination: Option<String>,
+        opcode: Option<String>,
+        start_utime: Option<i64>,
+        end_utime: Option<i64>,
+        start_lt: Option<i64>,
+        end_lt: Option<i64>,
+        direction: Option<String>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> Result<MessageResponse, Box<dyn std::error::Error>> {
+        // we need to implement something like ConfConnection later
+        let url = "";
+        let api_key = "";
+        let client = reqwest::Client::new();
+
+        let params: Vec<(&str, String)> = vec![
+            ("msg_hash", msg_hash.map(|v| v.join(","))),
+            ("body_hash", body_hash),
+            ("source", source),
+            ("destination", destination),
+            ("opcode", opcode),
+            ("start_utime", start_utime.map(|v| v.to_string())),
+            ("end_utime", end_utime.map(|v| v.to_string())),
+            ("start_lt", start_lt.map(|v| v.to_string())),
+            ("end_lt", end_lt.map(|v| v.to_string())),
+            ("direction", direction),
+            ("limit", limit.map(|v| v.to_string())),
+            ("offset", offset.map(|v| v.to_string())),
+            ("sort", sort),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|v| (key, v)))
+        .collect();
+
+        let response = client
+            .get(url)
+            .header("Authorization", format!("Bearer {}", api_key))
+            .query(&params)
+            .send()
+            .await?
+            .json::<MessageResponse>()
+            .await?;
+
+        info!("MessageResponse:{:?}", response);
+
+        Ok(response)
     }
 }
