@@ -2,8 +2,8 @@ use anyhow::anyhow;
 
 mod types;
 
-mod providers;
-use crate::providers::provider::TonProvider;
+mod client;
+use crate::client::provider::TonProvider;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

@@ -4950,6 +4950,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "derive-new",
+ "hex 0.4.3",
  "hyperlane-core",
  "log",
  "reqwest 0.11.27",
