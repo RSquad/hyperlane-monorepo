@@ -23,6 +23,7 @@ use tonlib::{
     },
 };
 
+use crate::types::account_state::AccountStateResponse;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
@@ -48,7 +49,6 @@ impl HyperlaneChain for TonProvider {
     fn domain(&self) -> &HyperlaneDomain {
         &self.domain
     }
-    /// A provider for the chain
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
         Box::new(self.clone())
     }
@@ -57,6 +57,8 @@ impl HyperlaneChain for TonProvider {
 #[async_trait]
 impl HyperlaneProvider for TonProvider {
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
+        info!("Fetching block by hash: {:?}", hash);
+
         // need check
         let block_id: BlockIdExt = BlockIdExt {
             workchain: 0,
@@ -65,31 +67,43 @@ impl HyperlaneProvider for TonProvider {
             root_hash: hash.to_string(),
             file_hash: "".to_string(),
         };
-        let client = self.ton_client.get_block_header(&block_id).await;
+        debug!("Constructed BlockIdExt: {:?}", block_id);
 
-        match client {
+        let blocks_header = self.ton_client.get_block_header(&block_id).await;
+
+        match blocks_header {
             Ok(blocks_header) => {
                 let block_info: BlockInfo = BlockInfo {
                     hash: H256::from_slice(&blocks_header.id.root_hash.as_bytes()),
                     timestamp: blocks_header.gen_utime as u64,
                     number: blocks_header.id.seqno as u64,
                 };
+                info!("Successfully fetched block info: {:?}", block_info);
                 Ok(block_info)
             }
-            Err(e) => Err(ChainCommunicationError::Other(
-                HyperlaneCustomErrorWrapper::new(Box::new(e)),
-            )),
+            Err(e) => {
+                warn!("Failed to fetch block by hash: {:?}", e);
+                Err(ChainCommunicationError::Other(
+                    HyperlaneCustomErrorWrapper::new(Box::new(e)),
+                ))
+            }
         }
     }
 
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+        info!("Fetching transaction by hash: {:?}", hash);
+
         let url = self
             .connection_conf
             .url
             .join("v3/transactions")
             .map_err(|e| {
+                warn!("Failed to construct transaction URL: {:?}", e);
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?;
+
+        debug!("Constructed transaction URL: {}", url);
+
         let response = self
             .http_client
             .get(url)
@@ -128,8 +142,8 @@ impl HyperlaneProvider for TonProvider {
                     effective_gas_price: None,
                 }),
             };
-            info!("Successfully retrieved transaction: {:?}", txn_info);
 
+            info!("Successfully retrieved transaction: {:?}", txn_info);
             Ok(txn_info)
         } else {
             warn!("No transaction found for the provided hash");
@@ -146,6 +160,7 @@ impl HyperlaneProvider for TonProvider {
         info!("Checking if contract exists at address: {:?}", address);
 
         let ton_address = TonAddress::from_base64_url(&address.to_string()).map_err(|e| {
+            warn!("Failed to parse address: {:?}", e);
             ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
         })?;
 
@@ -169,34 +184,34 @@ impl HyperlaneProvider for TonProvider {
             }
         }
     }
-
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
-        info!("Try send get_balance request for: {:?}", address);
+        info!("Fetching balance for address: {:?}", address);
 
-        let address = TonAddress::from_base64_url(address.as_str());
-        match address {
-            Ok(address) => {
-                let account_state =
-                    self.ton_client
-                        .get_account_state(&address)
-                        .await
-                        .map_err(|e| {
-                            info!("Error while getting account state: {:?}", e);
-                            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(
-                                Box::new(e),
-                            ))
-                        })?;
+        match self.get_account_state(address, false).await {
+            Ok(account_state) => {
+                if let Some(first_account) = account_state.accounts.get(0) {
+                    let balance: U256 =
+                        U256::from_dec_str(first_account.balance.as_deref().ok_or_else(|| {
+                            ChainCommunicationError::ParseError {
+                                msg: "No balance found in the response".to_string(),
+                            }
+                        })?)?;
 
-                info!("Get account state success, data: {:?}", account_state);
-
-                let balance: i64 = account_state.balance;
-                let balance_u256: U256 = U256::from(balance);
-
-                Ok(balance_u256)
+                    info!("Successfully retrieved balance: {:?}", balance);
+                    Ok(balance)
+                } else {
+                    warn!("No account found in the response");
+                    Err(ChainCommunicationError::CustomError {
+                        0: "No account found in the response".to_string(),
+                    })
+                }
             }
-            Err(error) => Err(ChainCommunicationError::Other(
-                HyperlaneCustomErrorWrapper::new(Box::new(error)),
-            )),
+            Err(e) => {
+                warn!("Error while getting account state: {:?}", e);
+                Err(ChainCommunicationError::CustomError {
+                    0: format!("Error while getting account state: {:?}", e),
+                })
+            }
         }
     }
 
@@ -227,9 +242,14 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> Result<MessageResponse, Box<dyn std::error::Error>> {
+        info!("Fetching messages with filters");
+
         let url = self.connection_conf.url.join("v3/messages").map_err(|e| {
+            warn!("Failed to construct messages URL: {:?}", e);
             ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
         })?;
+
+        debug!("Constructed messages URL: {}", url);
 
         let params: Vec<(&str, String)> = vec![
             ("msg_hash", msg_hash.map(|v| v.join(","))),
@@ -250,12 +270,12 @@ impl TonApiCenter for TonProvider {
         .filter_map(|(key, value)| value.map(|v| (key, v)))
         .collect();
 
-        println!("Params:{:?}", params);
+        debug!("Constructed query parameters for messages: {:?}", params);
 
         let response = self
             .http_client
             .get(url)
-            .bearer_auth(self.connection_conf.api_key.clone())
+            .bearer_auth(&self.connection_conf.api_key)
             .query(&params)
             .send()
             .await?;
@@ -263,23 +283,22 @@ impl TonApiCenter for TonProvider {
         let response_text = response.text().await;
         match response_text {
             Ok(text) => {
-                println!("Response text: {:?}", text);
+                debug!("Received response text: {:?}", text);
 
                 let message_response: Result<MessageResponse, _> = serde_json::from_str(&text);
-
                 match message_response {
                     Ok(parsed_response) => {
-                        println!("MessageResponse: {:?}", parsed_response);
+                        info!("Successfully parsed message response");
                         Ok(parsed_response)
                     }
                     Err(e) => {
-                        eprintln!("Error parsing response: {:?}", e);
+                        warn!("Error parsing message response: {:?}", e);
                         Err(Box::new(e) as Box<dyn std::error::Error>)
                     }
                 }
             }
             Err(e) => {
-                eprintln!("Error getting response text: {:?}", e);
+                warn!("Error retrieving message response text: {:?}", e);
                 Err(Box::new(e) as Box<dyn std::error::Error>)
             }
         }
@@ -302,13 +321,18 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> Result<TransactionResponse, Box<dyn Error>> {
+        info!("Fetching transactions with filters");
+
         let url = self
             .connection_conf
             .url
             .join("v3/transactions")
             .map_err(|e| {
+                warn!("Failed to construct transactions URL: {:?}", e);
                 ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
             })?;
+
+        debug!("Constructed transactions URL: {}", url);
 
         let query_params: Vec<(&str, String)> = vec![
             ("workchain", workchain.map(|v| v.to_string())),
@@ -331,17 +355,55 @@ impl TonApiCenter for TonProvider {
         .filter_map(|(key, value)| value.map(|v| (key, v)))
         .collect();
 
-        println!("Send request");
         let response = self
             .http_client
             .get(url)
-            .bearer_auth(self.connection_conf.api_key.clone())
+            .bearer_auth(&self.connection_conf.api_key)
             .query(&query_params)
             .send()
             .await?
             .json::<TransactionResponse>()
             .await?;
 
+        info!("Successfully retrieved transaction response");
+        Ok(response)
+    }
+
+    async fn get_account_state(
+        &self,
+        address: String,
+        include_boc: bool,
+    ) -> Result<AccountStateResponse, Box<dyn Error>> {
+        info!(
+            "Fetching account state for address: {:?}, include_boc: {:?}",
+            address, include_boc
+        );
+
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/accountStates")
+            .map_err(|e| {
+                warn!("Failed to construct account state URL: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
+
+        let query_params: Vec<(&str, String)> = vec![
+            ("address", address),
+            ("include_boc", include_boc.to_string()),
+        ];
+
+        let response = self
+            .http_client
+            .get(url)
+            .bearer_auth(&self.connection_conf.api_key)
+            .query(&query_params)
+            .send()
+            .await?
+            .json::<AccountStateResponse>()
+            .await?;
+
+        info!("Successfully retrieved account state response");
         Ok(response)
     }
 }
