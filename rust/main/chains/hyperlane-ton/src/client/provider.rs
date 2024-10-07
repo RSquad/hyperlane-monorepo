@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use log::{debug, info, warn};
 use std::error::Error;
+use std::ops::Add;
 use std::sync::Arc;
 
 use hyperlane_core::{
@@ -23,6 +24,7 @@ use tonlib::{
 };
 
 use crate::{
+    trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
     types::{message::MessageResponse, transaction::TransactionResponse},
 };
@@ -31,6 +33,7 @@ use crate::{
 pub struct TonProvider {
     pub ton_client: TonClient,
     pub http_client: Client,
+    pub connection_conf: TonConnectionConf,
     pub domain: HyperlaneDomain,
 }
 impl std::fmt::Debug for TonProvider {
@@ -80,9 +83,13 @@ impl HyperlaneProvider for TonProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
-        // we need to implement something like ConfConnection later
-        let url = "";
-
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/transactions")
+            .map_err(|e| {
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
         let response = self
             .http_client
             .get(url)
@@ -220,10 +227,9 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> Result<MessageResponse, Box<dyn std::error::Error>> {
-        // we need to implement something like ConfConnection later
-        let url = "";
-        let api_key = "";
-        let client = reqwest::Client::new();
+        let url = self.connection_conf.url.join("v3/messages").map_err(|e| {
+            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+        })?;
 
         let params: Vec<(&str, String)> = vec![
             ("msg_hash", msg_hash.map(|v| v.join(","))),
@@ -244,16 +250,97 @@ impl TonApiCenter for TonProvider {
         .filter_map(|(key, value)| value.map(|v| (key, v)))
         .collect();
 
-        let response = client
+        println!("Params:{:?}", params);
+
+        let response = self
+            .http_client
             .get(url)
-            .header("Authorization", format!("Bearer {}", api_key))
+            .bearer_auth(self.connection_conf.api_key.clone())
             .query(&params)
             .send()
-            .await?
-            .json::<MessageResponse>()
             .await?;
 
-        info!("MessageResponse:{:?}", response);
+        let response_text = response.text().await;
+        match response_text {
+            Ok(text) => {
+                println!("Response text: {:?}", text);
+
+                let message_response: Result<MessageResponse, _> = serde_json::from_str(&text);
+
+                match message_response {
+                    Ok(parsed_response) => {
+                        println!("MessageResponse: {:?}", parsed_response);
+                        Ok(parsed_response)
+                    }
+                    Err(e) => {
+                        eprintln!("Error parsing response: {:?}", e);
+                        Err(Box::new(e) as Box<dyn std::error::Error>)
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Error getting response text: {:?}", e);
+                Err(Box::new(e) as Box<dyn std::error::Error>)
+            }
+        }
+    }
+    async fn get_transactions(
+        &self,
+        workchain: Option<i32>,
+        shard: Option<String>,
+        seqno: Option<i32>,
+        mc_seqno: Option<i32>,
+        account: Option<Vec<String>>,
+        exclude_account: Option<Vec<String>>,
+        hash: Option<String>,
+        lt: Option<i64>,
+        start_utime: Option<i64>,
+        end_utime: Option<i64>,
+        start_lt: Option<i64>,
+        end_lt: Option<i64>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> Result<TransactionResponse, Box<dyn Error>> {
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/transactions")
+            .map_err(|e| {
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
+
+        let query_params: Vec<(&str, String)> = vec![
+            ("workchain", workchain.map(|v| v.to_string())),
+            ("shard", shard),
+            ("seqno", seqno.map(|v| v.to_string())),
+            ("mc_seqno", mc_seqno.map(|v| v.to_string())),
+            ("account", account.map(|v| v.join(","))),
+            ("exclude_account", exclude_account.map(|v| v.join(","))),
+            ("hash", hash),
+            ("lt", lt.map(|v| v.to_string())),
+            ("start_utime", start_utime.map(|v| v.to_string())),
+            ("end_utime", end_utime.map(|v| v.to_string())),
+            ("start_lt", start_lt.map(|v| v.to_string())),
+            ("end_lt", end_lt.map(|v| v.to_string())),
+            ("limit", limit.map(|v| v.to_string())),
+            ("offset", offset.map(|v| v.to_string())),
+            ("sort", sort),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|v| (key, v)))
+        .collect();
+
+        println!("Send request");
+        let response = self
+            .http_client
+            .get(url)
+            .bearer_auth(self.connection_conf.api_key.clone())
+            .query(&query_params)
+            .send()
+            .await?
+            .json::<TransactionResponse>()
+            .await?;
 
         Ok(response)
     }
