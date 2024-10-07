@@ -1,5 +1,8 @@
-use crate::types::{message::MessageResponse, transaction::TransactionResponse};
+use crate::types::{
+    account_state::AccountStateResponse, message::MessageResponse, transaction::TransactionResponse,
+};
 use async_trait::async_trait;
+use hyperlane_core::ChainResult;
 
 #[async_trait]
 pub trait TonApiCenter {
@@ -38,4 +41,10 @@ pub trait TonApiCenter {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> Result<TransactionResponse, Box<dyn std::error::Error>>;
+
+    async fn get_account_state(
+        &self,
+        address: String,
+        include_boc: bool,
+    ) -> Result<AccountStateResponse, Box<dyn std::error::Error>>;
 }
