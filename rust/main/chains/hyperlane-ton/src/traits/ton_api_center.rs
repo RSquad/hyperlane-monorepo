@@ -1,4 +1,4 @@
-use crate::types::message::MessageResponse;
+use crate::types::{message::MessageResponse, transaction::TransactionResponse};
 use async_trait::async_trait;
 
 #[async_trait]
@@ -19,4 +19,23 @@ pub trait TonApiCenter {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> Result<MessageResponse, Box<dyn std::error::Error>>;
+
+    async fn get_transactions(
+        &self,
+        workchain: Option<i32>,
+        shard: Option<String>,
+        seqno: Option<i32>,
+        mc_seqno: Option<i32>,
+        account: Option<Vec<String>>,
+        exclude_account: Option<Vec<String>>,
+        hash: Option<String>,
+        lt: Option<i64>,
+        start_utime: Option<i64>,
+        end_utime: Option<i64>,
+        start_lt: Option<i64>,
+        end_lt: Option<i64>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> Result<TransactionResponse, Box<dyn std::error::Error>>;
 }

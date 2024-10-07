@@ -4977,6 +4977,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonlib",
+ "url",
 ]
 
 [[package]]

@@ -16,6 +16,7 @@ anyhow.workspace = true
 log.workspace = true
 derive-new.workspace = true
 hex.workspace = true
+url = { workspace = true }
 
 tonlib = "0.17.6"
 hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
