@@ -2,6 +2,7 @@ use crate::client::provider::TonProvider;
 use log::info;
 use pretty_env_logger::env_logger;
 mod client;
+mod contracts;
 mod trait_builder;
 mod traits;
 mod types;
