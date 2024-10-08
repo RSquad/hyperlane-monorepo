@@ -25,6 +25,7 @@ use pretty_env_logger::env_logger;
 use reqwest::Client;
 
 mod client;
+mod contracts;
 mod trait_builder;
 mod traits;
 mod types;
