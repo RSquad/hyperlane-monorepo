@@ -12,6 +12,7 @@ use hyperlane_core::{
     TxnInfo, TxnReceiptInfo, H256, U256,
 };
 use reqwest::{Client, Response};
+use serde_json::json;
 use tokio::{sync::RwLock, time::Sleep};
 
 use tonlib::tl::{AccountState, BlockIdExt};
@@ -24,6 +25,7 @@ use tonlib::{
 };
 
 use crate::types::account_state::AccountStateResponse;
+use crate::types::run_get_method::RunGetMethodResponse;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
@@ -405,5 +407,62 @@ impl TonApiCenter for TonProvider {
 
         info!("Successfully retrieved account state response");
         Ok(response)
+    }
+
+    async fn run_get_method(
+        &self,
+        address: String,
+        method: String,
+        stack: Option<Vec<String>>,
+    ) -> Result<RunGetMethodResponse, Box<dyn Error>> {
+        info!(
+            "Calling get method for address: {:?}, method: {:?}, stack: {:?}",
+            address, method, stack
+        );
+
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/runGetMethod")
+            .map_err(|e| {
+                warn!("Failed to construct account state URL: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
+
+        info!("Url:{:?}", url);
+
+        let stack_data = stack.unwrap_or_else(|| vec![]);
+
+        let params = json!({
+            "address": address,
+            "method": method,
+            "stack": stack_data
+        });
+        info!(
+            "Constructed runGetMethod request body: {:?}",
+            params.to_string()
+        );
+
+        let response = self
+            .http_client
+            .post(url)
+            .bearer_auth(&self.connection_conf.api_key)
+            .header("accept", "application/json")
+            .header("Content-Type", "application/json")
+            .json(&params)
+            .send()
+            .await?;
+
+        let response_text = response.text().await?;
+        info!("Received response text: {:?}", response_text);
+
+        let parsed_response = serde_json::from_str::<RunGetMethodResponse>(&response_text)
+            .map_err(|e| {
+                warn!("Error parsing JSON response: {:?}", e);
+                Box::new(e) as Box<dyn Error>
+            })?;
+
+        info!("Successfully run get method request");
+        Ok(parsed_response)
     }
 }
