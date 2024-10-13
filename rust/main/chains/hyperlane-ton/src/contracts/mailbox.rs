@@ -1,7 +1,8 @@
 use crate::client::provider::TonProvider;
+use crate::traits::ton_api_center::TonApiCenter;
 use hyperlane_core::{
-    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneMessage,
-    HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
 };
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
@@ -14,7 +15,9 @@ pub struct TonMailbox {
 
 impl HyperlaneContract for TonMailbox {
     fn address(&self) -> H256 {
-        self.mailbox_address.to_bytes().into()
+        let hex = self.mailbox_address.to_hex();
+        let bytes = hex.as_bytes();
+        H256::from_slice(bytes)
     }
 }
 
@@ -36,7 +39,34 @@ impl Debug for TonMailbox {
 
 impl Mailbox for TonMailbox {
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
-        todo!()
+        let response = self
+            .provider
+            .run_get_method(
+                self.mailbox_address.to_string(),
+                "get_nonce".to_string(),
+                Some(vec![]),
+            )
+            .await;
+
+        if let Ok(response) = response {
+            if let Some(stack_item) = response.stack.get(0) {
+                if let Ok(count) = u32::from_str_radix(&stack_item.value[2..], 16) {
+                    Ok(count)
+                } else {
+                    Err(ChainCommunicationError::CustomError(
+                        "Failed to parse count".to_string(),
+                    ))
+                }
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "Empty stack in response".to_string(),
+                ))
+            }
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "Failed to get response".to_string(),
+            ))
+        }
     }
 
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
@@ -44,7 +74,43 @@ impl Mailbox for TonMailbox {
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
-        todo!()
+        let response = self
+            .provider
+            .run_get_method(
+                self.mailbox_address.to_hex(),
+                "get_default_ism".to_string(),
+                None,
+            )
+            .await
+            .expect("Some error");
+
+        if let Some(stack) = response.stack.first() {
+            if stack.r#type == "cell" {
+                let decoded_value = base64::decode(&stack.value).map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to decode base64: {:?}",
+                        e
+                    ))
+                })?;
+
+                if decoded_value.len() >= 32 {
+                    let ism_hash = H256::from_slice(&decoded_value[0..32]);
+                    return Ok(ism_hash);
+                } else {
+                    return Err(ChainCommunicationError::CustomError(
+                        "Decoded value is too short for H256".to_string(),
+                    ));
+                }
+            } else {
+                return Err(ChainCommunicationError::CustomError(
+                    "Unexpected data type in stack, expected cell".to_string(),
+                ));
+            }
+        }
+
+        Err(ChainCommunicationError::CustomError(
+            "No data in stack".to_string(),
+        ))
     }
 
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
