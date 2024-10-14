@@ -25,6 +25,7 @@ use tonlib::{
 };
 
 use crate::types::account_state::AccountStateResponse;
+use crate::types::message::SendMessageResponse;
 use crate::types::run_get_method::RunGetMethodResponse;
 use crate::{
     trait_builder::TonConnectionConf,
@@ -464,5 +465,32 @@ impl TonApiCenter for TonProvider {
 
         info!("Successfully run get method request");
         Ok(parsed_response)
+    }
+
+    async fn send_message(&self, boc: String) -> Result<SendMessageResponse, Box<dyn Error>> {
+        let url = self.connection_conf.url.join("v3/message").map_err(|e| {
+            warn!("Failed to construct message URL: {:?}", e);
+            Box::new(e) as Box<dyn std::error::Error>
+        })?;
+
+        let params = serde_json::json!({
+            "boc": boc
+        });
+
+        let response = self
+            .http_client
+            .post(url)
+            .bearer_auth(&self.connection_conf.api_key)
+            .json(&params)
+            .send()
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+
+        let send_message_response: SendMessageResponse = response.json().await.map_err(|e| {
+            warn!("Error parsing send_message response: {:?}", e);
+            Box::new(e) as Box<dyn std::error::Error>
+        })?;
+
+        Ok(send_message_response)
     }
 }
