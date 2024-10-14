@@ -1,6 +1,6 @@
 use crate::trait_builder::TonConnectionConf;
 use crate::traits::ton_api_center::TonApiCenter;
-use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain};
+use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain, Mailbox, H256};
 use tonlib::cell::ArcCell;
 use tonlib::cell::CellSlice;
 use tonlib::client::TonClient;
@@ -20,6 +20,7 @@ use tonlib::{
 use url::Url;
 
 use crate::client::provider::TonProvider;
+use crate::contracts::mailbox::TonMailbox;
 use log::info;
 use pretty_env_logger::env_logger;
 use reqwest::Client;

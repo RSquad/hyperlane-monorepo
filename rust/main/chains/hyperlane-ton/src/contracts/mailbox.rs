@@ -1,5 +1,6 @@
 use crate::client::provider::TonProvider;
 use crate::traits::ton_api_center::TonApiCenter;
+use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
@@ -10,8 +11,8 @@ use tonlib::address::TonAddress;
 use tracing::{debug, info, instrument, warn};
 
 pub struct TonMailbox {
-    pub(crate) mailbox_address: TonAddress,
-    pub(crate) provider: TonProvider,
+    pub mailbox_address: TonAddress,
+    pub provider: TonProvider,
 }
 
 impl HyperlaneContract for TonMailbox {
@@ -38,6 +39,7 @@ impl Debug for TonMailbox {
     }
 }
 
+#[async_trait]
 impl Mailbox for TonMailbox {
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
         let response = self
@@ -70,7 +72,6 @@ impl Mailbox for TonMailbox {
         }
     }
 
-    #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
         let response = self
             .provider
@@ -83,10 +84,8 @@ impl Mailbox for TonMailbox {
             .expect("Some error");
 
         let is_delivered = response.stack.iter().any(|item| {
-            let stored_id = item.value.as_str().unwrap_or("");
-            if stored_id == format!("{:x}", id) {
-                return Ok(true);
-            }
+            let stored_id = item.value.as_str();
+            stored_id == format!("{:x}", id)
         });
         Ok(is_delivered)
     }
