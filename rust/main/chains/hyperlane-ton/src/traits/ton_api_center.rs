@@ -4,7 +4,6 @@ use crate::types::{
     run_get_method::RunGetMethodResponse, transaction::TransactionResponse,
 };
 use async_trait::async_trait;
-use hyperlane_core::ChainResult;
 
 #[async_trait]
 pub trait TonApiCenter {

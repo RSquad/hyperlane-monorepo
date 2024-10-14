@@ -7,6 +7,7 @@ use hyperlane_core::{
 use std::fmt::{Debug, Formatter};
 use std::num::NonZeroU64;
 use tonlib::address::TonAddress;
+use tracing::{debug, info, instrument, warn};
 
 pub struct TonMailbox {
     pub(crate) mailbox_address: TonAddress,
@@ -69,8 +70,25 @@ impl Mailbox for TonMailbox {
         }
     }
 
+    #[instrument(skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        todo!()
+        let response = self
+            .provider
+            .run_get_method(
+                self.mailbox_address.to_hex(),
+                "get_deliveries".to_string(),
+                None,
+            )
+            .await
+            .expect("Some error");
+
+        let is_delivered = response.stack.iter().any(|item| {
+            let stored_id = item.value.as_str().unwrap_or("");
+            if stored_id == format!("{:x}", id) {
+                return Ok(true);
+            }
+        });
+        Ok(is_delivered)
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {

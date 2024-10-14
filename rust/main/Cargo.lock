@@ -4980,6 +4980,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonlib",
+ "tracing",
  "url",
 ]
 

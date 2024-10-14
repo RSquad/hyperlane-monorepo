@@ -244,7 +244,7 @@ impl TonApiCenter for TonProvider {
         limit: Option<u32>,
         offset: Option<u32>,
         sort: Option<String>,
-    ) -> Result<MessageResponse, Box<dyn std::error::Error>> {
+    ) -> Result<MessageResponse, Box<dyn Error>> {
         info!("Fetching messages with filters");
 
         let url = self.connection_conf.url.join("v3/messages").map_err(|e| {
@@ -470,10 +470,10 @@ impl TonApiCenter for TonProvider {
     async fn send_message(&self, boc: String) -> Result<SendMessageResponse, Box<dyn Error>> {
         let url = self.connection_conf.url.join("v3/message").map_err(|e| {
             warn!("Failed to construct message URL: {:?}", e);
-            Box::new(e) as Box<dyn std::error::Error>
+            Box::new(e) as Box<dyn Error>
         })?;
 
-        let params = serde_json::json!({
+        let params = json!({
             "boc": boc
         });
 
@@ -484,11 +484,11 @@ impl TonApiCenter for TonProvider {
             .json(&params)
             .send()
             .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+            .map_err(|e| Box::new(e) as Box<dyn Error>)?;
 
         let send_message_response: SendMessageResponse = response.json().await.map_err(|e| {
             warn!("Error parsing send_message response: {:?}", e);
-            Box::new(e) as Box<dyn std::error::Error>
+            Box::new(e) as Box<dyn Error>
         })?;
 
         Ok(send_message_response)
