@@ -1,3 +1,4 @@
+use crate::types::message::SendMessageResponse;
 use crate::types::{
     account_state::AccountStateResponse, message::MessageResponse,
     run_get_method::RunGetMethodResponse, transaction::TransactionResponse,
@@ -55,4 +56,9 @@ pub trait TonApiCenter {
         method: String,
         stack: Option<Vec<String>>,
     ) -> Result<RunGetMethodResponse, Box<dyn std::error::Error>>;
+
+    async fn send_message(
+        &self,
+        boc: String, // base64-encoded boc
+    ) -> Result<SendMessageResponse, Box<dyn std::error::Error>>;
 }
