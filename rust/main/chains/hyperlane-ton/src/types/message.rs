@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
@@ -51,4 +51,9 @@ pub struct DecodedMessage {
     pub comment: Option<String>,
     #[serde(rename = "type")]
     pub message_type: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SendMessageResponse {
+    pub message_hash: String,
 }
