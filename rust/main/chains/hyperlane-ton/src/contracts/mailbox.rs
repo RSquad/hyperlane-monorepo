@@ -3,10 +3,14 @@ use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Mailbox, TxCostEstimate, TxOutcome, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, SequenceAwareIndexer,
+    TxCostEstimate, TxOutcome, H256, H512, U256,
 };
 use std::fmt::{Debug, Formatter};
+use std::future::Future;
 use std::num::NonZeroU64;
+use std::ops::RangeInclusive;
+use std::pin::Pin;
 use tonlib::address::TonAddress;
 use tracing::{debug, info, instrument, warn};
 
@@ -81,7 +85,12 @@ impl Mailbox for TonMailbox {
                 None,
             )
             .await
-            .expect("Some error");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Error calling run_get_method: {:?}",
+                    e
+                ))
+            })?;
 
         let is_delivered = response.stack.iter().any(|item| {
             let stored_id = item.value.as_str();
@@ -131,7 +140,51 @@ impl Mailbox for TonMailbox {
     }
 
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        todo!()
+        let response = self
+            .provider
+            .run_get_method(
+                self.mailbox_address.to_hex(),
+                "get_recipient_ism".to_string(),
+                Some(vec![format!("0x{}", recipient)]),
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Error calling run_get_method: {:?}",
+                    e
+                ))
+            })?;
+
+        if let Some(stack) = response.stack.first() {
+            if stack.r#type == "cell" {
+                // Decode the base64-encoded value
+                let decoded_value = base64::decode(&stack.value).map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to decode base64 value from stack: {:?}",
+                        e
+                    ))
+                })?;
+
+                // Ensure the decoded value is at least 32 bytes
+                if decoded_value.len() >= 32 {
+                    let ism_hash = H256::from_slice(&decoded_value[0..32]);
+                    Ok(ism_hash)
+                } else {
+                    Err(ChainCommunicationError::CustomError(
+                        "Decoded value is too short for H256".to_string(),
+                    ))
+                }
+            } else {
+                Err(ChainCommunicationError::CustomError(format!(
+                    "Unexpected data type in stack: expected 'cell', got '{}'",
+                    stack.r#type
+                )))
+            }
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "No data found in the response stack".to_string(),
+            ))
+        }
     }
 
     async fn process(
@@ -140,7 +193,24 @@ impl Mailbox for TonMailbox {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        todo!()
+        let boc = "".to_string();
+
+        let response = self.provider.send_message(boc).await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to send message: {:?}", e))
+        })?;
+
+        if response.message_hash.is_empty() {
+            Err(ChainCommunicationError::CustomError(
+                "Message hash is empty, likely an error occurred".to_string(),
+            ))
+        } else {
+            Ok(TxOutcome {
+                transaction_id: H512::from_slice(&hex::decode(response.message_hash)?),
+                executed: true,
+                gas_used: Default::default(),
+                gas_price: Default::default(),
+            })
+        }
     }
 
     async fn process_estimate_costs(
@@ -153,5 +223,34 @@ impl Mailbox for TonMailbox {
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
         todo!()
+    }
+}
+
+#[derive(Debug)]
+pub struct TonMailboxIndexer {
+    mailbox: TonMailbox,
+}
+
+#[async_trait]
+impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
+    async fn fetch_logs_in_range(
+        &self,
+        range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
+        todo!()
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        todo!()
+    }
+}
+
+#[async_trait]
+impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
+
+        let count = Mailbox::count(&self.mailbox, None).await?;
+        Ok((Some(count), tip))
     }
 }
