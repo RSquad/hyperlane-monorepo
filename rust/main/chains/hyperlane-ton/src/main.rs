@@ -34,9 +34,6 @@ async fn main() -> anyhow::Result<()> {
     env_logger::init();
     info!("start");
 
-    let ton_client = create_mainnet_client().await;
-    let http_client = Client::new();
-
     Ok(())
 }
 

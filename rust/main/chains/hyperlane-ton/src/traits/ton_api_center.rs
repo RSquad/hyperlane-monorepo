@@ -2,9 +2,9 @@ use crate::types::message::SendMessageResponse;
 use crate::types::{
     account_state::AccountStateResponse, message::MessageResponse,
     run_get_method::RunGetMethodResponse, transaction::TransactionResponse,
+    wallet_state::WalletStatesResponse,
 };
 use async_trait::async_trait;
-use hyperlane_core::ChainResult;
 
 #[async_trait]
 pub trait TonApiCenter {
@@ -61,4 +61,9 @@ pub trait TonApiCenter {
         &self,
         boc: String, // base64-encoded boc
     ) -> Result<SendMessageResponse, Box<dyn std::error::Error>>;
+
+    async fn get_wallet_states(
+        &self,
+        account: String,
+    ) -> Result<WalletStatesResponse, Box<dyn std::error::Error>>;
 }
