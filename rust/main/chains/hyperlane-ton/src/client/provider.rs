@@ -27,6 +27,7 @@ use tonlib::{
 use crate::types::account_state::AccountStateResponse;
 use crate::types::message::SendMessageResponse;
 use crate::types::run_get_method::RunGetMethodResponse;
+use crate::types::wallet_state::WalletStatesResponse;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
@@ -492,5 +493,47 @@ impl TonApiCenter for TonProvider {
         })?;
 
         Ok(send_message_response)
+    }
+
+    async fn get_wallet_states(
+        &self,
+        account: String,
+    ) -> Result<WalletStatesResponse, Box<dyn Error>> {
+        let mut url = self
+            .connection_conf
+            .url
+            .join("v3/walletStates")
+            .map_err(|e| {
+                warn!("Failed to construct wallet states URL: {:?}", e);
+                Box::new(e) as Box<dyn std::error::Error>
+            })?;
+
+        url.query_pairs_mut().append_pair("address", &account);
+        info!("URL:{:?}", url);
+
+        let response = self.http_client.get(url).send().await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Failed".to_string());
+            warn!("Error request: status = {}, body = {}", status, body);
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Error",
+            )));
+        }
+
+        let body = response.text().await?;
+        println!("Server response: {}", body);
+
+        let result: WalletStatesResponse = serde_json::from_str(&body).map_err(|e| {
+            warn!("Failed deserialization: {:?}", e);
+            Box::new(e) as Box<dyn std::error::Error>
+        })?;
+
+        Ok(result)
     }
 }
