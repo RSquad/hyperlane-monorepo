@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TransactionResponse {
     pub transactions: Vec<Transaction>,
     pub address_book: AddressBook,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
     pub account: String,
     pub hash: String,
@@ -26,8 +26,9 @@ pub struct Transaction {
     pub mc_block_seqno: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Description {
+    #[serde(rename = "type")]
     pub r#type: String,
     pub action: Action,
     pub aborted: bool,
@@ -38,7 +39,7 @@ pub struct Description {
     pub credit_first: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Action {
     pub valid: bool,
     pub success: bool,
@@ -55,21 +56,22 @@ pub struct Action {
     pub total_action_fees: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessageSize {
     pub bits: String,
     pub cells: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Credit {
     pub credit: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ComputePhase {
     pub mode: i32,
-    pub r#type: String,
+    #[serde(rename = "type")]
+    pub r#type: Option<String>,
     pub success: bool,
     pub gas_fees: String,
     pub gas_used: String,
@@ -83,20 +85,20 @@ pub struct ComputePhase {
     pub vm_final_state_hash: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StoragePhase {
     pub status_change: String,
     pub storage_fees_collected: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BlockRef {
     pub workchain: i32,
     pub shard: String,
     pub seqno: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub hash: String,
     pub source: Option<String>,
@@ -115,14 +117,14 @@ pub struct Message {
     pub init_state: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessageContent {
     pub hash: String,
     pub body: String,
     pub decoded: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccountState {
     pub hash: String,
     pub balance: Option<String>,
@@ -132,13 +134,13 @@ pub struct AccountState {
     pub data_hash: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddressBook {
     #[serde(flatten)]
     pub addresses: std::collections::HashMap<String, AddressInfo>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AddressInfo {
     pub user_friendly: String,
 }

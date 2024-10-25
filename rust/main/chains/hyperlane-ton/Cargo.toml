@@ -22,7 +22,8 @@ base64 = {workspace = true}
 tracing = {workspace = true}
 num-bigint = {workspace = true}
 
-hyperlane-core = { path = "../../hyperlane-core", features = ["async"] }
+hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] }
+
 tokio = { workspace = true, version = "1.4", features = ["full"] }
 
 reqwest = { workspace = true, version = "0.11", features = ["json"] }
