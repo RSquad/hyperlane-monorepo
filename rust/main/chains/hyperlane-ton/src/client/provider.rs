@@ -416,7 +416,7 @@ impl TonApiCenter for TonProvider {
         address: String,
         method: String,
         stack: Option<Vec<String>>,
-    ) -> Result<RunGetMethodResponse, Box<dyn Error>> {
+    ) -> Result<RunGetMethodResponse, Box<dyn Error + Send + Sync>> {
         info!(
             "Calling get method for address: {:?}, method: {:?}, stack: {:?}",
             address, method, stack
@@ -462,7 +462,8 @@ impl TonApiCenter for TonProvider {
             .map_err(|e| {
                 warn!("Error parsing JSON response: {:?}", e);
                 Box::new(e) as Box<dyn Error>
-            })?;
+            })
+            .expect("Fauled");
 
         info!("Successfully run get method request");
         Ok(parsed_response)
@@ -535,5 +536,51 @@ impl TonApiCenter for TonProvider {
         })?;
 
         Ok(result)
+    }
+
+    async fn get_transaction_by_message(
+        &self,
+        msg_hash: String,
+        body_hash: Option<String>,
+        opcode: Option<String>,
+    ) -> Result<TransactionResponse, Box<dyn Error>> {
+        info!("Fetching transactions by message");
+
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/transactionsByMessage")
+            .map_err(|e| {
+                warn!("Failed to construct transactions URL: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
+
+        debug!("Constructed transactions URL: {}", url);
+
+        let query_params: Vec<(&str, String)> = vec![
+            ("msg_hash", msg_hash),
+            ("body_hash", body_hash.unwrap_or_default()),
+            ("opcode", opcode.unwrap_or_default()),
+        ]
+        .into_iter()
+        .filter(|(_, v)| !v.is_empty())
+        .collect();
+
+        let raw_response = self
+            .http_client
+            .get(url)
+            .bearer_auth(&self.connection_conf.api_key)
+            .query(&query_params)
+            .send()
+            .await?
+            .text()
+            .await?;
+
+        info!("Raw response from server: {}", raw_response);
+
+        let response: TransactionResponse = serde_json::from_str(&raw_response)?;
+
+        info!("Successfully retrieved transaction response");
+        Ok(response)
     }
 }
