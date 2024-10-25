@@ -25,6 +25,7 @@ use tonlib::{
 };
 
 use crate::types::account_state::AccountStateResponse;
+use crate::types::block_response::BlockResponse;
 use crate::types::message::SendMessageResponse;
 use crate::types::run_get_method::RunGetMethodResponse;
 use crate::types::wallet_state::WalletStatesResponse;
@@ -579,6 +580,82 @@ impl TonApiCenter for TonProvider {
         info!("Raw response from server: {}", raw_response);
 
         let response: TransactionResponse = serde_json::from_str(&raw_response)?;
+
+        info!("Successfully retrieved transaction response");
+        Ok(response)
+    }
+
+    async fn get_blocks(
+        &self,
+        workchain: i32,
+        shard: Option<String>,
+        seqno: Option<i32>,
+        mc_seqno: Option<i32>,
+        start_utime: Option<i64>,
+        end_utime: Option<i64>,
+        start_lt: Option<i64>,
+        end_lt: Option<i64>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> Result<BlockResponse, Box<dyn Error>> {
+        info!("Fetching blocks by parameters");
+
+        let url = self.connection_conf.url.join("v3/blocks").map_err(|e| {
+            warn!("Failed to construct transactions URL: {:?}", e);
+            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+        })?;
+
+        info!("Constructed transactions URL: {}", url);
+
+        let query_params: Vec<(&str, String)> = vec![
+            ("workchain", workchain.to_string()),
+            ("shard", shard.unwrap_or_default()),
+            ("seqno", seqno.map_or("".to_string(), |s| s.to_string())),
+            (
+                "mc_seqno",
+                mc_seqno.map_or("".to_string(), |s| s.to_string()),
+            ),
+            (
+                "start_utime",
+                start_utime.map_or("".to_string(), |s| s.to_string()),
+            ),
+            (
+                "end_utime",
+                end_utime.map_or("".to_string(), |s| s.to_string()),
+            ),
+            (
+                "start_lt",
+                start_lt.map_or("".to_string(), |s| s.to_string()),
+            ),
+            ("end_lt", end_lt.map_or("".to_string(), |s| s.to_string())),
+            ("limit", limit.map_or("10".to_string(), |l| l.to_string())),
+            ("offset", offset.map_or("0".to_string(), |o| o.to_string())),
+            ("sort", sort.unwrap_or("desc".to_string())),
+        ]
+        .into_iter()
+        .filter(|(_, v)| !v.is_empty())
+        .collect();
+
+        info!("Query params:{:?}", query_params);
+
+        let raw_response = self
+            .http_client
+            .get(url)
+            .bearer_auth(&self.connection_conf.api_key)
+            .query(&query_params)
+            .header("accept", "application/json")
+            .header("Content-Type", "application/json")
+            .send()
+            .await
+            .expect("Failed")
+            .text()
+            .await
+            .expect("Failed");
+
+        info!("Raw response from server: {}", raw_response);
+
+        let response: BlockResponse = serde_json::from_str(&raw_response)?;
 
         info!("Successfully retrieved transaction response");
         Ok(response)

@@ -1,3 +1,4 @@
+use crate::types::block_response::BlockResponse;
 use crate::types::message::SendMessageResponse;
 use crate::types::{
     account_state::AccountStateResponse, message::MessageResponse,
@@ -73,4 +74,19 @@ pub trait TonApiCenter {
         body_hash: Option<String>,
         opcode: Option<String>,
     ) -> Result<TransactionResponse, Box<dyn std::error::Error>>;
+
+    async fn get_blocks(
+        &self,
+        workchain: i32,
+        shard: Option<String>,
+        seqno: Option<i32>,
+        mc_seqno: Option<i32>,
+        start_utime: Option<i64>,
+        end_utime: Option<i64>,
+        start_lt: Option<i64>,
+        end_lt: Option<i64>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> Result<BlockResponse, Box<dyn std::error::Error>>;
 }
