@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WalletState {
     pub address: String,
     pub is_wallet: bool,
@@ -15,13 +14,11 @@ pub struct WalletState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct AddressBookEntry {
     pub user_friendly: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WalletStatesResponse {
     pub wallets: Vec<WalletState>,
     pub address_book: std::collections::HashMap<String, AddressBookEntry>,
