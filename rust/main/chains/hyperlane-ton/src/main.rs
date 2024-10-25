@@ -30,7 +30,7 @@ mod contracts;
 mod trait_builder;
 mod traits;
 mod types;
-
+mod utils;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
