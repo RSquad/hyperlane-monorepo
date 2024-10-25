@@ -55,7 +55,7 @@ pub trait TonApiCenter {
         address: String,
         method: String,
         stack: Option<Vec<String>>,
-    ) -> Result<RunGetMethodResponse, Box<dyn std::error::Error>>;
+    ) -> Result<RunGetMethodResponse, Box<dyn std::error::Error + Send + Sync>>;
 
     async fn send_message(
         &self,
@@ -66,4 +66,11 @@ pub trait TonApiCenter {
         &self,
         account: String,
     ) -> Result<WalletStatesResponse, Box<dyn std::error::Error>>;
+
+    async fn get_transaction_by_message(
+        &self,
+        msg_hash: String,
+        body_hash: Option<String>,
+        opcode: Option<String>,
+    ) -> Result<TransactionResponse, Box<dyn std::error::Error>>;
 }

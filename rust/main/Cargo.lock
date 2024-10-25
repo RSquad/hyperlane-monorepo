@@ -4991,6 +4991,7 @@ dependencies = [
  "hex 0.4.3",
  "hyperlane-core",
  "log",
+ "num-bigint 0.4.6",
  "pretty_env_logger",
  "reqwest 0.11.27",
  "serde",
@@ -4998,6 +4999,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tonlib",
+ "tonlib-core",
  "tracing",
  "url",
 ]
@@ -10475,6 +10477,28 @@ dependencies = [
  "tokio",
  "tokio-retry",
  "tonlib-sys",
+]
+
+[[package]]
+name = "tonlib-core"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aee508bd4db6434109be41d5684f73770cd165ce6087573ec33b7c0e070a911d"
+dependencies = [
+ "base64 0.22.1",
+ "bitstream-io",
+ "crc",
+ "hex 0.4.3",
+ "hmac 0.12.1",
+ "lazy_static",
+ "nacl",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "pbkdf2 0.12.2",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "thiserror",
 ]
 
 [[package]]

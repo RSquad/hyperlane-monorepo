@@ -1,18 +1,24 @@
-use crate::client::provider::TonProvider;
-use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H256, H512, U256,
 };
+use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::num::NonZeroU64;
 use std::ops::RangeInclusive;
 use std::pin::Pin;
+use std::time::SystemTime;
 use tonlib::address::TonAddress;
+use tonlib::cell::{ArcCell, BagOfCells, CellBuilder};
+use tonlib::message::TransferMessage;
 use tracing::{debug, info, instrument, warn};
+
+use crate::client::provider::TonProvider;
+use crate::traits::ton_api_center::TonApiCenter;
+use crate::utils::conversion::{hyperlane_message_to_cell, metadata_to_cell};
 
 pub struct TonMailbox {
     pub mailbox_address: TonAddress,
@@ -42,7 +48,11 @@ impl Debug for TonMailbox {
         todo!()
     }
 }
-
+impl TonMailbox {
+    const DISPATCH_OPCODE: i32 = 0xf8cf866b;
+    const PROCESS_OPCODE: i32 = 0xea81949b;
+    const PROCESS_INIT: i32 = 0xba35fd5f;
+}
 #[async_trait]
 impl Mailbox for TonMailbox {
     async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
@@ -140,50 +150,89 @@ impl Mailbox for TonMailbox {
     }
 
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let response = self
+        let recipient_result = self
             .provider
-            .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_recipient_ism".to_string(),
-                Some(vec![format!("0x{}", recipient)]),
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Error calling run_get_method: {:?}",
-                    e
-                ))
-            })?;
+            .run_get_method(recipient.to_hex(), "get_recipient".to_string(), None)
+            .await;
 
-        if let Some(stack) = response.stack.first() {
-            if stack.r#type == "cell" {
-                // Decode the base64-encoded value
-                let decoded_value = base64::decode(&stack.value).map_err(|e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to decode base64 value from stack: {:?}",
-                        e
-                    ))
-                })?;
+        match recipient_result {
+            Ok(response) => {
+                if let Some(stack) = response.stack.first() {
+                    if stack.r#type == "cell" {
+                        let decoded_value = base64::decode(&stack.value).map_err(|e| {
+                            ChainCommunicationError::CustomError(format!(
+                                "Failed to decode base64 value from stack: {:?}",
+                                e
+                            ))
+                        })?;
 
-                // Ensure the decoded value is at least 32 bytes
-                if decoded_value.len() >= 32 {
-                    let ism_hash = H256::from_slice(&decoded_value[0..32]);
-                    Ok(ism_hash)
+                        if decoded_value.len() >= 32 {
+                            let ism_hash = H256::from_slice(&decoded_value[0..32]);
+                            return Ok(ism_hash);
+                        } else {
+                            return Err(ChainCommunicationError::CustomError(
+                                "Decoded value is too short for H256".to_string(),
+                            ));
+                        }
+                    } else {
+                        return Err(ChainCommunicationError::CustomError(format!(
+                            "Unexpected data type in stack: expected 'cell', got '{}'",
+                            stack.r#type
+                        )));
+                    }
+                } else {
+                    return Err(ChainCommunicationError::CustomError(
+                        "No data found in the response stack".to_string(),
+                    ));
+                }
+            }
+            Err(_) => {
+                let mailbox_response = self
+                    .provider
+                    .run_get_method(
+                        self.mailbox_address.to_hex(),
+                        "get_recipient_ism".to_string(),
+                        Some(vec![format!("0x{}", recipient)]),
+                    )
+                    .await
+                    .map_err(|e| {
+                        ChainCommunicationError::CustomError(format!(
+                            "Error calling run_get_method for mailbox: {:?}",
+                            e
+                        ))
+                    })?;
+
+                if let Some(stack) = mailbox_response.stack.first() {
+                    if stack.r#type == "cell" {
+                        // Декодируем значение из base64
+                        let decoded_value = base64::decode(&stack.value).map_err(|e| {
+                            ChainCommunicationError::CustomError(format!(
+                                "Failed to decode base64 value from stack: {:?}",
+                                e
+                            ))
+                        })?;
+
+                        // Проверяем, что декодированное значение имеет длину 32 байта
+                        if decoded_value.len() >= 32 {
+                            let ism_hash = H256::from_slice(&decoded_value[0..32]);
+                            Ok(ism_hash)
+                        } else {
+                            Err(ChainCommunicationError::CustomError(
+                                "Decoded value is too short for H256".to_string(),
+                            ))
+                        }
+                    } else {
+                        Err(ChainCommunicationError::CustomError(format!(
+                            "Unexpected data type in stack: expected 'cell', got '{}'",
+                            stack.r#type
+                        )))
+                    }
                 } else {
                     Err(ChainCommunicationError::CustomError(
-                        "Decoded value is too short for H256".to_string(),
+                        "No data found in the mailbox response stack".to_string(),
                     ))
                 }
-            } else {
-                Err(ChainCommunicationError::CustomError(format!(
-                    "Unexpected data type in stack: expected 'cell', got '{}'",
-                    stack.r#type
-                )))
             }
-        } else {
-            Err(ChainCommunicationError::CustomError(
-                "No data found in the response stack".to_string(),
-            ))
         }
     }
 
@@ -193,11 +242,58 @@ impl Mailbox for TonMailbox {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let boc = "".to_string();
+        let message_cell = message.to_cell();
+        let metadata_cell = metadata.to_cell();
 
-        let response = self.provider.send_message(boc).await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to send message: {:?}", e))
-        })?;
+        let mut writer = CellBuilder::new();
+        let msg = writer
+            .store_u32(32, Self::PROCESS_OPCODE)?
+            .store_u64(64, 1u64)?
+            .store_u32(32, Self::PROCESS_INIT)?
+            .store_u64(48, 2u64)?
+            .store_reference(&ArcCell::new(message_cell))?
+            .store_reference(&ArcCell::new(metadata_cell))?
+            .build()?;
+
+        let transfer_message = TransferMessage {
+            dest: &self.mailbox_address,
+            value: BigUint::from(1000000000u32),
+            state_init: None,
+            data: Some(ArcCell::new(msg.clone())),
+        }
+        .build()
+        .expect("Failed to create transferMessage");
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs() as u32;
+
+        let seqno = self
+            .provider
+            .get_account_state(wallet.address)
+            .await
+            .expect("");
+
+        let seqno = self.provider.get
+        let message = wallet
+            .create_external_message(
+                now + 60,
+                seqno,
+                vec![ArcCell::new(transfer_message.clone())],
+                false,
+            )
+            .expect("");
+
+        let boc = BagOfCells::from_root(message.clone()).serialize(true)?;
+        //let boc_str = base64::encode(boc.clone());
+
+        let response = self
+            .provider
+            .send_message(base64::encode(boc.clone()))
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to send message: {:?}", e))
+            })?;
 
         if response.message_hash.is_empty() {
             Err(ChainCommunicationError::CustomError(
