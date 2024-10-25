@@ -35,6 +35,33 @@ mod utils;
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
     info!("start");
+    let connection_config = TonConnectionConf::new(
+        Url::parse("https://testnet.toncenter.com/api/")?,
+        "".to_string(),
+    );
+    let ton_client = create_mainnet_client().await;
+    let http_client = Client::new();
+
+    let mnemonic = Mnemonic::new(vec!["Hello world!"], &None)?;
+    let key_pair = mnemonic.to_key_pair()?;
+    let wallet = TonWallet::derive_default(WalletVersion::V4R2, &key_pair)?;
+
+    let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Sepolia);
+
+    let mailbox = TonMailbox {
+        workchain: 0,
+        mailbox_address: TonAddress::from_base64_url(
+            "EQCN3_ItzxJH9gZtslpbCDN5JE5QhHnm_1azzCbUELZfSMfg",
+        )
+        .unwrap(),
+        provider: TonProvider {
+            ton_client,
+            http_client,
+            connection_conf: connection_config,
+            domain,
+        },
+        wallet,
+    };
 
     Ok(())
 }

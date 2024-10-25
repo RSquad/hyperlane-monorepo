@@ -34,6 +34,7 @@ pub struct TonMailbox {
     pub mailbox_address: TonAddress,
     pub provider: TonProvider,
     pub wallet: TonWallet,
+    pub workchain: i32, // -1 or 0 now
 }
 
 impl HyperlaneContract for TonMailbox {
@@ -352,11 +353,148 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        todo!()
+        let start_block = *range.start();
+        let end_block = *range.end();
+
+        let start_block_info = self
+            .mailbox
+            .provider
+            .get_blocks(
+                self.mailbox.workchain,
+                None,
+                Some(start_block as i32),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .expect("Failed to get start block info");
+        let end_block_info = self
+            .mailbox
+            .provider
+            .get_blocks(
+                self.mailbox.workchain,
+                None,
+                Some(end_block as i32),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to get start block info: {:?}",
+                    e
+                ))
+            })?;
+        //.expect("Failed to get start block info");
+
+        let start_utime = start_block_info.blocks[0]
+            .gen_utime
+            .parse::<i64>()
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to parse start_utime: {:?}",
+                    e
+                ))
+            })?;
+        let end_utime = end_block_info.blocks[0]
+            .gen_utime
+            .parse::<i64>()
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to parse end_utime: {:?}", e))
+            })?;
+
+        let message_response = self
+            .mailbox
+            .provider
+            .get_messages(
+                None,
+                None,
+                Some(self.mailbox.mailbox_address.to_hex()),
+                Some("null".to_string()),
+                Some(TonMailbox::DISPATCH_OPCODE.to_string()),
+                Some(start_utime),
+                Some(end_utime),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("desc".to_string()),
+            )
+            .await;
+        match message_response {
+            Ok(messages) => {
+                let mut events = vec![];
+                for message in messages.messages {
+                    let hyperlane_message = HyperlaneMessage {
+                        version: 0,
+                        nonce: 0,
+                        origin: 0,
+                        sender: Default::default(),
+                        destination: 0,
+                        recipient: Default::default(),
+                        body: base64::decode(&message.message_content.body)
+                            .expect("Invalid base64 body"),
+                    };
+                    let index_event = Indexed::from(hyperlane_message);
+                    let log_meta = LogMeta {
+                        address: Default::default(),
+                        block_number: 0,
+                        block_hash: Default::default(),
+                        transaction_id: Default::default(),
+                        transaction_index: 0,
+                        log_index: Default::default(),
+                    };
+                    events.push((index_event, log_meta));
+                }
+                Ok(events)
+            }
+            Err(e) => Err(ChainCommunicationError::CustomError(format!(
+                "Failed to fetch messages in range: {:?}",
+                e
+            ))),
+        }
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        todo!()
+        let response = self
+            .mailbox
+            .provider
+            .get_blocks(
+                self.mailbox.workchain,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(1),
+                None,
+                None,
+            )
+            .await
+            .expect("Failed to get latest block");
+
+        if let Some(block) = response.blocks.first() {
+            Ok(block.seqno as u32)
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "No blocks found".to_string(),
+            ))
+        }
     }
 }
 
