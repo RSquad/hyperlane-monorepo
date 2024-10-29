@@ -344,7 +344,7 @@ impl Mailbox for TonMailbox {
 
 #[derive(Debug)]
 pub struct TonMailboxIndexer {
-    mailbox: TonMailbox,
+    pub(crate) mailbox: TonMailbox,
 }
 
 #[async_trait]
