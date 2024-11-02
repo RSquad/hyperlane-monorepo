@@ -566,7 +566,7 @@ impl TonMailbox {
     }
 }
 
-fn build_message(
+pub(crate) fn build_message(
     message_cell: ArcCell,
     metadata_cell: ArcCell,
     query_id: u64,
