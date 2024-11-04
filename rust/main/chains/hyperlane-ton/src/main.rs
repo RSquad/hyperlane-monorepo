@@ -27,10 +27,12 @@ use reqwest::Client;
 
 mod client;
 mod contracts;
+mod signer;
 mod trait_builder;
 mod traits;
 mod types;
 mod utils;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
