@@ -270,6 +270,7 @@ impl Mailbox for TonMailbox {
         let block_number = 1;
 
         let msg = build_message(
+            TonMailbox::PROCESS_OPCODE,
             ArcCell::new(message_cell),
             ArcCell::new(metadata_cell),
             query_id,
@@ -326,7 +327,7 @@ impl Mailbox for TonMailbox {
             .expect("Failed to get tx");
         info!("Tx hash:{:?}", tx.message_hash);
 
-        self.wait_for_transaction(tx.message_hash).await
+        self.provider.wait_for_transaction(tx.message_hash).await
     }
 
     async fn process_estimate_costs(
@@ -508,65 +509,8 @@ impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
     }
 }
 
-impl TonMailbox {
-    async fn wait_for_transaction(&self, message_hash: String) -> ChainResult<TxOutcome> {
-        let max_attempts = 5;
-        let delay = Duration::from_secs(5);
-
-        for attempt in 1..=max_attempts {
-            info!("Attempt {}/{}", attempt, max_attempts);
-
-            match self
-                .provider
-                .get_transaction_by_message(message_hash.clone(), None, None)
-                .await
-            {
-                Ok(response) => {
-                    if response.transactions.is_empty() {
-                        log::info!("Transaction not found, retrying...");
-                    } else {
-                        log::info!(
-                            "Transaction found: {:?}",
-                            response
-                                .transactions
-                                .first()
-                                .expect("Failed to get first transaction from list")
-                        );
-
-                        if let Some(transaction) = response.transactions.first() {
-                            let tx_outcome = TxOutcome {
-                                transaction_id: H512::zero(), // at least now
-                                executed: !transaction.description.aborted,
-                                gas_used: U256::from_dec_str(
-                                    &transaction.description.compute_ph.gas_used,
-                                )
-                                .expect("Failed to parse gas used"),
-                                gas_price: FixedPointNumber::from(0),
-                            };
-
-                            log::info!("Tx outcome: {:?}", tx_outcome);
-                            return Ok(tx_outcome);
-                        }
-                    }
-                }
-                Err(e) => {
-                    info!("Transaction not found, retrying... {:?}", e);
-                    if attempt == max_attempts {
-                        return Err(ChainCommunicationError::CustomError(
-                            "Transaction not found after max attempts".to_string(),
-                        ));
-                    }
-                }
-            }
-
-            sleep(delay).await;
-        }
-
-        Err(ChainCommunicationError::CustomError("Timeout".to_string()))
-    }
-}
-
 pub(crate) fn build_message(
+    opcode: u32,
     message_cell: ArcCell,
     metadata_cell: ArcCell,
     query_id: u64,
@@ -574,7 +518,7 @@ pub(crate) fn build_message(
 ) -> Result<Cell, ChainCommunicationError> {
     let mut writer = CellBuilder::new();
     writer
-        .store_u32(32, TonMailbox::PROCESS_OPCODE)
+        .store_u32(32, opcode)
         .expect("Failed to store process opcode")
         .store_u64(64, query_id)
         .expect("Failed to store query_id")
