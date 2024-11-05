@@ -1,10 +1,13 @@
 use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
+use crate::traits::ton_api_center::TonApiCenter;
+use crate::types::run_get_method::GetMethodResponse;
 use async_trait::async_trait;
 use hyperlane_core::{
-    Announcement, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
+use log::warn;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::pin::Pin;
@@ -67,7 +70,38 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        todo!();
+        let function_name = "get_announced_storage_locations".to_string();
+        let response = self
+            .provider
+            .run_get_method(self.address.to_hex(), function_name, None)
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError("Failed to run get methdod".to_string())
+            });
+
+        match response {
+            GetMethodResponse::Success(result) => {
+                let locations = result
+                    .stack
+                    .into_iter()
+                    .map(|item| {
+                        item.to_string()
+                            .split(',')
+                            .map(|s| s.to_string())
+                            .collect::<Vec<String>>()
+                    })
+                    .collect::<Vec<Vec<String>>>();
+
+                Ok(locations)
+            }
+            GetMethodResponse::Error(error) => {
+                warn!("Error encountered: {:?}", error);
+                Err(ChainCommunicationError::CustomError(format!(
+                    "Error response: {}",
+                    error.error
+                )))
+            }
+        }
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
