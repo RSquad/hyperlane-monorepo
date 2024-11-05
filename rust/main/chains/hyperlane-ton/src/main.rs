@@ -1,6 +1,9 @@
 use crate::trait_builder::TonConnectionConf;
 use crate::traits::ton_api_center::TonApiCenter;
-use hyperlane_core::{HyperlaneDomain, HyperlaneProvider, KnownHyperlaneDomain, Mailbox, H256};
+use hyperlane_core::{
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule,
+    KnownHyperlaneDomain, Mailbox, H256,
+};
 use tonlib::cell::ArcCell;
 use tonlib::cell::CellSlice;
 use tonlib::client::TonClient;
@@ -20,6 +23,7 @@ use tonlib::{
 use url::Url;
 
 use crate::client::provider::TonProvider;
+use crate::contracts::interchain_security_module::TonInterchainSecurityModule;
 use crate::contracts::mailbox::TonMailbox;
 use log::info;
 use pretty_env_logger::env_logger;
@@ -39,14 +43,21 @@ async fn main() -> anyhow::Result<()> {
         Url::parse("https://testnet.toncenter.com/api/")?,
         "".to_string(),
     );
+    let mnemonic = Mnemonic::new(vec!["Hello world!"], &None)?;
+    let key_pair = mnemonic.to_key_pair()?;
     let ton_client = create_mainnet_client().await;
     let http_client = Client::new();
 
-    let mnemonic = Mnemonic::new(vec!["Hello world!"], &None)?;
-    let key_pair = mnemonic.to_key_pair()?;
     let wallet = TonWallet::derive_default(WalletVersion::V4R2, &key_pair)?;
 
     let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Sepolia);
+
+    let provider = TonProvider {
+        ton_client,
+        http_client,
+        connection_conf: connection_config,
+        domain,
+    };
 
     let mailbox = TonMailbox {
         workchain: 0,
@@ -54,13 +65,8 @@ async fn main() -> anyhow::Result<()> {
             "EQCN3_ItzxJH9gZtslpbCDN5JE5QhHnm_1azzCbUELZfSMfg",
         )
         .unwrap(),
-        provider: TonProvider {
-            ton_client,
-            http_client,
-            connection_conf: connection_config,
-            domain,
-        },
-        wallet,
+        provider: provider.clone(),
+        wallet: wallet.clone(),
     };
 
     Ok(())
