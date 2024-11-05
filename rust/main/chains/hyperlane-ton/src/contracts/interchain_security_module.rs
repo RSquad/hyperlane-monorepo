@@ -8,6 +8,7 @@ use hyperlane_core::{
 };
 use log::warn;
 use num_bigint::BigUint;
+use num_traits::cast::FromPrimitive;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::pin::Pin;
@@ -29,7 +30,10 @@ pub struct TonInterchainSecurityModule {
     pub wallet: TonWallet,
     pub workchain: i32, // -1 or 0
 }
-
+impl TonInterchainSecurityModule {
+    const VERIFY: u32 = 0x3b3cca17;
+    const GET_ISM: u32 = 0x8f32175;
+}
 impl Debug for TonInterchainSecurityModule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ton mailbox:")
@@ -63,41 +67,34 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         let response = self
             .provider
             .run_get_method(self.ism_address.to_hex(), function_name, None)
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError("Failed to run get methdod".to_string())
-            });
+            .await;
 
-        match response {
-            GetMethodResponse::Success(result) => {
-                if let Some(stack_item) = result.stack.get(0) {
-                    let module_type_value =
-                        u32::from_str_radix(&stack_item.value, 10).map_err(|_| {
-                            ChainCommunicationError::CustomError(
-                                "Failed to parse module type value".to_string(),
-                            )
-                        })?;
-
-                    match ModuleType::from_u32(module_type_value) {
-                        Some(module_type) => Ok(module_type),
-                        None => {
-                            warn!("Unknown module type: {}", module_type_value);
-                            Ok(ModuleType::Unused)
-                        }
+        if let Ok(response) = response {
+            info!("Response runGetMethod:{:?}", response);
+            if let Some(stack_item) = response.stack.get(0) {
+                if let Ok(module_type_value) = u32::from_str_radix(&stack_item.value[2..], 16) {
+                    info!("Module type value:{:?}", module_type_value);
+                    if let Some(module_type) = ModuleType::from_u32(module_type_value) {
+                        info!("Module Type:{:?}", module_type);
+                        Ok(module_type)
+                    } else {
+                        warn!("Unknown module type:{:?}", module_type_value);
+                        Ok(ModuleType::Unused)
                     }
                 } else {
                     Err(ChainCommunicationError::CustomError(
-                        "No return data for module type".to_string(),
+                        "Failed to parse module type value".to_string(),
                     ))
                 }
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "Empty stack in response".to_string(),
+                ))
             }
-            GetMethodResponse::Error(error) => {
-                warn!("Error encountered: {:?}", error);
-                Err(ChainCommunicationError::CustomError(format!(
-                    "Error response: {}",
-                    error.error
-                )))
-            }
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "Failed to get response".to_string(),
+            ))
         }
     }
 
@@ -108,8 +105,10 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
     ) -> ChainResult<Option<U256>> {
         info!("Let's build process");
         let message_t = hyperlane_message_to_message(message).expect("Failed to build");
+        info!("Message_t:{:?}", message_t);
 
         let message_cell = message_t.to_cell();
+        info!("message_cell:{:?}", message_cell);
 
         let metadata_cell = metadata_to_cell(metadata).expect("Failed to get cell");
         info!("Metadata:{:?}", metadata_cell);
@@ -118,6 +117,7 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         let block_number = 1;
 
         let msg = crate::contracts::mailbox::build_message(
+            TonInterchainSecurityModule::VERIFY,
             ArcCell::new(message_cell),
             ArcCell::new(metadata_cell),
             query_id,
@@ -174,7 +174,10 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             .expect("Failed to get tx");
         info!("Tx hash:{:?}", tx.message_hash);
 
-        //self.wait_for_transaction(tx.message_hash).await;
-        todo!()
+        let result = self.provider.wait_for_transaction(tx.message_hash).await;
+        match result {
+            Ok(gas_estimate) => Ok(Some(gas_estimate.gas_used)),
+            Err(e) => Ok(None),
+        }
     }
 }
