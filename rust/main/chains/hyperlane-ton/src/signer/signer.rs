@@ -16,12 +16,9 @@ pub struct TonSigner {
 }
 
 impl TonSigner {
-    pub fn new(
-        key_pair: KeyPair,
-        wallet_version: WalletVersion,
-    ) -> Result<Self, HyperlaneSignerError> {
-        let wallet = TonWallet::derive_default(wallet_version, &key_pair)
-            .map_err(|e| HyperlaneSignerError::CustomError(e.to_string()))?;
+    pub fn new(key_pair: KeyPair, wallet_version: WalletVersion) -> Result<Self, Error> {
+        let wallet =
+            TonWallet::derive_default(wallet_version, &key_pair).map_err(|e| Error::new(e))?;
 
         Ok(TonSigner {
             address: wallet.address.clone(),
@@ -33,7 +30,7 @@ impl TonSigner {
         let signature = self
             .wallet
             .sign_external_body(body)
-            .map_err(|e| HyperlaneSignerError::CustomError(e.to_string()))?;
+            .map_err(|e| Error::new(e))?;
 
         Ok(signature.data().to_vec())
     }
