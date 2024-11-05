@@ -1,6 +1,7 @@
 use crate::client::provider::TonProvider;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::types::run_get_method::GetMethodResponse;
+use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
@@ -10,6 +11,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::str::FromStr;
 use tonlib::address::TonAddress;
+use tracing::info;
 
 #[derive(Clone, Debug)]
 pub struct TonMultisigIsm {
@@ -35,6 +37,7 @@ impl HyperlaneContract for TonMultisigIsm {
     }
 }
 
+#[async_trait]
 impl MultisigIsm for TonMultisigIsm {
     async fn validators_and_threshold(
         &self,
@@ -44,47 +47,57 @@ impl MultisigIsm for TonMultisigIsm {
         let response = self
             .provider
             .run_get_method(self.multisig_address.to_hex(), function_name, None)
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError("Failed to run get methdod".to_string())
-            });
+            .await;
 
-        match response {
-            GetMethodResponse::Success(result) => {
-                let threshold = if let Some(threshold_item) = result.stack.get(0) {
-                    threshold_item.value.parse::<u8>().map_err(|_| {
-                        ChainCommunicationError::CustomError(
-                            "Failed to parse threshold value".to_string(),
-                        )
-                    })?
-                } else {
-                    return Err(ChainCommunicationError::CustomError(
-                        "No threshold data found".to_string(),
-                    ));
-                };
+        if let Ok(response) = response {
+            info!("Response runGetMethod: {:?}", response);
+            if let Some(stack_item_validators) = response.stack.get(0) {
+                let validators_hex = stack_item_validators.value.trim_start_matches("0x");
+                let mut validators = Vec::new();
 
-                let validators: ChainResult<Vec<H256>> = result
-                    .stack
-                    .iter()
-                    .skip(1)
-                    .map(|validator_item| {
-                        H256::from_str(&validator_item.value).map_err(|_| {
-                            ChainCommunicationError::CustomError(
+                for chunk in validators_hex.as_bytes().chunks(64) {
+                    if let Ok(hex_str) = std::str::from_utf8(chunk) {
+                        if let Ok(val) = H256::from_str(hex_str) {
+                            validators.push(val);
+                        } else {
+                            return Err(ChainCommunicationError::CustomError(
                                 "Failed to parse validator address".to_string(),
-                            )
-                        })
-                    })
-                    .collect();
+                            ));
+                        }
+                    } else {
+                        return Err(ChainCommunicationError::CustomError(
+                            "Invalid UTF-8 sequence in validator address".to_string(),
+                        ));
+                    }
+                }
 
-                Ok((validators?, threshold))
+                if let Some(stack_item_threshold) = response.stack.get(1) {
+                    if let Ok(threshold) = u8::from_str_radix(&stack_item_threshold.value[2..], 16)
+                    {
+                        info!(
+                            "Parsed validators: {:?}, threshold: {:?}",
+                            validators, threshold
+                        );
+                        Ok((validators, threshold))
+                    } else {
+                        Err(ChainCommunicationError::CustomError(
+                            "Failed to parse threshold".to_string(),
+                        ))
+                    }
+                } else {
+                    Err(ChainCommunicationError::CustomError(
+                        "Missing threshold in stack response".to_string(),
+                    ))
+                }
+            } else {
+                Err(ChainCommunicationError::CustomError(
+                    "Empty stack in response".to_string(),
+                ))
             }
-            GetMethodResponse::Error(error) => {
-                warn!("Error encountered: {:?}", error);
-                Err(ChainCommunicationError::CustomError(format!(
-                    "Error response: {}",
-                    error.error
-                )))
-            }
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "Failed to get response".to_string(),
+            ))
         }
     }
 }
