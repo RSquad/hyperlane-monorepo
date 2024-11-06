@@ -4,15 +4,17 @@ use log::{debug, info, warn};
 use std::error::Error;
 use std::ops::Add;
 use std::sync::Arc;
+use std::time::Duration;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, HyperlaneChain,
-    HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneDomainProtocol,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, FixedPointNumber,
+    HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneDomainProtocol,
     HyperlaneDomainTechnicalStack, HyperlaneDomainType, HyperlaneProvider, HyperlaneProviderError,
-    TxnInfo, TxnReceiptInfo, H256, U256,
+    TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use reqwest::{Client, Response};
 use serde_json::json;
+use tokio::time::sleep;
 use tokio::{sync::RwLock, time::Sleep};
 
 use tonlib::tl::{AccountState, BlockIdExt};
@@ -659,5 +661,62 @@ impl TonApiCenter for TonProvider {
 
         info!("Successfully retrieved transaction response");
         Ok(response)
+    }
+}
+
+impl TonProvider {
+    pub async fn wait_for_transaction(&self, message_hash: String) -> ChainResult<TxOutcome> {
+        let max_attempts = 5;
+        let delay = Duration::from_secs(5);
+
+        for attempt in 1..=max_attempts {
+            tracing::info!("Attempt {}/{}", attempt, max_attempts);
+
+            match self
+                .get_transaction_by_message(message_hash.clone(), None, None)
+                .await
+            {
+                Ok(response) => {
+                    if response.transactions.is_empty() {
+                        info!("Transaction not found, retrying...");
+                    } else {
+                        info!(
+                            "Transaction found: {:?}",
+                            response
+                                .transactions
+                                .first()
+                                .expect("Failed to get first transaction from list")
+                        );
+
+                        if let Some(transaction) = response.transactions.first() {
+                            let tx_outcome = TxOutcome {
+                                transaction_id: H512::zero(), // at least now
+                                executed: !transaction.description.aborted,
+                                gas_used: U256::from_dec_str(
+                                    &transaction.description.compute_ph.gas_used,
+                                )
+                                .expect("Failed to parse gas used"),
+                                gas_price: FixedPointNumber::from(0),
+                            };
+
+                            info!("Tx outcome: {:?}", tx_outcome);
+                            return Ok(tx_outcome);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::info!("Transaction not found, retrying... {:?}", e);
+                    if attempt == max_attempts {
+                        return Err(ChainCommunicationError::CustomError(
+                            "Transaction not found after max attempts".to_string(),
+                        ));
+                    }
+                }
+            }
+
+            sleep(delay).await;
+        }
+
+        Err(ChainCommunicationError::CustomError("Timeout".to_string()))
     }
 }
