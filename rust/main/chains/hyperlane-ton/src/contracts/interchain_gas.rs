@@ -69,15 +69,15 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
         let start_block_info = self
             .provider
             .get_blocks(
-                self.workchain,
-                Some("8000000000000000".to_string()),
-                Some(start_block as i32),
+                -1,                       //  masterchain (workchain = -1)
+                None,                     // shard
+                None,                     // block seqno
+                Some(start_block as i32), // masterchain seqno
                 None,
                 None,
                 None,
                 None,
-                None,
-                None,
+                None, // limit
                 None,
                 None,
             )
@@ -90,10 +90,10 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
         let end_block_info = self
             .provider
             .get_blocks(
-                self.workchain,
-                Some("6000000000000000".to_string()),
-                Some(end_block as i32),
-                None,
+                -1,                     //  masterchain (workchain = -1)
+                None,                   // shard
+                None,                   // block seqno
+                Some(end_block as i32), // masterchain seqno
                 None,
                 None,
                 None,
