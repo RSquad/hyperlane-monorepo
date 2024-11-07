@@ -8,6 +8,22 @@ use tonlib::{
     cell::{Cell, CellBuilder},
 };
 
+pub struct ConversionUtils;
+
+impl ConversionUtils {
+    pub fn base64_to_H512(hash: &str) -> Result<H512, Error> {
+        let decoded = base64::decode(hash)
+            .map_err(|e| Error::msg(format!("Failed to decode base64 hash: {}", e)))?;
+        if decoded.len() > 64 {
+            return Err(Error::msg("Decoded hash length exceeds 64 bytes"));
+        }
+        let mut padded = [0u8; 64];
+        padded[..decoded.len()].copy_from_slice(&decoded);
+
+        Ok(H512::from_slice(&padded))
+    }
+}
+
 pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, anyhow::Error> {
     let mut writer = CellBuilder::new();
     let cell = writer
@@ -130,5 +146,34 @@ impl Message {
             .expect("");
 
         cell
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ConversionUtils;
+    use hyperlane_core::{HyperlaneContract, HyperlaneMessage, H256, H512, U256};
+
+    #[test]
+    fn test_base64_to_h512_valid() {
+        let hash_str = "emUQnddCZvrUNaMmy0eYGzRtHAVsdniV0x7EBpK6ON4=";
+        let expected = H512::from_slice(&[
+            0x7a, 0x65, 0x10, 0x9d, 0xd7, 0x42, 0x66, 0xfa, 0xd4, 0x35, 0xa3, 0x26, 0xcb, 0x47,
+            0x98, 0x1b, 0x34, 0x6d, 0x1c, 0x05, 0x6c, 0x76, 0x78, 0x95, 0xd3, 0x1e, 0xc4, 0x06,
+            0x92, 0xba, 0x38, 0xde, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ]);
+
+        let result = ConversionUtils::base64_to_H512(hash_str).expect("Conversion failed");
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_base64_to_h512_invalid() {
+        let invalid_hash_str = "invalid_base64_string";
+
+        let result = ConversionUtils::base64_to_H512(invalid_hash_str);
+        assert!(result.is_err(), "Expected an error for invalid input");
     }
 }
