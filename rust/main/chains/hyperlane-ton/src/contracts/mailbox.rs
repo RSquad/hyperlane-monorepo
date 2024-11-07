@@ -361,15 +361,15 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             .mailbox
             .provider
             .get_blocks(
-                self.mailbox.workchain,
-                None,
-                Some(start_block as i32),
-                None,
-                None,
-                None,
+                -1,                       //  masterchain (workchain = -1)
+                None,                     // shard
+                None,                     // Block block seqno
+                Some(start_block as i32), // Masterchain block seqno
                 None,
                 None,
                 None,
+                None,
+                None, // limit
                 None,
                 None,
             )
@@ -379,10 +379,10 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             .mailbox
             .provider
             .get_blocks(
-                self.mailbox.workchain,
-                None,
-                Some(end_block as i32),
-                None,
+                -1,                     //  masterchain (workchain = -1)
+                None,                   // shard
+                None,                   // Block block seqno
+                Some(end_block as i32), // Masterchain block seqno
                 None,
                 None,
                 None,
