@@ -182,7 +182,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
         let response = self
             .provider
             .get_blocks(
-                self.workchain,
+                -1,
                 None,
                 None,
                 None,
