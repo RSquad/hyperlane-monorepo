@@ -474,7 +474,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             .mailbox
             .provider
             .get_blocks(
-                self.mailbox.workchain,
+                -1,
                 None,
                 None,
                 None,
