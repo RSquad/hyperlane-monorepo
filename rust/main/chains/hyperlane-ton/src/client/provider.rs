@@ -31,6 +31,7 @@ use crate::types::block_response::BlockResponse;
 use crate::types::message::SendMessageResponse;
 use crate::types::run_get_method::RunGetMethodResponse;
 use crate::types::wallet_state::WalletStatesResponse;
+use crate::utils::conversion::ConversionUtils;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
@@ -689,8 +690,16 @@ impl TonProvider {
                         );
 
                         if let Some(transaction) = response.transactions.first() {
+                            let transaction_id = ConversionUtils::base64_to_H512(&transaction.hash)
+                                .map_err(|e| {
+                                    ChainCommunicationError::CustomError(format!(
+                                        "Failed to convert hash to H512: {:?}",
+                                        e
+                                    ))
+                                })?;
+
                             let tx_outcome = TxOutcome {
-                                transaction_id: H512::zero(), // at least now
+                                transaction_id, // at least now
                                 executed: !transaction.description.aborted,
                                 gas_used: U256::from_dec_str(
                                     &transaction.description.compute_ph.gas_used,

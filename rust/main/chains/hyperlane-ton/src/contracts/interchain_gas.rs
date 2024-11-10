@@ -7,11 +7,14 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, InterchainGasPayment, LogMeta, Mailbox,
     SequenceAwareIndexer, H256, H512, U256,
 };
+use log::info;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::ops::RangeInclusive;
 use std::pin::Pin;
 use std::string::ToString;
+use std::time::Duration;
+use tokio::time::sleep;
 use tonlib::address::TonAddress;
 use tonlib::wallet::TonWallet;
 
@@ -66,27 +69,31 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
         let start_block_info = self
             .provider
             .get_blocks(
-                self.workchain,
-                None,
-                Some(start_block as i32),
-                None,
-                None,
-                None,
+                -1,                       //  masterchain (workchain = -1)
+                None,                     // shard
+                None,                     // block seqno
+                Some(start_block as i32), // masterchain seqno
                 None,
                 None,
                 None,
+                None,
+                None, // limit
                 None,
                 None,
             )
             .await
             .expect("Failed to get start block info");
+        info!("Start block info:{:?}", start_block_info);
+
+        sleep(Duration::from_secs(5)).await;
+
         let end_block_info = self
             .provider
             .get_blocks(
-                self.workchain,
-                None,
-                Some(end_block as i32),
-                None,
+                -1,                     //  masterchain (workchain = -1)
+                None,                   // shard
+                None,                   // block seqno
+                Some(end_block as i32), // masterchain seqno
                 None,
                 None,
                 None,
@@ -96,13 +103,9 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
                 None,
             )
             .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to get start block info: {:?}",
-                    e
-                ))
-            })?;
-        //.expect("Failed to get start block info");
+            .expect("Failed to get end block info");
+
+        info!("End block info:{:?}", start_block_info);
 
         let start_utime = start_block_info.blocks[0]
             .gen_utime
@@ -141,10 +144,13 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
             .await;
         match message_response {
             Ok(messages) => {
+                info!("Messages:{:?}", messages);
+
                 let mut events = vec![];
                 for message in messages.messages {
                     let body_data =
                         base64::decode(&message.message_content.body).expect("Invalid base64 body");
+                    info!("Body:{:?}", body_data);
 
                     let interchain_gas_payment = InterchainGasPayment {
                         message_id: H256::from_slice(&body_data[0..32]), //Default::default(),
@@ -176,7 +182,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
         let response = self
             .provider
             .get_blocks(
-                self.workchain,
+                -1,
                 None,
                 None,
                 None,
