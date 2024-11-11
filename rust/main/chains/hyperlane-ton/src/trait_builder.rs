@@ -1,9 +1,12 @@
+use std::time::Duration;
 use url::Url;
 
 #[derive(Clone, Debug)]
 pub struct TonConnectionConf {
     pub url: Url,
     pub api_key: String,
+    pub max_attempts: u8,
+    pub timeout: Duration,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -20,7 +23,12 @@ pub enum TonConnectionConfError {
 }
 
 impl TonConnectionConf {
-    pub fn new(url: Url, api_key: String) -> Self {
-        Self { url, api_key }
+    pub fn new(url: Url, api_key: String, max_attempts: u8, timeout: Duration) -> Self {
+        Self {
+            url,
+            api_key,
+            max_attempts,
+            timeout,
+        }
     }
 }

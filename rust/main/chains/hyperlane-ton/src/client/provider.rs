@@ -1,10 +1,7 @@
 use async_trait::async_trait;
 use derive_new::new;
 use log::{debug, info, warn};
-use std::error::Error;
-use std::ops::Add;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{error::Error, ops::Add, sync::Arc, time::Duration};
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, FixedPointNumber,
@@ -14,28 +11,30 @@ use hyperlane_core::{
 };
 use reqwest::{Client, Response};
 use serde_json::json;
-use tokio::time::sleep;
-use tokio::{sync::RwLock, time::Sleep};
+use tokio::{
+    sync::RwLock,
+    time::{sleep, Sleep},
+};
 
-use tonlib::tl::{AccountState, BlockIdExt};
 use tonlib::{
     address::{TonAddress, TonAddressParseError},
     client::{
         TonClient, TonClientBuilder, TonClientError, TonClientInterface, TonConnection,
         TonConnectionParams,
     },
+    tl::{AccountState, BlockIdExt},
 };
 
-use crate::types::account_state::AccountStateResponse;
-use crate::types::block_response::BlockResponse;
-use crate::types::message::SendMessageResponse;
-use crate::types::run_get_method::RunGetMethodResponse;
-use crate::types::wallet_state::WalletStatesResponse;
-use crate::utils::conversion::ConversionUtils;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
-    types::{message::MessageResponse, transaction::TransactionResponse},
+    types::{
+        account_state::AccountStateResponse, block_response::BlockResponse,
+        message::MessageResponse, message::SendMessageResponse,
+        run_get_method::RunGetMethodResponse, transaction::TransactionResponse,
+        wallet_state::WalletStatesResponse,
+    },
+    utils::conversion::ConversionUtils,
 };
 
 #[derive(Clone, new)]
@@ -457,19 +456,38 @@ impl TonApiCenter for TonProvider {
             .header("Content-Type", "application/json")
             .json(&params)
             .send()
-            .await?;
+            .await
+            .map_err(|e| {
+                warn!("Error sending request: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
 
-        let response_text = response.text().await?;
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Failed to get response text".to_string());
+            warn!("Request failed with status: {}, body: {}", status, body);
+            return Err(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Request failed with status: {}", status),
+            )) as Box<dyn Error + Send + Sync>);
+        }
+
+        let response_text = response.text().await.map_err(|e| {
+            warn!("Error retrieving response text: {:?}", e);
+            Box::new(e) as Box<dyn Error + Send + Sync>
+        })?;
         info!("Received response text: {:?}", response_text);
 
         let parsed_response = serde_json::from_str::<RunGetMethodResponse>(&response_text)
             .map_err(|e| {
                 warn!("Error parsing JSON response: {:?}", e);
-                Box::new(e) as Box<dyn Error>
-            })
-            .expect("Fauled");
+                Box::new(e) as Box<dyn Error + Send + Sync>
+            })?;
 
-        info!("Successfully run get method request");
+        info!("Successfully executed run_get_method request");
         Ok(parsed_response)
     }
 
@@ -667,8 +685,8 @@ impl TonApiCenter for TonProvider {
 
 impl TonProvider {
     pub async fn wait_for_transaction(&self, message_hash: String) -> ChainResult<TxOutcome> {
-        let max_attempts = 5;
-        let delay = Duration::from_secs(5);
+        let max_attempts = self.connection_conf.max_attempts;
+        let delay = self.connection_conf.timeout;
 
         for attempt in 1..=max_attempts {
             tracing::info!("Attempt {}/{}", attempt, max_attempts);
@@ -704,7 +722,10 @@ impl TonProvider {
                                 gas_used: U256::from_dec_str(
                                     &transaction.description.compute_ph.gas_used,
                                 )
-                                .expect("Failed to parse gas used"),
+                                .unwrap_or_else(|_| {
+                                    warn!("Failed to parse gas used; defaulting to 0.");
+                                    U256::zero()
+                                }),
                                 gas_price: FixedPointNumber::from(0),
                             };
 
