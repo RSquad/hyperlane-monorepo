@@ -4,6 +4,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule,
     KnownHyperlaneDomain, Mailbox, H256,
 };
+use std::time::Duration;
 use tonlib::cell::ArcCell;
 use tonlib::cell::CellSlice;
 use tonlib::client::TonClient;
@@ -44,6 +45,8 @@ async fn main() -> anyhow::Result<()> {
     let connection_config = TonConnectionConf::new(
         Url::parse("https://testnet.toncenter.com/api/")?,
         "".to_string(),
+        5,
+        Duration::from_secs(3),
     );
     let mnemonic = Mnemonic::new(vec!["Hello world!"], &None)?;
     let key_pair = mnemonic.to_key_pair()?;

@@ -300,13 +300,13 @@ impl TonApiCenter for TonProvider {
                     }
                     Err(e) => {
                         warn!("Error parsing message response: {:?}", e);
-                        Err(Box::new(e) as Box<dyn std::error::Error>)
+                        Err(Box::new(e) as Box<dyn Error>)
                     }
                 }
             }
             Err(e) => {
                 warn!("Error retrieving message response text: {:?}", e);
-                Err(Box::new(e) as Box<dyn std::error::Error>)
+                Err(Box::new(e) as Box<dyn Error>)
             }
         }
     }
@@ -669,10 +669,16 @@ impl TonApiCenter for TonProvider {
             .header("Content-Type", "application/json")
             .send()
             .await
-            .expect("Failed")
+            .map_err(|e| {
+                warn!("Error sending request to fetch blocks: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?
             .text()
             .await
-            .expect("Failed");
+            .map_err(|e| {
+                warn!("Error reading response text while fetching blocks: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })?;
 
         info!("Raw response from server: {}", raw_response);
 
