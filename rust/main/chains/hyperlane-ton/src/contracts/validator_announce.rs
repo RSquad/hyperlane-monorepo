@@ -1,22 +1,20 @@
 use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
-use crate::types::run_get_method::GetMethodResponse;
+use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
-use log::warn;
+
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
-use std::pin::Pin;
-use tonlib::{
-    address::TonAddress,
+use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
     message::TransferMessage,
     mnemonic::Mnemonic,
     wallet::{TonWallet, WalletVersion},
+    TonAddress,
 };
 
 pub struct TonValidatorAnnounce {
@@ -71,36 +69,83 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
         let function_name = "get_announced_storage_locations".to_string();
+        let validators_h160: Vec<H160> = validators
+            .iter()
+            .map(|v| {
+                // Assuming H256 to H160 conversion just takes the first 20 bytes
+                H160::from_slice(&v.as_bytes()[..20])
+            })
+            .collect();
+
+        let validators_cell = ConversionUtils::create_address_linked_cells(&validators_h160)
+            .map_err(|_| {
+                ChainCommunicationError::CustomError(
+                    "Failed to create address linked cells".to_string(),
+                )
+            })?;
+
+        let boc = BagOfCells::from_root(validators_cell)
+            .serialize(true)
+            .map_err(|e| {
+                ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
+            })?;
+        let boc_str = base64::encode(&boc);
+
+        let stack = Some(vec![boc_str]);
+
         let response = self
             .provider
-            .run_get_method(self.address.to_hex(), function_name, None)
+            .run_get_method(self.address.to_hex(), function_name, stack)
             .await
             .map_err(|e| {
                 ChainCommunicationError::CustomError("Failed to run get methdod".to_string())
-            });
+            })?;
 
-        match response {
-            GetMethodResponse::Success(result) => {
-                let locations = result
-                    .stack
-                    .into_iter()
-                    .map(|item| {
-                        item.to_string()
-                            .split(',')
-                            .map(|s| s.to_string())
-                            .collect::<Vec<String>>()
-                    })
-                    .collect::<Vec<Vec<String>>>();
+        if response.exit_code != 0 {
+            return Err(ChainCommunicationError::CustomError(format!(
+                "Non-zero exit code in response: {}",
+                response.exit_code
+            )));
+        }
 
-                Ok(locations)
-            }
-            GetMethodResponse::Error(error) => {
-                warn!("Error encountered: {:?}", error);
-                Err(ChainCommunicationError::CustomError(format!(
-                    "Error response: {}",
-                    error.error
-                )))
-            }
+        if let Some(stack_item) = response.stack.get(0) {
+            // Assuming `StackItem` has a field `value` that is the base64-encoded cell BOC
+            let cell_boc = base64::decode(&stack_item.value).map_err(|_| {
+                ChainCommunicationError::CustomError(
+                    "Failed to decode cell BOC from response".to_string(),
+                )
+            })?;
+
+            let cell_boc_decoded = base64::decode(&stack_item.value).map_err(|_| {
+                ChainCommunicationError::CustomError(
+                    "Failed to decode cell BOC from response".to_string(),
+                )
+            })?;
+
+            let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", e))
+            })?;
+
+            let cell = boc.single_root().map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", e))
+            })?;
+
+            let storage_locations = ConversionUtils::parse_address_storage_locations(&cell)
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to parse address storage locations: {}",
+                        e
+                    ))
+                })?;
+
+            // Convert HashMap<BigUint, Vec<String>> to Vec<Vec<String>>
+            let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
+
+            Ok(locations_vec)
+        } else {
+            Err(ChainCommunicationError::CustomError(
+                "Empty stack in response".to_string(),
+            ))
         }
     }
 
