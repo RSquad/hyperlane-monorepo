@@ -1,17 +1,16 @@
 use crate::runtime_test::create_address_linked_cells;
 use anyhow::Error;
+use hex::FromHex;
 use hyperlane_core::{HyperlaneContract, HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
+use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tonlib::cell::ArcCell;
-use tonlib::{
-    address::TonAddress,
-    cell::{Cell, CellBuilder},
-};
+
 use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
-use tonlib_core::cell::{BagOfCells, TonCellError};
+use tonlib_core::cell::{ArcCell, BagOfCells, Cell, CellBuilder, TonCellError};
+use tonlib_core::TonAddress;
 
 pub struct ConversionUtils;
 
@@ -161,7 +160,7 @@ impl ConversionUtils {
         Ok(storage_locations)
     }
     /// Decodes a Base64 string into a `BagOfCells` and returns the root cell.
-    fn parse_root_cell_from_boc(
+    pub fn parse_root_cell_from_boc(
         boc_base64: &str,
     ) -> Result<Arc<tonlib_core::cell::Cell>, TonCellError> {
         let boc_bytes = base64::decode(boc_base64).map_err(|_| {
@@ -174,6 +173,33 @@ impl ConversionUtils {
         let root_cell = boc.single_root()?.clone();
 
         Ok(root_cell)
+    }
+    /// Parses the first address from a BOC (Bag of Cells) encoded as a Base64 string.
+    /// This function decodes the BOC, extracts the root cell, and retrieves the address stored in it.
+    pub async fn parse_address_from_boc(boc: &str) -> Result<TonAddress, TonCellError> {
+        let cell = Self::parse_root_cell_from_boc(boc)?;
+        let mut parser = cell.parser();
+        let address = parser.load_address()?;
+        info!("Parsed address from BOC: {:?}", address);
+        Ok(address)
+    }
+    pub fn ton_address_to_h256(address: &TonAddress) -> Result<H256, String> {
+        let address_hex = address.to_hex();
+        let clean_hex = address_hex.trim_start_matches(&format!("{}:", address.workchain));
+
+        let bytes =
+            <[u8; 32]>::from_hex(clean_hex).map_err(|e| format!("Failed to parse hex: {:?}", e))?;
+
+        info!("H256: {:?}", H256::from(bytes));
+        Ok(H256::from(bytes))
+    }
+    pub fn u256_to_biguint(value: U256) -> BigUint {
+        let mut bytes = [0u8; 32]; // 256 bit = 32 byte
+        value.to_little_endian(&mut bytes);
+        BigUint::from_bytes_le(&bytes)
+    }
+    pub fn parse_data_cell(data: &ArcCell) -> Result<HyperlaneMessage, anyhow::Error> {
+        todo!();
     }
 }
 pub struct Metadata {
@@ -264,6 +290,8 @@ mod tests {
     use crate::runtime_test::create_address_linked_cells;
     use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
     use log::info;
+    use num_bigint::BigUint;
+    use num_traits::Zero;
 
     #[test]
     fn test_base64_to_h512_valid() {
@@ -332,5 +360,28 @@ mod tests {
 
         // Ensure the root cell is parsed correctly
         assert!(root_cell.bit_len() > 0);
+    }
+    #[test]
+    fn test_u256_to_biguint_zero() {
+        // Create a U256 value of 0
+        let u256_value = U256::zero();
+
+        // Convert to BigUint
+        let biguint_value = ConversionUtils::u256_to_biguint(u256_value);
+
+        // Verify correctness
+        assert_eq!(biguint_value, BigUint::zero());
+    }
+    fn test_u256_to_biguint_conversion() {
+        // Create a U256 value
+        let u256_value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
+
+        // Convert to BigUint
+        let biguint_value = ConversionUtils::u256_to_biguint(u256_value);
+
+        // Verify correctness
+        let expected_value =
+            BigUint::parse_bytes(b"1234567890123456789012345678901234567890", 10).unwrap();
+        assert_eq!(biguint_value, expected_value);
     }
 }
