@@ -28,6 +28,8 @@ hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] 
 tokio = { workspace = true, version = "1.4", features = ["full"] }
 
 reqwest = { workspace = true, version = "0.11", features = ["json"] }
+tonlib-core = "0.20.3"
 
+# tonlib = { git = "https://github.com/ston-fi/tonlib-rs.git", branch = "release-0.19", package = "tonlib" }
 tonlib = "0.17.6"
-tonlib-core = "=0.19.2"
+# tonlib-core = "=0.19.2"

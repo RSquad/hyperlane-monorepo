@@ -1,12 +1,17 @@
+use crate::runtime_test::create_address_linked_cells;
 use anyhow::Error;
-use hyperlane_core::{HyperlaneContract, HyperlaneMessage, H256, H512, U256};
+use hyperlane_core::{HyperlaneContract, HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
+use std::collections::HashMap;
+use std::sync::Arc;
 use tonlib::cell::ArcCell;
 use tonlib::{
     address::TonAddress,
     cell::{Cell, CellBuilder},
 };
+use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
+use tonlib_core::cell::{BagOfCells, TonCellError};
 
 pub struct ConversionUtils;
 
@@ -22,50 +27,154 @@ impl ConversionUtils {
 
         Ok(H512::from_slice(&padded))
     }
-}
 
-pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, anyhow::Error> {
-    let mut writer = CellBuilder::new();
-    let cell = writer
-        .store_slice(metadata)
-        .expect("Failed to store signature")
-        .build()
-        .expect("Failed build");
+    pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, anyhow::Error> {
+        let mut writer = CellBuilder::new();
+        let cell = writer
+            .store_slice(metadata)
+            .expect("Failed to store signature")
+            .build()
+            .expect("Failed build");
 
-    Ok(cell)
-}
-pub fn hyperlane_message_to_message(message: &HyperlaneMessage) -> Result<Message, anyhow::Error> {
-    let sender_bytes = message
-        .sender
-        .as_bytes()
-        .to_vec()
-        .iter()
-        .skip_while(|&&x| x == 0)
-        .copied()
-        .collect();
-    info!("sender_bytes:{:?}", sender_bytes);
-    let recipient = message.recipient.as_bytes().to_vec();
-    info!("recipient:{:?}", recipient);
+        Ok(cell)
+    }
+    pub fn hyperlane_message_to_message(
+        message: &HyperlaneMessage,
+    ) -> Result<Message, anyhow::Error> {
+        let sender_bytes = message
+            .sender
+            .as_bytes()
+            .to_vec()
+            .iter()
+            .skip_while(|&&x| x == 0)
+            .copied()
+            .collect();
+        info!("sender_bytes:{:?}", sender_bytes);
+        let recipient = message.recipient.as_bytes().to_vec();
+        info!("recipient:{:?}", recipient);
 
-    let id: usize = 27; // needed check
+        let id: usize = 27; // needed check
 
-    let mut writer = CellBuilder::new();
-    let mut body = writer
-        .store_slice(message.body.as_slice())
-        .expect("Failed to store_slice")
-        .build()
-        .expect("Failed to build");
+        let mut writer = CellBuilder::new();
+        let mut body = writer
+            .store_slice(message.body.as_slice())
+            .expect("Failed to store_slice")
+            .build()
+            .expect("Failed to build");
 
-    Ok(Message {
-        id: BigUint::from(id),
-        version: message.version,
-        nonce: message.nonce,
-        origin: message.origin,
-        sender: sender_bytes,
-        destination_domain: 0,
-        recipient: recipient,
-        body: body,
-    })
+        Ok(Message {
+            id: BigUint::from(id),
+            version: message.version,
+            nonce: message.nonce,
+            origin: message.origin,
+            sender: sender_bytes,
+            destination_domain: 0,
+            recipient: recipient,
+            body: body,
+        })
+    }
+
+    /// Creates a linked list of cells, each containing up to 6 addresses.
+    /// If there are more than 6 addresses, the next cell is created with a reference to the previous cell.
+    pub fn create_address_linked_cells(
+        addresses: &[H160],
+    ) -> Result<tonlib_core::cell::Cell, TonCellError> {
+        let mut remaining_addresses = addresses;
+        let mut current_cell = tonlib_core::cell::CellBuilder::new();
+
+        loop {
+            let addresses_in_cell = remaining_addresses.len().min(6);
+            let remaining_count = remaining_addresses.len() - addresses_in_cell;
+
+            info!(
+                "Creating a new cell segment with {} addresses.",
+                addresses_in_cell
+            );
+
+            // Write down the number of addresses in the current cell
+            current_cell.store_u8(8, addresses_in_cell as u8)?;
+
+            // We write down the addresses ourselves
+            for address in &remaining_addresses[..addresses_in_cell] {
+                info!("Storing address: {:?}", address);
+                current_cell.store_uint(160, &BigUint::from_bytes_be(address.as_bytes()))?;
+            }
+            remaining_addresses = &remaining_addresses[addresses_in_cell..];
+
+            // If the remaining addresses are greater than 0, create the next cell
+            if !remaining_addresses.is_empty() {
+                info!("More addresses remaining, creating reference to next cell.");
+                let next_cell = create_address_linked_cells(remaining_addresses)?;
+                current_cell.store_reference(&Arc::new(next_cell))?;
+            }
+            // We build a cell and return it if only the current addresses remain
+            let result_cell = current_cell.build()?;
+            info!(
+                "Finished creating cell list with root cell hash: {:?}",
+                result_cell
+            );
+
+            return Ok(result_cell);
+        }
+    }
+
+    /// Parses the root `root_cell` and extracts a dictionary of addresses with their storage locations.
+    /// Uses a nested dictionary to store strings in the `BigUint -> Vec<String>` format.
+    pub fn parse_address_storage_locations(
+        root_cell: &tonlib_core::cell::ArcCell,
+    ) -> Result<HashMap<BigUint, Vec<String>>, TonCellError> {
+        let mut storage_locations: HashMap<BigUint, Vec<String>> = HashMap::new();
+
+        //let dict_cell = root_cell.clone();
+        let parsed = root_cell
+            .parser()
+            .load_dict(256, key_reader_uint, val_reader_cell)?;
+
+        for (key, value_cell) in &parsed {
+            let mut storage_list = Vec::new();
+
+            if let Some(inner_cell) = value_cell.references().first() {
+                let mut parser = inner_cell.parser();
+
+                let bits_remaining = parser.remaining_bits();
+                let bytes_needed = (bits_remaining + 7) / 8;
+                let mut string_bytes = vec![0u8; bytes_needed];
+
+                parser.load_slice(&mut string_bytes)?;
+
+                let storage_string = String::from_utf8(string_bytes).map_err(|_| {
+                    TonCellError::BagOfCellsDeserializationError(
+                        "Invalid UTF-8 string in storage location".to_string(),
+                    )
+                })?;
+
+                storage_list.push(storage_string);
+            } else {
+                return Err(TonCellError::BagOfCellsDeserializationError(
+                    "Expected reference in cell but found none".to_string(),
+                ));
+            }
+
+            storage_locations.insert(key.clone(), storage_list);
+        }
+        info!("Parsed storage locations: {:?}", storage_locations);
+        Ok(storage_locations)
+    }
+    /// Decodes a Base64 string into a `BagOfCells` and returns the root cell.
+    fn parse_root_cell_from_boc(
+        boc_base64: &str,
+    ) -> Result<Arc<tonlib_core::cell::Cell>, TonCellError> {
+        let boc_bytes = base64::decode(boc_base64).map_err(|_| {
+            TonCellError::BagOfCellsDeserializationError(
+                "Failed to decode BOC from Base64".to_string(),
+            )
+        })?;
+
+        let boc = BagOfCells::parse(&boc_bytes)?;
+        let root_cell = boc.single_root()?.clone();
+
+        Ok(root_cell)
+    }
 }
 pub struct Metadata {
     pub signature: [u8; 64],
@@ -152,7 +261,9 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::ConversionUtils;
-    use hyperlane_core::{HyperlaneContract, HyperlaneMessage, H256, H512, U256};
+    use crate::runtime_test::create_address_linked_cells;
+    use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
+    use log::info;
 
     #[test]
     fn test_base64_to_h512_valid() {
@@ -175,5 +286,51 @@ mod tests {
 
         let result = ConversionUtils::base64_to_H512(invalid_hash_str);
         assert!(result.is_err(), "Expected an error for invalid input");
+    }
+
+    #[test]
+    fn test_create_address_linked_cells() {
+        let addresses = vec![
+            H160::from_low_u64_be(0x12345678),
+            H160::from_low_u64_be(0x87654321),
+        ];
+        let cell = ConversionUtils::create_address_linked_cells(&addresses)
+            .expect("Failed to create linked cells");
+
+        // Ensure the cell is created with the expected number of addresses
+        assert_eq!(cell.references().len(), 1);
+    }
+    fn test_create_8_addresses_linked_cells() {
+        let addresses: Vec<H160> = vec![
+            H160::from_low_u64_be(0x1234567890abcdef),
+            H160::from_low_u64_be(0xabcdef1234567890),
+            H160::from_low_u64_be(0x9876543210fedcba),
+            H160::from_low_u64_be(0x0004567890abcdef),
+            H160::from_low_u64_be(0x0000000000000890),
+            H160::from_low_u64_be(0x0000000000f0dcba),
+            H160::from_low_u64_be(0x0000000000000001),
+            H160::from_low_u64_be(0x0000000000000002),
+        ];
+
+        let cell = ConversionUtils::create_address_linked_cells(addresses.as_slice()).unwrap();
+
+        assert_eq!(cell.bit_len(), 968);
+        let arr = [
+            6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 52, 86, 120, 144, 171, 205, 239, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 171, 205, 239, 18, 52, 86, 120, 144, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 152, 118, 84, 50, 16, 254, 220, 186, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,
+            86, 120, 144, 171, 205, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8,
+            144, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 220, 186,
+        ];
+        assert_eq!(cell.data(), arr);
+    }
+    #[test]
+    fn test_parse_root_cell_from_boc() {
+        let boc_base64 = "te6cckEBAgEANwABQ6AAAAAAAAAAAAAAAAABcqZ6QdO0UVZJKOpooNx6WOrpGnABACBzdG9yYWdlIGxvY2F0aW9u3GbBUg==";
+        let root_cell = ConversionUtils::parse_root_cell_from_boc(boc_base64)
+            .expect("Failed to parse root cell from BOC");
+
+        // Ensure the root cell is parsed correctly
+        assert!(root_cell.bit_len() > 0);
     }
 }
