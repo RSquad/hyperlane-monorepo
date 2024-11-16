@@ -16,6 +16,7 @@ use tokio::{
     time::{sleep, Sleep},
 };
 
+use tonlib::config::MAINNET_CONFIG;
 use tonlib::{
     address::{TonAddress, TonAddressParseError},
     client::{
@@ -755,4 +756,22 @@ impl TonProvider {
 
         Err(ChainCommunicationError::CustomError("Timeout".to_string()))
     }
+}
+pub async fn create_mainnet_client() -> TonClient {
+    let params = TonConnectionParams {
+        config: MAINNET_CONFIG.to_string(),
+        ..Default::default()
+    };
+    TonClient::set_log_verbosity_level(1);
+    let client = TonClientBuilder::new()
+        .with_connection_params(&params)
+        .with_pool_size(2)
+        .with_logging_callback()
+        //.with_keystore_dir("./var/ton/testnet".to_string())
+        //.with_connection_check(ConnectionCheck::Archive)
+        .build()
+        .await
+        .unwrap();
+
+    client
 }

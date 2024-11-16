@@ -1,5 +1,6 @@
 use crate::client::provider::TonProvider;
 use crate::contracts::mailbox::TonMailbox;
+use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use hyperlane_core::{
@@ -21,7 +22,7 @@ use tonlib_core::{wallet::TonWallet, TonAddress};
 pub struct TonInterchainGasPaymaster {
     pub igp_address: TonAddress,
     pub provider: TonProvider,
-    pub wallet: TonWallet,
+    pub signer: TonSigner,
     pub workchain: i32,
 }
 impl TonInterchainGasPaymaster {
@@ -51,7 +52,7 @@ impl Debug for TonInterchainGasPaymaster {
         f.debug_struct("TonInterchainGasPaymaster:")
             .field("igp address:", &self.igp_address.to_hex())
             .field("provider", &self.provider)
-            .field("wallet:", &self.wallet.address.to_hex())
+            .field("wallet:", &self.signer.wallet.address.to_hex())
             .finish()
     }
 }

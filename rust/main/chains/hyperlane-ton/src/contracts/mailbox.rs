@@ -28,6 +28,7 @@ use tonlib_core::{
 use tracing::{debug, info, instrument, warn};
 
 use crate::client::provider::TonProvider;
+use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::types::transaction::TransactionResponse;
 use crate::utils::conversion::ConversionUtils;
@@ -35,8 +36,24 @@ use crate::utils::conversion::ConversionUtils;
 pub struct TonMailbox {
     pub mailbox_address: TonAddress,
     pub provider: TonProvider,
-    pub wallet: TonWallet,
+    pub signer: TonSigner,
     pub workchain: i32, // -1 or 0 now
+}
+impl TonMailbox {
+    pub fn new(
+        mailbox_address: String,
+        provider: TonProvider,
+        workchain: i32,
+        signer: TonSigner,
+    ) -> Self {
+        Self {
+            mailbox_address: TonAddress::from_base64_url(mailbox_address.as_str())
+                .expect("Failed to convert mailbox address"),
+            provider,
+            workchain,
+            signer,
+        }
+    }
 }
 
 impl HyperlaneContract for TonMailbox {
@@ -62,7 +79,7 @@ impl Debug for TonMailbox {
         f.debug_struct("Ton mailbox:")
             .field("mailbox address:", &self.mailbox_address.to_hex())
             .field("provider", &self.provider)
-            .field("wallet:", &self.wallet.address.to_hex())
+            .field("wallet:", &self.signer.address.to_hex())
             .finish()
     }
 }
@@ -300,7 +317,7 @@ impl Mailbox for TonMailbox {
             ihr_disabled: false,
             bounce: false,
             bounced: false,
-            src: self.wallet.address.clone(),
+            src: self.signer.address.clone(),
             dest: self.mailbox_address.clone(),
             value: BigUint::from(100000000u32),
             ihr_fee: Default::default(),
@@ -325,14 +342,14 @@ impl Mailbox for TonMailbox {
 
         let seqno = self
             .provider
-            .get_wallet_states(self.wallet.address.to_hex())
+            .get_wallet_states(self.signer.address.to_hex())
             .await
             .expect("Failed to get wallet state")
             .wallets[0]
             .seqno as u32;
 
         let message = self
-            .wallet
+            .signer
             .create_external_message(
                 now + 60,
                 seqno,
@@ -373,7 +390,7 @@ impl Mailbox for TonMailbox {
 
 #[derive(Debug)]
 pub struct TonMailboxIndexer {
-    pub(crate) mailbox: TonMailbox,
+    pub mailbox: TonMailbox,
 }
 
 #[async_trait]

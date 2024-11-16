@@ -23,6 +23,7 @@ use tracing::info;
 
 use crate::client::provider::TonProvider;
 use crate::contracts::mailbox::TonMailbox;
+use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::types::run_get_method::GetMethodResponse;
 use crate::utils::conversion::ConversionUtils;
@@ -32,7 +33,8 @@ pub struct TonInterchainSecurityModule {
     pub ism_address: TonAddress,
     /// The provider for the ISM contract.
     pub provider: TonProvider,
-    pub wallet: TonWallet,
+    //pub wallet: TonWallet,
+    pub signer: TonSigner,
     pub workchain: i32, // -1 or 0
 }
 impl TonInterchainSecurityModule {
@@ -43,7 +45,7 @@ impl Debug for TonInterchainSecurityModule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ton mailbox:")
             .field("provider", &self.provider)
-            .field("wallet:", &self.wallet.address.to_hex())
+            .field("wallet:", &self.signer.wallet.address.to_hex())
             .finish()
     }
 }
@@ -116,8 +118,12 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         let message_cell = message_t.to_cell();
         info!("message_cell:{:?}", message_cell);
 
-        let metadata_cell =
-            ConversionUtils::metadata_to_cell(metadata).expect("Failed to get cell");
+        let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to convert metadata to cell: {}",
+                e
+            ))
+        })?;
         info!("Metadata:{:?}", metadata_cell);
 
         let query_id = 1;
@@ -137,7 +143,7 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             ihr_disabled: false,
             bounce: false,
             bounced: false,
-            src: self.wallet.address.clone(),
+            src: self.signer.address.clone(),
             dest: self.ism_address.clone(),
             value: BigUint::from(100000000u32),
             ihr_fee: Default::default(),
@@ -163,14 +169,14 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
 
         let seqno = self
             .provider
-            .get_wallet_states(self.wallet.address.to_hex())
+            .get_wallet_states(self.signer.address.to_hex())
             .await
             .expect("Failed to get wallet state")
             .wallets[0]
             .seqno as u32;
 
         let message = self
-            .wallet
+            .signer
             .create_external_message(
                 now + 60,
                 seqno,
