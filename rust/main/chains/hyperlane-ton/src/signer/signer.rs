@@ -1,11 +1,11 @@
 use anyhow::Error;
 use hyperlane_core::ChainCommunicationError::HyperlaneSignerError;
 use log::warn;
-use tonlib::mnemonic::KeyPair;
-use tonlib::{
-    address::TonAddress,
+use tonlib_core::{
     cell::Cell,
+    mnemonic::KeyPair,
     wallet::{TonWallet, WalletVersion},
+    TonAddress,
 };
 
 #[derive(Clone)]

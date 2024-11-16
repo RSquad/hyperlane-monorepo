@@ -1,6 +1,3 @@
-use crate::client::provider::TonProvider;
-use crate::contracts::mailbox::TonMailbox;
-use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -13,14 +10,22 @@ use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::SystemTime;
-use tonlib::address::TonAddress;
 
-use crate::types::run_get_method::GetMethodResponse;
-use crate::utils::conversion::{hyperlane_message_to_message, metadata_to_cell};
-use tonlib::cell::{ArcCell, BagOfCells};
-use tonlib::message::TransferMessage;
-use tonlib::wallet::TonWallet;
+use tonlib_core::message::{CommonMsgInfo, InternalMessage, TonMessage};
+use tonlib_core::{
+    cell::{ArcCell, BagOfCells},
+    message::TransferMessage,
+    wallet::TonWallet,
+    TonAddress,
+};
+
 use tracing::info;
+
+use crate::client::provider::TonProvider;
+use crate::contracts::mailbox::TonMailbox;
+use crate::traits::ton_api_center::TonApiCenter;
+use crate::types::run_get_method::GetMethodResponse;
+use crate::utils::conversion::ConversionUtils;
 
 pub struct TonInterchainSecurityModule {
     /// The address of the ISM contract.
@@ -104,13 +109,15 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         info!("Let's build process");
-        let message_t = hyperlane_message_to_message(message).expect("Failed to build");
+        let message_t =
+            ConversionUtils::hyperlane_message_to_message(message).expect("Failed to build");
         info!("Message_t:{:?}", message_t);
 
         let message_cell = message_t.to_cell();
         info!("message_cell:{:?}", message_cell);
 
-        let metadata_cell = metadata_to_cell(metadata).expect("Failed to get cell");
+        let metadata_cell =
+            ConversionUtils::metadata_to_cell(metadata).expect("Failed to get cell");
         info!("Metadata:{:?}", metadata_cell);
 
         let query_id = 1;
@@ -126,10 +133,21 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         .expect("Failed to build message");
 
         info!("Msg cell:{:?}", msg);
-
-        let transfer_message = TransferMessage {
+        let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
+            ihr_disabled: false,
+            bounce: false,
+            bounced: false,
+            src: self.wallet.address.clone(),
             dest: self.ism_address.clone(),
             value: BigUint::from(100000000u32),
+            ihr_fee: Default::default(),
+            fwd_fee: Default::default(),
+            created_lt: 0,
+            created_at: 0,
+        });
+
+        let transfer_message = TransferMessage {
+            common_msg_info,
             state_init: None,
             data: Some(ArcCell::new(msg.clone())),
         }

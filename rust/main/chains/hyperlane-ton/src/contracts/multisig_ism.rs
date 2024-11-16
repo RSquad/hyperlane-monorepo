@@ -1,19 +1,25 @@
 use crate::client::provider::TonProvider;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::types::run_get_method::GetMethodResponse;
+use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
+use derive_new::new;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
 use log::warn;
+use num_bigint::BigUint;
 use std::future::Future;
 use std::pin::Pin;
 use std::str::FromStr;
-use tonlib::address::TonAddress;
+use tonlib_core::{
+    cell::{BagOfCells, CellBuilder},
+    TonAddress,
+};
 use tracing::info;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, new)]
 pub struct TonMultisigIsm {
     provider: TonProvider,
     multisig_address: TonAddress,
@@ -43,10 +49,30 @@ impl MultisigIsm for TonMultisigIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
+        let domain = message.origin;
+        let mut builder = CellBuilder::new();
+
+        let id = builder
+            .store_uint(32, &BigUint::from(domain))
+            .unwrap()
+            .build()
+            .unwrap();
+
+        let boc_vec = tonlib_core::cell::BagOfCells::from_root(id)
+            .serialize(true)
+            .map_err(|e| {
+                ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
+            })
+            .unwrap();
+
+        let boc_str = base64::encode(&boc_vec);
+
+        let stack = Some(vec![boc_str]);
+
         let function_name = "get_validators_and_threshold".to_string();
         let response = self
             .provider
-            .run_get_method(self.multisig_address.to_hex(), function_name, None)
+            .run_get_method(self.multisig_address.to_hex(), function_name, stack)
             .await;
 
         if let Ok(response) = response {

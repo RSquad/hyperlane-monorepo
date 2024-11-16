@@ -8,7 +8,12 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 
+use crate::contracts::mailbox::TonMailbox;
+use log::info;
+use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
+use std::time::SystemTime;
+use tonlib_core::message::{CommonMsgInfo, InternalMessage, TonMessage};
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
     message::TransferMessage,
@@ -35,6 +40,7 @@ impl Debug for TonValidatorAnnounce {
 }
 
 impl TonValidatorAnnounce {
+    const ANNOUNCE_OPCODE: u32 = 0x980b3d44;
     pub fn new(provider: TonProvider, address: TonAddress, signer: TonSigner) -> Self {
         Self {
             address,
@@ -42,8 +48,56 @@ impl TonValidatorAnnounce {
             signer,
         }
     }
-}
+    pub fn build_announcement_cell(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> Result<Cell, String> {
+        let query_id = BigUint::from(1u32);
 
+        // Convert validator address to BigUint
+        let validator_addr = BigUint::from_bytes_be(announcement.value.validator.as_bytes());
+
+        // Create the sub-cell for storage_location
+        let sub_cell = CellBuilder::new()
+            .store_slice(announcement.value.storage_location.as_bytes())
+            .map_err(|e| format!("Failed to store storage location: {:?}", e))?
+            .build()
+            .map_err(|e| format!("Failed to finalize sub_cell: {:?}", e))?;
+
+        let signature_cell = CellBuilder::new()
+            .store_uint(8, &BigUint::from(announcement.signature.v))
+            .map_err(|e| format!("Failed to store signature v: {:?}", e))?
+            .store_uint(
+                256,
+                &ConversionUtils::u256_to_biguint(announcement.signature.r),
+            )
+            .map_err(|e| format!("Failed to store signature r: {:?}", e))?
+            .store_uint(
+                256,
+                &ConversionUtils::u256_to_biguint(announcement.signature.s),
+            )
+            .map_err(|e| format!("Failed to store signature s: {:?}", e))?
+            .build()
+            .map_err(|e| format!("Failed to finalize signature_cell: {:?}", e))?;
+
+        let announce_cell = CellBuilder::new()
+            .store_u32(32, TonValidatorAnnounce::ANNOUNCE_OPCODE)
+            .map_err(|e| format!("Failed to store ANNOUNCE_OPCODE: {:?}", e))?
+            .store_uint(64, &query_id)
+            .map_err(|e| format!("Failed to store query_id: {:?}", e))?
+            .store_uint(256, &validator_addr)
+            .map_err(|e| format!("Failed to store validator address: {:?}", e))?
+            .store_reference(&ArcCell::new(sub_cell))
+            .map_err(|e| format!("Failed to store sub_cell reference: {:?}", e))?
+            .store_reference(&ArcCell::new(signature_cell))
+            .map_err(|e| format!("Failed to store signature_cell reference: {:?}", e))?
+            .build()
+            .map_err(|e| format!("Failed to finalize announce_cell: {:?}", e))?;
+
+        info!("Announcement cell built successfully");
+        Ok(announce_cell)
+    }
+}
 impl HyperlaneContract for TonValidatorAnnounce {
     fn address(&self) -> H256 {
         let hex = self.address.to_hex();
@@ -150,7 +204,70 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        todo!()
+        let cell = self
+            .build_announcement_cell(announcement)
+            .map_err(|e| ChainCommunicationError::CustomError(e))?;
+        let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
+            ihr_disabled: false,
+            bounce: false,
+            bounced: false,
+            src: self.signer.address.clone(),
+            dest: self.address.clone(),
+            value: BigUint::from(100000000u32),
+            ihr_fee: Default::default(),
+            fwd_fee: Default::default(),
+            created_lt: 0,
+            created_at: 0,
+        });
+        let transfer_message = TransferMessage {
+            common_msg_info,
+            state_init: None,
+            data: Some(ArcCell::new(cell.clone())),
+        }
+        .build()
+        .expect("Failed create transfer message");
+
+        tracing::info!("Transfer message:{:?}", transfer_message);
+
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("Failed to build duration_since")
+            .as_secs() as u32;
+
+        let seqno = self
+            .provider
+            .get_wallet_states(self.signer.address.to_hex())
+            .await
+            .expect("Failed to get wallet state")
+            .wallets[0]
+            .seqno as u32;
+
+        // need check
+        let message = self
+            .signer
+            .create_external_message(
+                now + 60,
+                seqno,
+                vec![ArcCell::new(transfer_message.clone())],
+                false,
+            )
+            .expect("");
+
+        let boc = BagOfCells::from_root(message.clone())
+            .serialize(true)
+            .expect("Failed to get boc from root");
+
+        let boc_str = base64::encode(boc.clone());
+        tracing::info!("create_external_message:{:?}", boc_str);
+
+        let tx = self
+            .provider
+            .send_message(boc_str)
+            .await
+            .expect("Failed to get tx");
+        tracing::info!("Tx hash:{:?}", tx.message_hash);
+
+        self.provider.wait_for_transaction(tx.message_hash).await
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {

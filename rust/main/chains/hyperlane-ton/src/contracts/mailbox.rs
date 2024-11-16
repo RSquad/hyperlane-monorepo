@@ -15,12 +15,14 @@ use std::{
 };
 
 use tokio::time::sleep;
-use tonlib::{
-    address::TonAddress,
+
+use tonlib_core::message::{InternalMessage, TonMessage};
+use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
-    message::TransferMessage,
+    message::{CommonMsgInfo, TransferMessage},
     mnemonic::Mnemonic,
     wallet::{TonWallet, WalletVersion},
+    TonAddress,
 };
 
 use tracing::{debug, info, instrument, warn};
@@ -28,7 +30,7 @@ use tracing::{debug, info, instrument, warn};
 use crate::client::provider::TonProvider;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::types::transaction::TransactionResponse;
-use crate::utils::conversion::{hyperlane_message_to_message, metadata_to_cell};
+use crate::utils::conversion::ConversionUtils;
 
 pub struct TonMailbox {
     pub mailbox_address: TonAddress,
@@ -102,13 +104,29 @@ impl Mailbox for TonMailbox {
         }
     }
 
+    //
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        let mut builder = CellBuilder::new();
+        let id_bigint = BigUint::from_bytes_be(id.as_bytes());
+        let cell = builder
+            .store_uint(256, &id_bigint)
+            .unwrap()
+            .build()
+            .unwrap();
+        log::info!("cell:{:?}", cell);
+
+        let boc = BagOfCells::from_root(cell).serialize(true).unwrap();
+        let boc_str = base64::encode(boc.clone());
+        log::info!("Boc:{:?}", boc_str);
+
+        let stack = vec![boc_str];
+
         let response = self
             .provider
             .run_get_method(
                 self.mailbox_address.to_hex(),
                 "get_deliveries".to_string(),
-                None,
+                Some(stack),
             )
             .await
             .map_err(|e| {
@@ -138,21 +156,17 @@ impl Mailbox for TonMailbox {
 
         if let Some(stack) = response.stack.first() {
             if stack.r#type == "cell" {
-                let decoded_value = base64::decode(&stack.value).map_err(|e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to decode base64: {:?}",
-                        e
-                    ))
-                })?;
+                let ism_address = ConversionUtils::parse_address_from_boc(&stack.value)
+                    .await
+                    .map_err(|e| {
+                        ChainCommunicationError::CustomError(format!(
+                            "Failed to parse address from BOC: {:?}",
+                            e
+                        ))
+                    })?;
 
-                if decoded_value.len() >= 32 {
-                    let ism_hash = H256::from_slice(&decoded_value[0..32]);
-                    return Ok(ism_hash);
-                } else {
-                    return Err(ChainCommunicationError::CustomError(
-                        "Decoded value is too short for H256".to_string(),
-                    ));
-                }
+                let ism_hash = ConversionUtils::ton_address_to_h256(&ism_address).unwrap();
+                return Ok(ism_hash);
             } else {
                 return Err(ChainCommunicationError::CustomError(
                     "Unexpected data type in stack, expected cell".to_string(),
@@ -259,11 +273,13 @@ impl Mailbox for TonMailbox {
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         info!("Let's build process");
-        let message_t = hyperlane_message_to_message(message).expect("Failed to build");
+        let message_t =
+            ConversionUtils::hyperlane_message_to_message(message).expect("Failed to build");
 
         let message_cell = message_t.to_cell();
 
-        let metadata_cell = metadata_to_cell(metadata).expect("Failed to get cell");
+        let metadata_cell =
+            ConversionUtils::metadata_to_cell(metadata).expect("Failed to get cell");
         info!("Metadata:{:?}", metadata_cell);
 
         let query_id = 1;
@@ -280,14 +296,25 @@ impl Mailbox for TonMailbox {
 
         info!("Msg cell:{:?}", msg);
 
-        let transfer_message = TransferMessage {
+        let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
+            ihr_disabled: false,
+            bounce: false,
+            bounced: false,
+            src: self.wallet.address.clone(),
             dest: self.mailbox_address.clone(),
             value: BigUint::from(100000000u32),
+            ihr_fee: Default::default(),
+            fwd_fee: Default::default(),
+            created_lt: 0,
+            created_at: 0,
+        });
+        let transfer_message = TransferMessage {
+            common_msg_info,
             state_init: None,
             data: Some(ArcCell::new(msg.clone())),
         }
         .build()
-        .expect("Failed to create transferMessage");
+        .expect("Failed create transfer message");
 
         info!("Transfer message:{:?}", transfer_message);
 
@@ -317,6 +344,7 @@ impl Mailbox for TonMailbox {
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
             .expect("Failed to get boc from root");
+
         let boc_str = base64::encode(boc.clone());
         info!("create_external_message:{:?}", boc_str);
 

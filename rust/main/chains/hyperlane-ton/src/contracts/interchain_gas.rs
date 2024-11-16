@@ -15,8 +15,7 @@ use std::pin::Pin;
 use std::string::ToString;
 use std::time::Duration;
 use tokio::time::sleep;
-use tonlib::address::TonAddress;
-use tonlib::wallet::TonWallet;
+use tonlib_core::{wallet::TonWallet, TonAddress};
 
 #[derive(Clone)]
 pub struct TonInterchainGasPaymaster {
