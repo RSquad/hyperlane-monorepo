@@ -350,6 +350,7 @@ impl Mailbox for TonMailbox {
 
         let message = self
             .signer
+            .wallet
             .create_external_message(
                 now + 60,
                 seqno,

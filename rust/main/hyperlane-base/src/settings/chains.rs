@@ -4,7 +4,14 @@ use h_cosmos::CosmosProvider;
 use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
+use futures_util::TryStreamExt;
+use reqwest::Client;
 
+use crate::{
+    metrics::AgentMetricsConf,
+    settings::signers::{BuildableWithSignerConf, SignerConf},
+    CoreMetrics,
+};
 use ethers_prometheus::middleware::{ChainInfo, ContractInfo, PrometheusMiddlewareConf};
 use hyperlane_core::{
     config::OperationBatchConfig, AggregationIsm, CcipReadIsm, ContractLocator, HyperlaneAbi,
@@ -20,12 +27,8 @@ use hyperlane_ethereum::{
 };
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
-
-use crate::{
-    metrics::AgentMetricsConf,
-    settings::signers::{BuildableWithSignerConf, SignerConf},
-    CoreMetrics,
-};
+use hyperlane_ton as h_ton;
+use hyperlane_ton::{TonInterchainSecurityModule, TonMailbox};
 
 use super::ChainSigner;
 
@@ -42,7 +45,7 @@ pub trait TryFromWithMetrics<T>: Sized {
 
 /// A chain setup is a domain ID, an address on that chain (where the mailbox is
 /// deployed) and details for connecting to the chain API.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ChainConf {
     /// The domain
     pub domain: HyperlaneDomain,
@@ -137,6 +140,8 @@ pub enum ChainConnectionConf {
     Sealevel(h_sealevel::ConnectionConf),
     /// Cosmos configuration.
     Cosmos(h_cosmos::ConnectionConf),
+    // Ton configuration
+    Ton(h_ton::TonConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -147,6 +152,7 @@ impl ChainConnectionConf {
             Self::Fuel(_) => HyperlaneDomainProtocol::Fuel,
             Self::Sealevel(_) => HyperlaneDomainProtocol::Sealevel,
             Self::Cosmos(_) => HyperlaneDomainProtocol::Cosmos,
+            Self::Ton(_) => HyperlaneDomainProtocol::Ton,
         }
     }
 
@@ -217,6 +223,12 @@ impl ChainConf {
                 )?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
+            ChainConnectionConf::Ton(conf) => Ok(Box::new(h_ton::TonProvider::new(
+                h_ton::create_mainnet_client(),
+                Client::new(),
+                conf.clone(),
+                locator.domain.clone(),
+            ))),
         }
         .context(ctx)
     }
@@ -250,8 +262,21 @@ impl ChainConf {
                     .map(|m| Box::new(m) as Box<dyn Mailbox>)
                     .map_err(Into::into)
             }
+            ChainConnectionConf::Ton(conf) => {
+                let provider = h_ton::TonProvider::new(
+                    h_ton::create_mainnet_client(),
+                    Client::new(),
+                    conf.clone(),
+                    locator.domain.clone(),
+                );
+                let mailbox_address = format!("{:?}", self.addresses.mailbox);
+
+                let signer = self.ton_signer().await.context(ctx)?;
+                h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap())
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
-        .context(ctx)
     }
 
     /// Try to convert the chain setting into a Merkle Tree Hook contract
@@ -281,6 +306,9 @@ impl ChainConf {
                     h_cosmos::CosmosMerkleTreeHook::new(conf.clone(), locator.clone(), signer)?;
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
             }
         }
         .context(ctx)
@@ -325,6 +353,23 @@ impl ChainConf {
                     signer,
                     reorg_period,
                 )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Ton(conf) => {
+                let provider = h_ton::TonProvider::new(
+                    h_ton::create_mainnet_client(),
+                    Client::new(),
+                    conf.clone(),
+                    locator.domain.clone(),
+                );
+                let signer = self.ton_signer().await.context(ctx)?;
+
+                let mailbox_address = format!("{:?}", self.addresses.mailbox);
+
+                // Создаем экземпляр TonMailbox
+                let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
+
+                let indexer = Box::new(h_ton::TonMailboxIndexer { mailbox });
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
         }
@@ -372,6 +417,9 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
+            }
         }
         .context(ctx)
     }
@@ -410,6 +458,32 @@ impl ChainConf {
                     signer,
                 )?);
                 Ok(paymaster as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Ton(conf) => {
+                use tonlib::address::TonAddress;
+
+                let provider = h_ton::TonProvider::new(
+                    h_ton::create_mainnet_client(),
+                    Client::new(),
+                    conf.clone(),
+                    locator.domain.clone(),
+                );
+
+                let signer = self.ton_signer().await.context(ctx)?;
+
+                let igp_address = TonAddress::from_base64_url(
+                    &self.addresses.interchain_gas_paymaster.to_string(),
+                )
+                .expect("Failed to convert IGP address");
+
+                let paymaster = h_ton::TonInterchainGasPaymaster {
+                    igp_address,
+                    provider,
+                    signer: signer.unwrap(),
+                    workchain: 0,
+                };
+
+                Ok(Box::new(paymaster) as Box<dyn InterchainGasPaymaster>)
             }
         }
         .context(ctx)
@@ -460,6 +534,9 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
+            }
         }
         .context(ctx)
     }
@@ -509,6 +586,9 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
+            }
         }
         .context(ctx)
     }
@@ -539,6 +619,9 @@ impl ChainConf {
                 )?);
 
                 Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
             }
         }
         .context("Building ValidatorAnnounce")
@@ -579,6 +662,30 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Ton(conf) => {
+                use tonlib::address::TonAddress;
+
+                let provider = h_ton::TonProvider::new(
+                    h_ton::create_mainnet_client(),
+                    Client::new(),
+                    conf.clone(),
+                    locator.domain.clone(),
+                );
+
+                let signer = self.ton_signer().await.context(ctx)?;
+
+                let ism_address = TonAddress::from_base64_url(&address.to_string())
+                    .expect("Failed to convert ISM address");
+
+                let ism = TonInterchainSecurityModule {
+                    ism_address,
+                    provider,
+                    signer: signer.unwrap(),
+                    workchain: 0,
+                };
+
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -613,6 +720,26 @@ impl ChainConf {
                 )?);
                 Ok(ism as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Ton(conf) => {
+                use tonlib::address::TonAddress;
+
+                let provider = h_ton::TonProvider::new(
+                    h_ton::create_mainnet_client(),
+                    Client::new(),
+                    conf.clone(),
+                    locator.domain.clone(),
+                );
+
+                let multisig_address = TonAddress::from_base64_url(&address.to_string())
+                    .expect("Failed to convert ISM address");
+
+                let ism = MultisigIsm {
+                    provider,
+                    multisig_address,
+                };
+
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -646,6 +773,9 @@ impl ChainConf {
                     signer,
                 )?);
                 Ok(ism as Box<dyn RoutingIsm>)
+            }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
             }
         }
         .context(ctx)
@@ -682,6 +812,9 @@ impl ChainConf {
 
                 Ok(ism as Box<dyn AggregationIsm>)
             }
+            ChainConnectionConf::Ton(_) => {
+                todo!()
+            }
         }
         .context(ctx)
     }
@@ -710,6 +843,9 @@ impl ChainConf {
             ChainConnectionConf::Cosmos(_) => {
                 Err(eyre!("Cosmos does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Ton(_) => {
+                Err(eyre!("Ton does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -734,6 +870,7 @@ impl ChainConf {
                     Box::new(conf.build::<h_sealevel::Keypair>().await?)
                 }
                 ChainConnectionConf::Cosmos(_) => Box::new(conf.build::<h_cosmos::Signer>().await?),
+                ChainConnectionConf::Ton(_) => Box::new(conf.build::<h_ton::TonSigner>().await?),
             };
             Ok(Some(chain_signer))
         } else {
@@ -759,6 +896,9 @@ impl ChainConf {
         self.signer().await
     }
 
+    async fn ton_signer(&self) -> Result<Option<h_ton::TonSigner>> {
+        self.signer().await
+    }
     /// Try to build an agent metrics configuration from the chain config
     pub async fn agent_metrics_conf(&self, agent_name: String) -> Result<AgentMetricsConf> {
         let chain_signer_address = self.chain_signer().await?.map(|s| s.address_string());

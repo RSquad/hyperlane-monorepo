@@ -5,8 +5,8 @@ use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, InterchainGasPayment, LogMeta, Mailbox,
-    SequenceAwareIndexer, H256, H512, U256,
+    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
+    InterchainGasPayment, LogMeta, Mailbox, SequenceAwareIndexer, H256, H512, U256,
 };
 use log::info;
 use std::fmt::{Debug, Formatter};
@@ -56,7 +56,7 @@ impl Debug for TonInterchainGasPaymaster {
             .finish()
     }
 }
-
+impl InterchainGasPaymaster for TonInterchainGasPaymaster {}
 #[async_trait]
 impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
     async fn fetch_logs_in_range(

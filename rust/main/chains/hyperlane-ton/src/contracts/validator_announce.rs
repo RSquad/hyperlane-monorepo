@@ -245,6 +245,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         // need check
         let message = self
             .signer
+            .wallet
             .create_external_message(
                 now + 60,
                 seqno,

@@ -1,10 +1,9 @@
-use crate::runtime_test::create_address_linked_cells;
 use anyhow::Error;
 use hex::FromHex;
-use hyperlane_core::{HyperlaneContract, HyperlaneMessage, H160, H256, H512, U256};
+use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
-use num_traits::ToPrimitive;
+//use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -103,7 +102,7 @@ impl ConversionUtils {
             // If the remaining addresses are greater than 0, create the next cell
             if !remaining_addresses.is_empty() {
                 info!("More addresses remaining, creating reference to next cell.");
-                let next_cell = create_address_linked_cells(remaining_addresses)?;
+                let next_cell = ConversionUtils::create_address_linked_cells(remaining_addresses)?;
                 current_cell.store_reference(&Arc::new(next_cell))?;
             }
             // We build a cell and return it if only the current addresses remain

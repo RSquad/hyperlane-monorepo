@@ -5,15 +5,17 @@ use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
 use hyperlane_core::{AccountAddressType, H256};
 use hyperlane_sealevel::Keypair;
+use hyperlane_ton::TonSigner;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
+use tonlib::wallet::WalletVersion;
 use tracing::instrument;
 
 use super::aws_credentials::AwsChainCredentialsProvider;
 use crate::types::utils;
 
 /// Signer types
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)] /////
 pub enum SignerConf {
     /// A local hex key
     HexKey {
@@ -36,6 +38,11 @@ pub enum SignerConf {
         prefix: String,
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
+    },
+
+    TonMnemonic {
+        mnemonic_phrase: Vec<String>,  // A mnemonic phrase for tone
+        wallet_version: WalletVersion, // Wallet version for Ton
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -87,6 +94,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             }
             SignerConf::CosmosKey { .. } => {
                 bail!("cosmosKey signer is not supported by Ethereum")
+            }
+            SignerConf::TonMnemonic { .. } => {
+                bail!("Ton mnemonic signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
         })
@@ -164,5 +174,24 @@ impl BuildableWithSignerConf for hyperlane_cosmos::Signer {
 impl ChainSigner for hyperlane_cosmos::Signer {
     fn address_string(&self) -> String {
         self.address.clone()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for TonSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        match conf {
+            SignerConf::TonMnemonic {
+                mnemonic_phrase,
+                wallet_version,
+            } => TonSigner::from_mnemonic(mnemonic_phrase.clone(), *wallet_version.clone()),
+            _ => bail!("Unsupported signer configuration for TonSigner"),
+        }
+    }
+}
+
+impl ChainSigner for TonSigner {
+    fn address_string(&self) -> String {
+        self.address.to_string()
     }
 }

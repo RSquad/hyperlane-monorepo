@@ -33,11 +33,11 @@ impl TonSigner {
         let mnemonic_phrase_str: Vec<&str> =
             mnemonic_phrase.iter().map(|item| item.as_str()).collect();
         let mnemonic = Mnemonic::new(mnemonic_phrase_str, &None)
-            .expect("Failed to create Mnemonic from phrase")?;
+            .expect("Failed to create Mnemonic from phrase");
 
         let key_pair = mnemonic
             .to_key_pair()
-            .expect("Failed to generate KeyPair from mnemonic")?;
+            .expect("Failed to generate KeyPair from mnemonic");
 
         Self::new(key_pair, wallet_version)
     }
@@ -69,5 +69,30 @@ impl TonSigner {
             })?;
 
         Ok(base64::encode(boc))
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct DebugWalletVersion(pub WalletVersion);
+
+impl std::fmt::Debug for DebugWalletVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self.0 {
+            WalletVersion::V1R1 => "V1R1",
+            WalletVersion::V1R2 => "V1R2",
+            WalletVersion::V1R3 => "V1R3",
+            WalletVersion::V2R1 => "V2R1",
+            WalletVersion::V2R2 => "V2R2",
+            WalletVersion::V3R1 => "V3R1",
+            WalletVersion::V3R2 => "V3R2",
+            WalletVersion::V4R1 => "V4R1",
+            WalletVersion::V4R2 => "V4R2",
+            WalletVersion::HighloadV1R1 => "HighloadV1R1",
+            WalletVersion::HighloadV1R2 => "HighloadV1R2",
+            WalletVersion::HighloadV2 => "HighloadV2",
+            WalletVersion::HighloadV2R1 => "HighloadV2R1",
+            WalletVersion::HighloadV2R2 => "HighloadV2R2",
+        };
+        write!(f, "WalletVersion::{}", name)
     }
 }
