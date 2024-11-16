@@ -4664,6 +4664,7 @@ dependencies = [
  "hyperlane-fuel",
  "hyperlane-sealevel",
  "hyperlane-test",
+ "hyperlane-ton",
  "itertools 0.12.1",
  "maplit",
  "mockall",
@@ -4682,6 +4683,8 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "tonlib",
+ "tonlib-core",
  "tracing",
  "tracing-error",
  "tracing-futures",
@@ -10482,9 +10485,9 @@ dependencies = [
 
 [[package]]
 name = "tonlib-core"
-version = "0.19.2"
+version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aee508bd4db6434109be41d5684f73770cd165ce6087573ec33b7c0e070a911d"
+checksum = "49bf32ae1f9c1307f300cba672e6ef0cb372e146db53374776f586d83206466d"
 dependencies = [
  "base64 0.22.1",
  "bitstream-io",

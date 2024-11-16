@@ -157,7 +157,7 @@ walkdir = "2"
 warp = "0.3"
 which = "4.3"
 ya-gcp = { version = "0.11.3", features = ["storage"] }
-
+# secp256k1 = "0.30.0"
 ## TODO: remove this
 cosmwasm-schema = "1.2.7"
 
@@ -309,3 +309,6 @@ version = "=0.32.2"
 branch = "trevor/0.32.2-fork"
 git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
 version = "=0.32.2"
+
+#[build]
+#rustflags = ["-L/usr/local/lib"]

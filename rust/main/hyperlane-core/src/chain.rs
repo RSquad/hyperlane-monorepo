@@ -405,13 +405,13 @@ impl KnownHyperlaneDomain {
                 Sepolia
            ],
         })
-    }
+    } 
 }
 
 impl PartialEq<Self> for HyperlaneDomain {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
+  fn eq(&self, other: &Self) -> bool {
+      self.id() == other.id()
+  }
 }
 
 impl Eq for HyperlaneDomain {}
