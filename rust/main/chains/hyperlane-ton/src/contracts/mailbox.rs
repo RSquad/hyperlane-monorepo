@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use base64::Engine;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed,
@@ -134,6 +135,7 @@ impl Mailbox for TonMailbox {
 
         let boc = BagOfCells::from_root(cell).serialize(true).unwrap();
         let boc_str = base64::encode(boc.clone());
+
         log::info!("Boc:{:?}", boc_str);
 
         let stack = vec![boc_str];
@@ -197,32 +199,34 @@ impl Mailbox for TonMailbox {
     }
 
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        let recipient_address =
+            ConversionUtils::h256_to_ton_address(&recipient, self.workchain).unwrap();
+
         let recipient_result = self
             .provider
-            .run_get_method(recipient.to_string(), "get_recipient".to_string(), None)
+            .run_get_method(
+                recipient_address.to_string(),
+                "get_recipient".to_string(),
+                None,
+            )
             .await;
 
         match recipient_result {
             Ok(response) => {
                 if let Some(stack) = response.stack.first() {
                     if stack.r#type == "cell" {
-                        let decoded_value = base64::decode(&stack.value)
+                        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
+                            .await
                             .map_err(|e| {
                                 ChainCommunicationError::CustomError(format!(
-                                    "Failed to decode base64 value from stack: {:?}",
+                                    "Failed to parse address from BOC: {:?}",
                                     e
                                 ))
-                            })
-                            .expect("Failed");
+                            })?;
 
-                        if decoded_value.len() >= 32 {
-                            let ism_hash = H256::from_slice(&decoded_value[0..32]);
-                            return Ok(ism_hash);
-                        } else {
-                            return Err(ChainCommunicationError::CustomError(
-                                "Decoded value is too short for H256".to_string(),
-                            ));
-                        }
+                        let ism_hash =
+                            ConversionUtils::ton_address_to_h256(&recipient_ism).unwrap();
+                        return Ok(ism_hash);
                     } else {
                         return Err(ChainCommunicationError::CustomError(format!(
                             "Unexpected data type in stack: expected 'cell', got '{}'",
@@ -253,21 +257,18 @@ impl Mailbox for TonMailbox {
 
                 if let Some(stack) = mailbox_response.stack.first() {
                     if stack.r#type == "cell" {
-                        let decoded_value = base64::decode(&stack.value).map_err(|e| {
-                            ChainCommunicationError::CustomError(format!(
-                                "Failed to decode base64 value from stack: {:?}",
-                                e
-                            ))
-                        })?;
+                        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
+                            .await
+                            .map_err(|e| {
+                                ChainCommunicationError::CustomError(format!(
+                                    "Failed to parse address from BOC: {:?}",
+                                    e
+                                ))
+                            })?;
 
-                        if decoded_value.len() >= 32 {
-                            let ism_hash = H256::from_slice(&decoded_value[0..32]);
-                            Ok(ism_hash)
-                        } else {
-                            Err(ChainCommunicationError::CustomError(
-                                "Decoded value is too short for H256".to_string(),
-                            ))
-                        }
+                        let ism_hash =
+                            ConversionUtils::ton_address_to_h256(&recipient_ism).unwrap();
+                        return Ok(ism_hash);
                     } else {
                         Err(ChainCommunicationError::CustomError(format!(
                             "Unexpected data type in stack: expected 'cell', got '{}'",
@@ -289,6 +290,9 @@ impl Mailbox for TonMailbox {
         metadata: &[u8],
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
+        info!("HyperlaneMessage:{:?}", message);
+        info!("Metadata:{:?}", metadata);
+
         info!("Let's build process");
         let message_t =
             ConversionUtils::hyperlane_message_to_message(message).expect("Failed to build");
@@ -299,7 +303,7 @@ impl Mailbox for TonMailbox {
             ConversionUtils::metadata_to_cell(metadata).expect("Failed to get cell");
         info!("Metadata:{:?}", metadata_cell);
 
-        let query_id = 1;
+        let query_id = 1; // it is not currently used in the contract
         let block_number = 1;
 
         let msg = build_message(

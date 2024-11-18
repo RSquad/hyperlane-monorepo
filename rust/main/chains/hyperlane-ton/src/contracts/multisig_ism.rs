@@ -58,7 +58,7 @@ impl MultisigIsm for TonMultisigIsm {
             .build()
             .unwrap();
 
-        let boc_vec = tonlib_core::cell::BagOfCells::from_root(id)
+        let boc_vec = BagOfCells::from_root(id)
             .serialize(true)
             .map_err(|e| {
                 ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
