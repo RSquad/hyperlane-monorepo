@@ -1,11 +1,12 @@
 use anyhow::Error;
-use hex::FromHex;
+use hex::{FromHex, ToHex};
 use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
 //use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tonlib::types::TonHash;
 
 use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
 use tonlib_core::cell::{ArcCell, BagOfCells, Cell, CellBuilder, TonCellError};
@@ -192,11 +193,29 @@ impl ConversionUtils {
         info!("H256: {:?}", H256::from(bytes));
         Ok(H256::from(bytes))
     }
+
     pub fn u256_to_biguint(value: U256) -> BigUint {
         let mut bytes = [0u8; 32]; // 256 bit = 32 byte
         value.to_little_endian(&mut bytes);
         BigUint::from_bytes_le(&bytes)
     }
+    pub fn h256_to_ton_address(h256: &H256, workchain: i32) -> Result<TonAddress, String> {
+        let h256_str = format!("{:x}", h256);
+
+        let h256_hex = h256_str.trim_start_matches("0x");
+        info!("H256_hex:{:?}", h256_hex);
+
+        let bytes: TonHash = hex::decode(h256_hex)
+            .map_err(|e| format!("Failed to decode H256 hex to bytes: {:?}", e))?
+            .as_slice()
+            .try_into()
+            .map_err(|e| format!("Failed to convert decoded bytes into TonHash: {:?}", e))?;
+
+        let addr = TonAddress::new(workchain, &bytes);
+
+        Ok(addr)
+    }
+
     pub fn parse_data_cell(data: &ArcCell) -> Result<HyperlaneMessage, anyhow::Error> {
         todo!();
     }
