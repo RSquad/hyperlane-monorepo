@@ -7,25 +7,20 @@ use log::warn;
 use num_bigint::BigUint;
 use num_traits::cast::FromPrimitive;
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
-use std::pin::Pin;
 use std::time::SystemTime;
 
 use tonlib_core::message::{CommonMsgInfo, InternalMessage, TonMessage};
 use tonlib_core::{
     cell::{ArcCell, BagOfCells},
     message::TransferMessage,
-    wallet::TonWallet,
     TonAddress,
 };
 
 use tracing::info;
 
 use crate::client::provider::TonProvider;
-use crate::contracts::mailbox::TonMailbox;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
-use crate::types::run_get_method::GetMethodResponse;
 use crate::utils::conversion::ConversionUtils;
 
 pub struct TonInterchainSecurityModule {
@@ -39,7 +34,6 @@ pub struct TonInterchainSecurityModule {
 }
 impl TonInterchainSecurityModule {
     const VERIFY: u32 = 0x3b3cca17;
-    const GET_ISM: u32 = 0x8f32175;
 }
 impl Debug for TonInterchainSecurityModule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -111,8 +105,8 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         info!("Let's build process");
-        let message_t =
-            ConversionUtils::hyperlane_message_to_message(message).expect("Failed to build");
+        let message_t = ConversionUtils::hyperlane_message_to_message(message)
+            .map_err(|e| ChainCommunicationError::CustomError(format!("Failed to build: {}", e)))?;
         info!("Message_t:{:?}", message_t);
 
         let message_cell = message_t.to_cell();
@@ -136,7 +130,9 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             query_id,
             block_number,
         )
-        .expect("Failed to build message");
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to build message: {}", e))
+        })?;
 
         info!("Msg cell:{:?}", msg);
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
@@ -158,7 +154,9 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             data: Some(ArcCell::new(msg.clone())),
         }
         .build()
-        .expect("Failed to create transferMessage");
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to create transferMessage: {}", e))
+        })?;
 
         info!("Transfer message:{:?}", transfer_message);
 
@@ -184,25 +182,33 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
                 vec![ArcCell::new(transfer_message.clone())],
                 false,
             )
-            .expect("");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to create external message: {}",
+                    e
+                ))
+            })?;
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
-            .expect("Failed to get boc from root");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
+            })?;
         let boc_str = base64::encode(boc.clone());
         info!("create_external_message:{:?}", boc_str);
 
-        let tx = self
-            .provider
-            .send_message(boc_str)
-            .await
-            .expect("Failed to get tx");
+        let tx = self.provider.send_message(boc_str).await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to send message: {}", e))
+        })?;
         info!("Tx hash:{:?}", tx.message_hash);
 
         let result = self.provider.wait_for_transaction(tx.message_hash).await;
         match result {
             Ok(gas_estimate) => Ok(Some(gas_estimate.gas_used)),
-            Err(e) => Ok(None),
+            Err(e) => {
+                warn!("Dry run verify has error:{:?}", e);
+                Ok(None)
+            }
         }
     }
 }

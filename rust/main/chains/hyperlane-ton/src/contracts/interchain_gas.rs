@@ -1,22 +1,19 @@
 use crate::client::provider::TonProvider;
-use crate::contracts::mailbox::TonMailbox;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster,
-    InterchainGasPayment, LogMeta, Mailbox, SequenceAwareIndexer, H256, H512, U256,
+    HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
+    SequenceAwareIndexer, H256, U256,
 };
 use log::info;
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
 use std::ops::RangeInclusive;
-use std::pin::Pin;
 use std::string::ToString;
 use std::time::Duration;
 use tokio::time::sleep;
-use tonlib_core::{wallet::TonWallet, TonAddress};
+use tonlib_core::TonAddress;
 
 #[derive(Clone)]
 pub struct TonInterchainGasPaymaster {
@@ -130,8 +127,8 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
                 None,
                 Some(self.igp_address.to_hex()),
                 Some("null".to_string()),
-                //Some(TonInterchainGasPaymaster::DISPATCH_OPCODE.to_string()),
-                None,
+                Some(TonInterchainGasPaymaster::EVENT_GAS_PAYMENT.to_string()),
+                //None,
                 Some(start_utime),
                 Some(end_utime),
                 None,

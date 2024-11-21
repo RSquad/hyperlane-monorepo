@@ -1,6 +1,5 @@
 use anyhow::Error;
-use hyperlane_core::{ChainCommunicationError, ChainCommunicationError::HyperlaneSignerError};
-use log::warn;
+use hyperlane_core::ChainCommunicationError;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell},
     mnemonic::{KeyPair, Mnemonic},
@@ -11,7 +10,6 @@ use tonlib_core::{
 #[derive(Clone)]
 pub struct TonSigner {
     pub address: TonAddress,
-    private_key: Vec<u8>,
     pub wallet: TonWallet,
 }
 
@@ -22,7 +20,6 @@ impl TonSigner {
 
         Ok(TonSigner {
             address: wallet.address.clone(),
-            private_key: key_pair.secret_key,
             wallet,
         })
     }

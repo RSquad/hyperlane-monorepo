@@ -1,21 +1,20 @@
 use anyhow::Error;
-use hex::{FromHex, ToHex};
+use hex::FromHex;
 use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
 //use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tonlib::types::TonHash;
 
 use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
 use tonlib_core::cell::{ArcCell, BagOfCells, Cell, CellBuilder, TonCellError};
-use tonlib_core::TonAddress;
+use tonlib_core::{TonAddress, TonHash};
 
 pub struct ConversionUtils;
 
 impl ConversionUtils {
-    pub fn base64_to_H512(hash: &str) -> Result<H512, Error> {
+    pub fn base64_to_h512(hash: &str) -> Result<H512, Error> {
         let decoded = base64::decode(hash)
             .map_err(|e| Error::msg(format!("Failed to decode base64 hash: {}", e)))?;
         if decoded.len() > 64 {
@@ -55,7 +54,7 @@ impl ConversionUtils {
         let id: usize = 27; // needed check
 
         let mut writer = CellBuilder::new();
-        let mut body = writer
+        let body = writer
             .store_slice(message.body.as_slice())
             .expect("Failed to store_slice")
             .build()
@@ -68,22 +67,20 @@ impl ConversionUtils {
             origin: message.origin,
             sender: sender_bytes,
             destination_domain: 0,
-            recipient: recipient,
-            body: body,
+            recipient,
+            body,
         })
     }
 
     /// Creates a linked list of cells, each containing up to 6 addresses.
     /// If there are more than 6 addresses, the next cell is created with a reference to the previous cell.
-    pub fn create_address_linked_cells(
-        addresses: &[H160],
-    ) -> Result<tonlib_core::cell::Cell, TonCellError> {
+    pub fn create_address_linked_cells(addresses: &[H160]) -> Result<Cell, TonCellError> {
         let mut remaining_addresses = addresses;
-        let mut current_cell = tonlib_core::cell::CellBuilder::new();
+        let mut current_cell = CellBuilder::new();
 
         loop {
             let addresses_in_cell = remaining_addresses.len().min(6);
-            let remaining_count = remaining_addresses.len() - addresses_in_cell;
+            //let remaining_count = remaining_addresses.len() - addresses_in_cell;
 
             info!(
                 "Creating a new cell segment with {} addresses.",
@@ -160,9 +157,7 @@ impl ConversionUtils {
         Ok(storage_locations)
     }
     /// Decodes a Base64 string into a `BagOfCells` and returns the root cell.
-    pub fn parse_root_cell_from_boc(
-        boc_base64: &str,
-    ) -> Result<Arc<tonlib_core::cell::Cell>, TonCellError> {
+    pub fn parse_root_cell_from_boc(boc_base64: &str) -> Result<Arc<Cell>, TonCellError> {
         let boc_bytes = base64::decode(boc_base64).map_err(|_| {
             TonCellError::BagOfCellsDeserializationError(
                 "Failed to decode BOC from Base64".to_string(),
@@ -216,7 +211,7 @@ impl ConversionUtils {
         Ok(addr)
     }
 
-    pub fn parse_data_cell(data: &ArcCell) -> Result<HyperlaneMessage, anyhow::Error> {
+    pub fn parse_data_cell(_data: &ArcCell) -> Result<HyperlaneMessage, Error> {
         todo!();
     }
 }
@@ -231,7 +226,7 @@ impl Metadata {
 
     pub fn to_cell(&self) -> Cell {
         let mut writer = CellBuilder::new();
-        let mut cell = writer
+        let cell = writer
             .store_slice(&self.signature)
             .expect("Failed to store signature")
             .build()
@@ -278,7 +273,7 @@ impl Message {
     pub fn to_cell(&self) -> Cell {
         let mut writer = CellBuilder::new();
 
-        let mut cell = writer
+        let cell = writer
             .store_uint(256, &self.id)
             .expect("")
             .store_uint(8, &BigUint::from(self.version))
@@ -322,7 +317,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
 
-        let result = ConversionUtils::base64_to_H512(hash_str).expect("Conversion failed");
+        let result = ConversionUtils::base64_to_h512(hash_str).expect("Conversion failed");
         assert_eq!(result, expected);
     }
 
@@ -330,7 +325,7 @@ mod tests {
     fn test_base64_to_h512_invalid() {
         let invalid_hash_str = "invalid_base64_string";
 
-        let result = ConversionUtils::base64_to_H512(invalid_hash_str);
+        let result = ConversionUtils::base64_to_h512(invalid_hash_str);
         assert!(result.is_err(), "Expected an error for invalid input");
     }
 

@@ -1,17 +1,12 @@
 use crate::client::provider::TonProvider;
 use crate::traits::ton_api_center::TonApiCenter;
-use crate::types::run_get_method::GetMethodResponse;
-use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
-use log::warn;
 use num_bigint::BigUint;
-use std::future::Future;
-use std::pin::Pin;
 use std::str::FromStr;
 use tonlib_core::{
     cell::{BagOfCells, CellBuilder},
@@ -58,12 +53,9 @@ impl MultisigIsm for TonMultisigIsm {
             .build()
             .unwrap();
 
-        let boc_vec = BagOfCells::from_root(id)
-            .serialize(true)
-            .map_err(|e| {
-                ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
-            })
-            .unwrap();
+        let boc_vec = BagOfCells::from_root(id).serialize(true).map_err(|_e| {
+            ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
+        })?;
 
         let boc_str = base64::encode(&boc_vec);
 

@@ -53,6 +53,7 @@ mod metrics;
 mod program;
 mod solana;
 mod utils;
+//mod ton;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");

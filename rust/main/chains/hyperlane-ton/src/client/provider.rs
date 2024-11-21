@@ -1,31 +1,18 @@
 use async_trait::async_trait;
 use derive_new::new;
 use log::{debug, info, warn};
-use std::{error::Error, ops::Add, sync::Arc, time::Duration};
+use std::error::Error;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, ContractLocator, FixedPointNumber,
-    HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, HyperlaneDomainType, HyperlaneProvider, HyperlaneProviderError,
-    TxOutcome, TxnInfo, TxnReceiptInfo, H256, H512, U256,
+    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
+    HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo,
+    TxnReceiptInfo, H256, U256,
 };
-use reqwest::{Client, Response};
+use reqwest::Client;
 use serde_json::json;
-use tokio::{
-    sync::RwLock,
-    time::{sleep, Sleep},
-};
+use tokio::time::sleep;
 
-use tonlib::config::MAINNET_CONFIG;
-use tonlib::{
-    address::{TonAddress, TonAddressParseError},
-    client::{
-        TonClient, TonClientBuilder, TonClientError, TonClientInterface, TonConnection,
-        TonConnectionParams,
-    },
-    tl::{AccountState, BlockIdExt},
-};
-
+use crate::client::error::CustomHyperlaneError;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
@@ -37,10 +24,10 @@ use crate::{
     },
     utils::conversion::ConversionUtils,
 };
+use tonlib_core::TonAddress;
 
 #[derive(Clone, new)]
 pub struct TonProvider {
-    pub ton_client: TonClient,
     pub http_client: Client,
     pub connection_conf: TonConnectionConf,
     pub domain: HyperlaneDomain,
@@ -66,36 +53,7 @@ impl HyperlaneChain for TonProvider {
 impl HyperlaneProvider for TonProvider {
     async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
         info!("Fetching block by hash: {:?}", hash);
-
-        // need check
-        let block_id: BlockIdExt = BlockIdExt {
-            workchain: 0,
-            shard: 0,
-            seqno: 0,
-            root_hash: hash.to_string(),
-            file_hash: "".to_string(),
-        };
-        debug!("Constructed BlockIdExt: {:?}", block_id);
-
-        let blocks_header = self.ton_client.get_block_header(&block_id).await;
-
-        match blocks_header {
-            Ok(blocks_header) => {
-                let block_info: BlockInfo = BlockInfo {
-                    hash: H256::from_slice(&blocks_header.id.root_hash.as_bytes()),
-                    timestamp: blocks_header.gen_utime as u64,
-                    number: blocks_header.id.seqno as u64,
-                };
-                info!("Successfully fetched block info: {:?}", block_info);
-                Ok(block_info)
-            }
-            Err(e) => {
-                warn!("Failed to fetch block by hash: {:?}", e);
-                Err(ChainCommunicationError::Other(
-                    HyperlaneCustomErrorWrapper::new(Box::new(e)),
-                ))
-            }
-        }
+        todo!()
     }
 
     async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
@@ -139,10 +97,18 @@ impl HyperlaneProvider for TonProvider {
                 gas_price: None,
                 nonce: transaction.lt.parse::<u64>().unwrap_or(0),
                 sender: H256::from_slice(&hex::decode(&transaction.account).unwrap()),
-                recipient: transaction
-                    .in_msg
-                    .as_ref()
-                    .map(|msg| H256::from_slice(&hex::decode(&msg.destination).unwrap())),
+                recipient: transaction.in_msg.as_ref().and_then(|msg| {
+                    match TonAddress::from_base64_url(msg.destination.as_str()) {
+                        Ok(ton_address) => ConversionUtils::ton_address_to_h256(&ton_address).ok(),
+                        Err(e) => {
+                            warn!(
+                                "Failed to parse TON address from destination '{}': {:?}",
+                                msg.destination, e
+                            );
+                            None
+                        }
+                    }
+                }),
                 receipt: Some(TxnReceiptInfo {
                     gas_used: U256::from_dec_str(&transaction.description.compute_ph.gas_used)
                         .unwrap_or_default(),
@@ -167,29 +133,46 @@ impl HyperlaneProvider for TonProvider {
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         info!("Checking if contract exists at address: {:?}", address);
 
-        let ton_address = TonAddress::from_base64_url(&address.to_string()).map_err(|e| {
+        let ton_address = ConversionUtils::h256_to_ton_address(address, 0).map_err(|e| {
             warn!("Failed to parse address: {:?}", e);
-            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(
+                CustomHyperlaneError(format!("Failed to parse address: {:?}", e)),
+            )))
         })?;
 
-        let account_state = self
-            .ton_client
-            .get_account_state(&ton_address)
-            .await
-            .map_err(|e| {
-                warn!("Failed to get account state: {:?}", e);
-                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
-            })?;
+        let account_state = match self.get_account_state(ton_address.to_string(), true).await {
+            Ok(state) => state,
+            Err(e) => {
+                warn!(
+                    "Failed to get account state for address {:?}: {:?}",
+                    ton_address, e
+                );
+                return Err(ChainCommunicationError::Other(
+                    HyperlaneCustomErrorWrapper::new(Box::new(CustomHyperlaneError(format!(
+                        "Failed to get account state for address {:?}: {:?}",
+                        ton_address, e
+                    )))),
+                ));
+            }
+        };
 
-        match account_state.account_state {
-            AccountState::Uninited { .. } => {
-                info!("Account is uninitialized.");
-                Ok(false)
+        let account = match account_state.accounts.first() {
+            Some(account) => account,
+            None => {
+                warn!(
+                    "No account found for the address: {:?}. Assuming it is not a contract.",
+                    ton_address
+                );
+                return Ok(false);
             }
-            _ => {
-                info!("Account is initialized.");
-                Ok(true)
-            }
+        };
+
+        if account.code_boc.is_some() {
+            info!("Address {:?} is a contract.", ton_address);
+            Ok(true)
+        } else {
+            info!("Address {:?} is not a contract.", ton_address);
+            Ok(false)
         }
     }
     async fn get_balance(&self, address: String) -> ChainResult<U256> {
@@ -529,7 +512,7 @@ impl TonApiCenter for TonProvider {
             .join("v3/walletStates")
             .map_err(|e| {
                 warn!("Failed to construct wallet states URL: {:?}", e);
-                Box::new(e) as Box<dyn std::error::Error>
+                Box::new(e) as Box<dyn Error>
             })?;
 
         url.query_pairs_mut().append_pair("address", &account);
@@ -555,7 +538,7 @@ impl TonApiCenter for TonProvider {
 
         let result: WalletStatesResponse = serde_json::from_str(&body).map_err(|e| {
             warn!("Failed deserialization: {:?}", e);
-            Box::new(e) as Box<dyn std::error::Error>
+            Box::new(e) as Box<dyn Error>
         })?;
 
         Ok(result)
@@ -715,7 +698,7 @@ impl TonProvider {
                         );
 
                         if let Some(transaction) = response.transactions.first() {
-                            let transaction_id = ConversionUtils::base64_to_H512(&transaction.hash)
+                            let transaction_id = ConversionUtils::base64_to_h512(&transaction.hash)
                                 .map_err(|e| {
                                     ChainCommunicationError::CustomError(format!(
                                         "Failed to convert hash to H512: {:?}",
@@ -756,22 +739,4 @@ impl TonProvider {
 
         Err(ChainCommunicationError::CustomError("Timeout".to_string()))
     }
-}
-pub async fn create_mainnet_client() -> TonClient {
-    let params = TonConnectionParams {
-        config: MAINNET_CONFIG.to_string(),
-        ..Default::default()
-    };
-    TonClient::set_log_verbosity_level(1);
-    let client = TonClientBuilder::new()
-        .with_connection_params(&params)
-        .with_pool_size(2)
-        .with_logging_callback()
-        //.with_keystore_dir("./var/ton/testnet".to_string())
-        //.with_connection_check(ConnectionCheck::Archive)
-        .build()
-        .await
-        .unwrap();
-
-    client
 }

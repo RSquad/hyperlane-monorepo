@@ -39,10 +39,12 @@ pub enum SignerConf {
         /// Account address type for cosmos address
         account_address_type: AccountAddressType,
     },
-
+    /// Represents a mnemonic-based TON wallet configuration.
     TonMnemonic {
-        mnemonic_phrase: Vec<String>,       // A mnemonic phrase for tone
-        wallet_version: DebugWalletVersion, // Wallet version for Ton
+        /// A mnemonic phrase for tone
+        mnemonic_phrase: Vec<String>,
+        /// Wallet version for Ton
+        wallet_version: DebugWalletVersion,
     },
     /// Assume node will sign on RPC calls
     #[default]

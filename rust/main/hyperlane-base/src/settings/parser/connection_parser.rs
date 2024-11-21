@@ -2,8 +2,6 @@ use eyre::eyre;
 use h_eth::TransactionOverrides;
 use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use hyperlane_ton::{TonConnectionConf, TonConnectionConfError};
-use std::time::Duration;
 use url::Url;
 
 use h_eth::TransactionOverrides;

@@ -4,7 +4,6 @@ use h_cosmos::CosmosProvider;
 use std::{collections::HashMap, sync::Arc};
 
 use eyre::{eyre, Context, Result};
-use futures_util::TryStreamExt;
 use reqwest::Client;
 
 use crate::{
@@ -28,7 +27,6 @@ use hyperlane_ethereum::{
 use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 use hyperlane_ton as h_ton;
-use hyperlane_ton::{TonInterchainSecurityModule, TonMailbox, TonMultisigIsm};
 
 use super::ChainSigner;
 
@@ -140,7 +138,7 @@ pub enum ChainConnectionConf {
     Sealevel(h_sealevel::ConnectionConf),
     /// Cosmos configuration.
     Cosmos(h_cosmos::ConnectionConf),
-    // Ton configuration
+    /// Connection configuration for TON blockchain.
     Ton(h_ton::TonConnectionConf),
 }
 
@@ -224,7 +222,6 @@ impl ChainConf {
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Ton(conf) => Ok(Box::new(h_ton::TonProvider::new(
-                h_ton::create_mainnet_client().await,
                 Client::new(),
                 conf.clone(),
                 locator.domain.clone(),
@@ -263,12 +260,8 @@ impl ChainConf {
                     .map_err(Into::into)
             }
             ChainConnectionConf::Ton(conf) => {
-                let provider = h_ton::TonProvider::new(
-                    h_ton::create_mainnet_client().await,
-                    Client::new(),
-                    conf.clone(),
-                    locator.domain.clone(),
-                );
+                let provider =
+                    h_ton::TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let mailbox_address = format!("{:?}", self.addresses.mailbox);
 
                 let signer = self.ton_signer().await.context(ctx)?;
@@ -357,17 +350,12 @@ impl ChainConf {
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Ton(conf) => {
-                let provider = h_ton::TonProvider::new(
-                    h_ton::create_mainnet_client().await,
-                    Client::new(),
-                    conf.clone(),
-                    locator.domain.clone(),
-                );
+                let provider =
+                    h_ton::TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address = format!("{:?}", self.addresses.mailbox);
 
-                // Создаем экземпляр TonMailbox
                 let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
 
                 let indexer = Box::new(h_ton::TonMailboxIndexer { mailbox });
@@ -463,12 +451,8 @@ impl ChainConf {
             ChainConnectionConf::Ton(conf) => {
                 use tonlib_core::TonAddress;
 
-                let provider = h_ton::TonProvider::new(
-                    h_ton::create_mainnet_client().await,
-                    Client::new(),
-                    conf.clone(),
-                    locator.domain.clone(),
-                );
+                let provider =
+                    h_ton::TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
@@ -666,19 +650,15 @@ impl ChainConf {
             ChainConnectionConf::Ton(conf) => {
                 use tonlib_core::TonAddress;
 
-                let provider = h_ton::TonProvider::new(
-                    h_ton::create_mainnet_client().await,
-                    Client::new(),
-                    conf.clone(),
-                    locator.domain.clone(),
-                );
+                let provider =
+                    h_ton::TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let ism_address = TonAddress::from_base64_url(&address.to_string())
                     .expect("Failed to convert ISM address");
 
-                let ism = TonInterchainSecurityModule {
+                let ism = h_ton::TonInterchainSecurityModule {
                     ism_address,
                     provider,
                     signer: signer.unwrap(),
@@ -724,17 +704,13 @@ impl ChainConf {
             ChainConnectionConf::Ton(conf) => {
                 use tonlib_core::TonAddress;
 
-                let provider = h_ton::TonProvider::new(
-                    h_ton::create_mainnet_client().await,
-                    Client::new(),
-                    conf.clone(),
-                    locator.domain.clone(),
-                );
+                let provider =
+                    h_ton::TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
                 let multisig_address = TonAddress::from_base64_url(&address.to_string())
                     .expect("Failed to convert ISM address");
 
-                let ism = TonMultisigIsm::new(provider, multisig_address);
+                let ism = h_ton::TonMultisigIsm::new(provider, multisig_address);
 
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }

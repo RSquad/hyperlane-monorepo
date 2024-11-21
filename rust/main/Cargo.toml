@@ -309,6 +309,3 @@ version = "=0.32.2"
 branch = "trevor/0.32.2-fork"
 git = "https://github.com/hyperlane-xyz/tendermint-rs.git"
 version = "=0.32.2"
-
-#[build]
-#rustflags = ["-L/usr/local/lib"]

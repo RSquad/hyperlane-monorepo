@@ -8,8 +8,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 
-use crate::contracts::mailbox::TonMailbox;
-use log::info;
+use log::{info, warn};
 use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
 use std::time::SystemTime;
@@ -17,8 +16,6 @@ use tonlib_core::message::{CommonMsgInfo, InternalMessage, TonMessage};
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
     message::TransferMessage,
-    mnemonic::Mnemonic,
-    wallet::{TonWallet, WalletVersion},
     TonAddress,
 };
 
@@ -140,9 +137,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
 
         let boc = BagOfCells::from_root(validators_cell)
             .serialize(true)
-            .map_err(|e| {
-                ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
-            })?;
+            .map_err(|_e| ChainCommunicationError::CustomError(_e.to_string()))?;
         let boc_str = base64::encode(&boc);
 
         let stack = Some(vec![boc_str]);
@@ -151,8 +146,9 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .provider
             .run_get_method(self.address.to_hex(), function_name, stack)
             .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError("Failed to run get methdod".to_string())
+            .map_err(|_e| {
+                warn!("Failed to run get method");
+                ChainCommunicationError::CustomError(_e.to_string())
             })?;
 
         if response.exit_code != 0 {
@@ -163,32 +159,25 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         }
 
         if let Some(stack_item) = response.stack.get(0) {
-            // Assuming `StackItem` has a field `value` that is the base64-encoded cell BOC
-            let cell_boc = base64::decode(&stack_item.value).map_err(|_| {
-                ChainCommunicationError::CustomError(
-                    "Failed to decode cell BOC from response".to_string(),
-                )
-            })?;
-
             let cell_boc_decoded = base64::decode(&stack_item.value).map_err(|_| {
                 ChainCommunicationError::CustomError(
                     "Failed to decode cell BOC from response".to_string(),
                 )
             })?;
 
-            let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", e))
+            let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
+                ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
             })?;
 
-            let cell = boc.single_root().map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", e))
+            let cell = boc.single_root().map_err(|_e| {
+                ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", _e))
             })?;
 
             let storage_locations = ConversionUtils::parse_address_storage_locations(&cell)
-                .map_err(|e| {
+                .map_err(|_e| {
                     ChainCommunicationError::CustomError(format!(
                         "Failed to parse address storage locations: {}",
-                        e
+                        _e
                     ))
                 })?;
 
@@ -206,7 +195,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let cell = self
             .build_announcement_cell(announcement)
-            .map_err(|e| ChainCommunicationError::CustomError(e))?;
+            .map_err(|_e| ChainCommunicationError::CustomError(_e))?;
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
             bounce: false,
