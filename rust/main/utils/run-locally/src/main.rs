@@ -52,8 +52,8 @@ mod logging;
 mod metrics;
 mod program;
 mod solana;
+mod ton;
 mod utils;
-//mod ton;
 
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
@@ -215,6 +215,24 @@ fn main() -> ExitCode {
             "CHAINS_TEST3_BATCHCONTRACTADDRESS",
             multicall_address_string,
         )
+        ///////////
+        .hyp_env(
+            "CHAINS_TON_CONNECTION_URL",
+            "https://testnet.toncenter.com/api/",
+        )
+        .hyp_env(
+            "CHAINS_TON_SIGNER_KEY",
+            "d0e66cd5bae6419130bc8b3b7e9ee6c675678d21be5f30c1b30619b219d27505",
+        )
+        .arg(
+            "chains.ton.connectionUrl",
+            "https://testnet.toncenter.com/api/",
+        )
+        .arg(
+            "chains.ton.signerKey",
+            "d0e66cd5bae6419130bc8b3b7e9ee6c675678d21be5f30c1b30619b219d27505",
+        )
+        ///////////
         .hyp_env("CHAINS_TEST3_MAXBATCHSIZE", "5")
         .hyp_env("METRICSPORT", RELAYER_METRICS_PORT)
         .hyp_env("DB", relayer_db.to_str().unwrap())
