@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use derive_new::new;
 use log::{debug, info, warn};
 use std::error::Error;
+use std::str::FromStr;
 
 use hyperlane_core::{
     BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
@@ -504,8 +505,25 @@ impl TonApiCenter for TonProvider {
 
     async fn get_wallet_states(
         &self,
-        account: String,
+        mut account: String,
     ) -> Result<WalletStatesResponse, Box<dyn Error>> {
+        if account.starts_with("0x") {
+            let h256 = H256::from_str(&account[2..]).map_err(|e| {
+                warn!("Failed to parse H256 address: {:?}", e);
+                Box::new(e) as Box<dyn Error>
+            })?;
+
+            match ConversionUtils::h256_to_ton_address(&h256, 0) {
+                Ok(ton_address) => account = ton_address.to_string(),
+                Err(e) => {
+                    warn!("Failed to convert H256 to TonAddress: {:?}", e);
+                    return Err(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        format!("Conversion failed: {:?}", e),
+                    )));
+                }
+            }
+        }
         let mut url = self
             .connection_conf
             .url
