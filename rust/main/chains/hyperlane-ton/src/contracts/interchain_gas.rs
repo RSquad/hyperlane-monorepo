@@ -2,6 +2,7 @@ use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
+use derive_new::new;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
@@ -54,8 +55,15 @@ impl Debug for TonInterchainGasPaymaster {
     }
 }
 impl InterchainGasPaymaster for TonInterchainGasPaymaster {}
+
+#[derive(Debug, Clone, new)]
+pub struct TonInterchainGasPaymasterIndexer {
+    provider: TonProvider,
+    igp_address: TonAddress,
+}
+
 #[async_trait]
-impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
+impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
     async fn fetch_logs_in_range(
         &self,
         range: RangeInclusive<u32>,
@@ -125,7 +133,8 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
             .get_messages(
                 None,
                 None,
-                Some(self.igp_address.to_hex()),
+                Some(self.igp_address.to_hex()), // I need check this
+                //None,
                 Some("null".to_string()),
                 Some(TonInterchainGasPaymaster::EVENT_GAS_PAYMENT.to_string()),
                 //None,
@@ -205,7 +214,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymaster {
 }
 
 #[async_trait]
-impl SequenceAwareIndexer<InterchainGasPayment> for TonInterchainGasPaymaster {
+impl SequenceAwareIndexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<InterchainGasPayment>::get_finalized_block_number(self).await?;
 

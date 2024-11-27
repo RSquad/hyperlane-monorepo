@@ -38,7 +38,7 @@ impl Debug for TonValidatorAnnounce {
 
 impl TonValidatorAnnounce {
     const ANNOUNCE_OPCODE: u32 = 0x980b3d44;
-    pub fn new(provider: TonProvider, address: TonAddress, signer: TonSigner) -> Self {
+    pub fn new(address: TonAddress, provider: TonProvider, signer: TonSigner) -> Self {
         Self {
             address,
             provider,

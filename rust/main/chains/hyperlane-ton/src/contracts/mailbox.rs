@@ -34,14 +34,13 @@ pub struct TonMailbox {
 }
 impl TonMailbox {
     pub fn new(
-        mailbox_address: String,
+        mailbox_address: TonAddress,
         provider: TonProvider,
         workchain: i32,
         signer: TonSigner,
     ) -> Self {
         Self {
-            mailbox_address: TonAddress::from_base64_url(mailbox_address.as_str())
-                .expect("Failed to convert mailbox address"),
+            mailbox_address,
             provider,
             workchain,
             signer,
@@ -440,7 +439,6 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                     e
                 ))
             })?;
-        //.expect("Failed to get start block info");
 
         let start_utime = start_block_info.blocks[0]
             .gen_utime
