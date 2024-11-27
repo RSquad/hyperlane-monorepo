@@ -1,5 +1,6 @@
 use anyhow::Error;
 use hyperlane_core::ChainCommunicationError;
+use serde::{Deserialize, Serialize};
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell},
     mnemonic::{KeyPair, Mnemonic},
@@ -69,9 +70,31 @@ impl TonSigner {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(into = "String", try_from = "String")]
 pub struct DebugWalletVersion(pub WalletVersion);
 
+impl DebugWalletVersion {
+    pub fn from_str(name: &str) -> Result<Self, &'static str> {
+        match name {
+            "V1R1" => Ok(DebugWalletVersion(WalletVersion::V1R1)),
+            "V1R2" => Ok(DebugWalletVersion(WalletVersion::V1R2)),
+            "V1R3" => Ok(DebugWalletVersion(WalletVersion::V1R3)),
+            "V2R1" => Ok(DebugWalletVersion(WalletVersion::V2R1)),
+            "V2R2" => Ok(DebugWalletVersion(WalletVersion::V2R2)),
+            "V3R1" => Ok(DebugWalletVersion(WalletVersion::V3R1)),
+            "V3R2" => Ok(DebugWalletVersion(WalletVersion::V3R2)),
+            "V4R1" => Ok(DebugWalletVersion(WalletVersion::V4R1)),
+            "V4R2" => Ok(DebugWalletVersion(WalletVersion::V4R2)),
+            "HighloadV1R1" => Ok(DebugWalletVersion(WalletVersion::HighloadV1R1)),
+            "HighloadV1R2" => Ok(DebugWalletVersion(WalletVersion::HighloadV1R2)),
+            "HighloadV2" => Ok(DebugWalletVersion(WalletVersion::HighloadV2)),
+            "HighloadV2R1" => Ok(DebugWalletVersion(WalletVersion::HighloadV2R1)),
+            "HighloadV2R2" => Ok(DebugWalletVersion(WalletVersion::HighloadV2R2)),
+            _ => Err("Invalid wallet version string"),
+        }
+    }
+}
 impl std::fmt::Debug for DebugWalletVersion {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = match self.0 {
@@ -91,5 +114,34 @@ impl std::fmt::Debug for DebugWalletVersion {
             WalletVersion::HighloadV2R2 => "HighloadV2R2",
         };
         write!(f, "WalletVersion::{}", name)
+    }
+}
+
+impl From<DebugWalletVersion> for String {
+    fn from(version: DebugWalletVersion) -> Self {
+        match version.0 {
+            WalletVersion::V1R1 => "V1R1".to_string(),
+            WalletVersion::V1R2 => "V1R2".to_string(),
+            WalletVersion::V1R3 => "V1R3".to_string(),
+            WalletVersion::V2R1 => "V2R1".to_string(),
+            WalletVersion::V2R2 => "V2R2".to_string(),
+            WalletVersion::V3R1 => "V3R1".to_string(),
+            WalletVersion::V3R2 => "V3R2".to_string(),
+            WalletVersion::V4R1 => "V4R1".to_string(),
+            WalletVersion::V4R2 => "V4R2".to_string(),
+            WalletVersion::HighloadV1R1 => "HighloadV1R1".to_string(),
+            WalletVersion::HighloadV1R2 => "HighloadV1R2".to_string(),
+            WalletVersion::HighloadV2 => "HighloadV2".to_string(),
+            WalletVersion::HighloadV2R1 => "HighloadV2R1".to_string(),
+            WalletVersion::HighloadV2R2 => "HighloadV2R2".to_string(),
+        }
+    }
+}
+
+impl TryFrom<String> for DebugWalletVersion {
+    type Error = &'static str;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::from_str(&value)
     }
 }

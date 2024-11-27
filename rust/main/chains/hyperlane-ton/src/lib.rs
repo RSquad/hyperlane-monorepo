@@ -2,16 +2,18 @@
 
 mod client;
 mod contracts;
+mod mailbox_test;
 mod signer;
 mod trait_builder;
 mod traits;
 mod types;
 mod utils;
+
 pub use self::{
     client::provider::*,
     contracts::{
-        interchain_gas::*, interchain_security_module::*, mailbox::*, multisig_ism::*,
-        validator_announce::*,
+        aggregation_ism::*, interchain_gas::*, interchain_security_module::*, mailbox::*,
+        merkle_tree_hook::*, multisig_ism::*, routing_ism::*, validator_announce::*,
     },
     signer::signer::*,
     trait_builder::*,
