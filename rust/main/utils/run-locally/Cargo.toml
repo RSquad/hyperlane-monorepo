@@ -42,6 +42,7 @@ url = "2.5.2"
 log.workspace = true
 
 reqwest = { workspace = true, version = "0.11", features = ["json"] }
+env_logger = "0.9.3"
 
 
 [build-dependencies]

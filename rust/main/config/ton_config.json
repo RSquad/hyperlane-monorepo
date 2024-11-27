@@ -1,0 +1,70 @@
+{
+  "chains": {
+    "tontest1": {
+      "name": "tontest1",
+      "domainId": 777001,
+      "metricsPort": 9093,
+      "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "protocol": "ton",
+      "chainId": "777001",
+      "rpcUrls": [
+        {
+          "http": "https://testnet.toncenter.com/api/"
+        }
+      ],
+      "apiKey": "aboba",
+      "signer": {
+        "type": "TonMnemonic",
+        "mnemonic_phrase": [
+          ""
+        ],
+        "wallet_version": "V4R2"
+      },
+      "gasPrice": {
+        "denom": "ton",
+        "amount": "0.01"
+      },
+      "contractAddressBytes": 32,
+      "index": {
+        "from": 1,
+        "chunk": 5
+      }
+    },
+    "tontest2": {
+      "name": "tontest2",
+      "domainId": 777002,
+      "metricsPort": 9093,
+      "mailbox": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "protocol": "ton",
+      "chainId": "777002",
+      "rpcUrls": [
+        {
+          "http": "https://testnet.toncenter.com/api/"
+        }
+      ],
+      "apiKey": "aboba",
+      "signer": {
+        "type": "TonMnemonic",
+        "mnemonic_phrase": [
+          ""
+        ],
+        "wallet_version": "V4R2"
+      },
+      "gasPrice": {
+        "denom": "ton",
+        "amount": "0.01"
+      },
+      "contractAddressBytes": 32,
+      "index": {
+        "from": 1,
+        "chunk": 5
+      }
+    }
+  }
+}
