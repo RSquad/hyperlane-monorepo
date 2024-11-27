@@ -2,6 +2,8 @@ use eyre::eyre;
 use h_eth::TransactionOverrides;
 use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
 use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
+use hyperlane_ton::{TonConnectionConf, TonConnectionConfError};
+use std::time::Duration;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -204,53 +206,47 @@ fn build_ton_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
-    // let conf_path = &chain.cwp;
-    //
-    // let url = rpcs
-    //     .get(0)
-    //     .cloned()
-    //     .ok_or_else(|| {
-    //         err.push(
-    //             conf_path.extend_with("url"),
-    //             eyre!("Missing URL for TonConnectionConf"),
-    //         );
-    //         TonConnectionConfError::MissingConnectionUrl
-    //     }).ok()?;
-    //
-    // let api_key = chain
-    //     .chain(err)
-    //     .get_key("apiKey")
-    //     .parse_string()
-    //     .end()
-    //     .or_else(|| {
-    //         err.push(
-    //             conf_path.extend_with("api_key"), // Добавляем путь для API ключа
-    //             eyre!("Missing API key for TonConnectionConf"),
-    //         );
-    //         None
-    //     })?;
-    //
-    // let max_attempts = chain
-    //     .chain(err)
-    //     .get_opt_key("maxAttempts")
-    //     .parse_u16()
-    //     .end()
-    //     .unwrap_or(3);
-    //
-    // let timeout = chain
-    //     .chain(err)
-    //     .get_opt_key("timeout")
-    //     .parse_duration()
-    //     .end()
-    //     .unwrap_or_else(|| Duration::from_secs(10));
-    //
-    // Some(ChainConnectionConf::Ton(TonConnectionConf::new(
-    //     url,
-    //     api_key.to_string(),
-    //     max_attempts.try_into().unwrap(),
-    //     timeout,
-    // )))
-    todo!();
+    let conf_path = &chain.cwp;
+
+    let url = rpcs
+        .get(0)
+        .cloned()
+        .ok_or_else(|| {
+            err.push(
+                chain.cwp.clone().join("url"),
+                eyre!("Missing URL for TonConnectionConf"),
+            );
+        })
+        .ok()?;
+
+    let api_key = chain
+        .chain(err)
+        .get_key("api_key")
+        .parse_string()
+        .end()
+        .or_else(|| {
+            err.push(
+                chain.cwp.clone().join("api_key"),
+                eyre!("Missing API key for TonConnectionConf"),
+            );
+            None
+        })?;
+
+    let max_attempts = chain
+        .chain(err)
+        .get_opt_key("maxAttempts")
+        .parse_u16()
+        .end()
+        .unwrap_or(3);
+
+    let timeout = Duration::from_secs(10);
+
+    Some(ChainConnectionConf::Ton(TonConnectionConf::new(
+        url,
+        api_key.to_string(),
+        max_attempts.try_into().unwrap(),
+        timeout,
+    )))
 }
 
 pub fn build_connection_conf(

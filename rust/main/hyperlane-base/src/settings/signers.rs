@@ -182,15 +182,17 @@ impl ChainSigner for hyperlane_cosmos::Signer {
 #[async_trait]
 impl BuildableWithSignerConf for TonSigner {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
-        match conf {
-            SignerConf::TonMnemonic {
-                mnemonic_phrase,
-                wallet_version,
-            } => TonSigner::from_mnemonic(mnemonic_phrase.clone(), wallet_version.0.clone())
-                .map_err(|e| {
-                    Report::msg(format!("Failed to create TonSigner from mnemonic: {}", e))
-                }),
-            _ => bail!("Unsupported signer configuration for TonSigner"),
+        if let SignerConf::TonMnemonic {
+            mnemonic_phrase,
+            wallet_version,
+        } = conf
+        {
+            Ok(
+                TonSigner::from_mnemonic(mnemonic_phrase.clone(), wallet_version.clone().0)
+                    .expect("Failed to create TonSigner from mnemonic"),
+            )
+        } else {
+            bail!(format!("{conf:?} key is not supported by Ton"));
         }
     }
 }

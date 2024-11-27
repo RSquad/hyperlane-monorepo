@@ -10,7 +10,13 @@ use std::{
 };
 
 use convert_case::{Case, Casing};
-use eyre::{eyre, Context};
+use eyre::{bail, eyre, Context};
+use h_cosmos::RawCosmosAmount;
+use h_ton::DebugWalletVersion;
+use hyperlane_core::{
+    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
+    HyperlaneDomainTechnicalStack, IndexMode,
+};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
@@ -288,6 +294,8 @@ fn parse_domain(chain: ValueParser, name: &str) -> ConfigResult<HyperlaneDomain>
 
 /// Expects AgentSigner.
 fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
+    use tracing::info;
+
     let mut err = ConfigParsingError::default();
 
     let signer_type = signer
@@ -295,6 +303,8 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
         .get_opt_key("type")
         .parse_string()
         .end();
+    eyre!("Signer type:{:?}", signer_type.unwrap());
+    eyre!("Signer type:{:?}", signer_type.unwrap());
 
     let key_is_some = matches!(signer.get_opt_key("key"), Ok(Some(_)));
     let id_is_some = matches!(signer.get_opt_key("id"), Ok(Some(_)));
@@ -346,12 +356,38 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 account_address_type,
             })
         }};
+        (TonMnemonic) => {{
+            let mnemonic_phrase = signer
+                .chain(&mut err)
+                .get_key("mnemonic_phrase")
+                .parse_string()
+                .unwrap_or_else(|| "V4R2");
+
+            let mnemonic_vec: Vec<String> = mnemonic_phrase
+                .split_whitespace()
+                .map(String::from)
+                .collect();
+
+            let wallet_version = signer
+                .chain(&mut err)
+                .get_key("wallet_version")
+                .parse_string()
+                .unwrap_or_else(|| "V4R2");
+
+            info!("Wallet version:{:?}", wallet_version);
+
+            err.into_result(SignerConf::TonMnemonic {
+                mnemonic_phrase: mnemonic_vec,
+                wallet_version: DebugWalletVersion::from_str(wallet_version).unwrap(),
+            })
+        }};
     }
 
     match signer_type {
         Some("hexKey") => parse_signer!(hexKey),
         Some("aws") => parse_signer!(aws),
         Some("cosmosKey") => parse_signer!(cosmosKey),
+        Some("TonMnemonic") => parse_signer!(TonMnemonic),
         Some(t) => {
             Err(eyre!("Unknown signer type `{t}`")).into_config_result(|| &signer.cwp + "type")
         }

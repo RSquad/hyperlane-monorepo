@@ -1,3 +1,4 @@
+use std::fs::OpenOptions;
 use std::{collections::HashMap, fmt::Debug, hash::Hash, sync::Arc};
 
 use eyre::{eyre, Context, Result};
@@ -7,6 +8,7 @@ use hyperlane_core::{
     HyperlaneSequenceAwareIndexerStoreReader, HyperlaneWatermarkedLogStore, InterchainGasPaymaster,
     Mailbox, MerkleTreeHook, MultisigIsm, SequenceAwareIndexer, ValidatorAnnounce, H256,
 };
+use tracing::info;
 
 use crate::{
     cursors::{CursorType, Indexable},

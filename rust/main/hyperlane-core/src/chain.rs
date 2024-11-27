@@ -205,6 +205,8 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SuperpositionTestnet = 98985,
+    TONTEST1 = 777001,
+    TONTEST2 = 777002,
 }
 
 #[derive(Clone, Serialize)]
@@ -328,7 +330,7 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, TonTest1,
+                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, TonTest1,TONTEST1, TONTEST2
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
@@ -365,7 +367,7 @@ impl KnownHyperlaneDomain {
                 CosmosTest99990, CosmosTest99991,
             ],
             HyperlaneDomainProtocol::Ton: [
-                TonMainnet, TonTest1
+                TonMainnet, TonTest1, TONTEST1, TONTEST2
             ]
         })
     }
