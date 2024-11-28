@@ -1,4 +1,5 @@
-use hyperlane_ton::DebugWalletVersion;
+use hyperlane_core::H256;
+use hyperlane_ton::{ConversionUtils, DebugWalletVersion};
 use std::collections::BTreeMap;
 use std::fmt::Error;
 use std::fs;
@@ -62,6 +63,24 @@ impl TonAgentConfig {
         api_key: &str,
         signer_phrase: &str,
     ) -> Self {
+        use tonlib_core::TonAddress;
+
+        let mailbox_address =
+            TonAddress::from_base64_url("EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v")
+                .unwrap();
+        let igp_address =
+            TonAddress::from_base64_url("EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE")
+                .unwrap();
+        let recipient_address =
+            TonAddress::from_base64_url("EQBWmHkjpLAwyJ1qQwH9tIfDKiOyEIa_nH29iJon3qduwWBy")
+                .unwrap();
+        let multisig_address =
+            TonAddress::from_base64_url("EQDiSTbhD8dbtUQTldaJ3mbkznRQpw1PzhMzo7GJBpopxxoQ")
+                .unwrap();
+        let validator_announce =
+            TonAddress::from_base64_url("EQATPBRdYOV8bfAyL7s1H_fUL1JGUiYas6A0zDTKgAFO3EPi")
+                .unwrap();
+
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
             .map(|s| s.to_string())
@@ -73,10 +92,31 @@ impl TonAgentConfig {
             name: name.to_string(),
             domain_id,
             metrics_port: 9093,
-            mailbox: "0x12345".to_string(),
-            interchain_gas_paymaster: "0x67890".to_string(),
-            validator_announce: "0xabcdef".to_string(),
-            merkle_tree_hook: "0xfedcba".to_string(),
+            mailbox: format!(
+                "0x{}",
+                hex::encode(
+                    ConversionUtils::ton_address_to_h256(&mailbox_address)
+                        .unwrap()
+                        .as_bytes()
+                )
+            ),
+            interchain_gas_paymaster: format!(
+                "0x{}",
+                hex::encode(
+                    ConversionUtils::ton_address_to_h256(&igp_address)
+                        .unwrap()
+                        .as_bytes()
+                )
+            ),
+            validator_announce: format!(
+                "0x{}",
+                hex::encode(
+                    ConversionUtils::ton_address_to_h256(&validator_announce)
+                        .unwrap()
+                        .as_bytes()
+                )
+            ),
+            merkle_tree_hook: format!("0x{}", hex::encode(H256::zero())),
             protocol: "ton".to_string(),
             chain_id: format!("{}", domain_id),
             rpc_urls: vec![AgentUrl {
@@ -99,10 +139,13 @@ impl TonAgentConfig {
     }
 }
 
-pub fn generate_ton_config(output_name: &str) -> Result<Vec<TonAgentConfig>, Error> {
-    let output_path = format!("/../../{output_name}.json");
+pub fn generate_ton_config(
+    output_name: &str,
+    mnemonic: &str,
+) -> Result<Vec<TonAgentConfig>, Error> {
+    let output_path = format!("../../../config/{output_name}.json");
 
-    let mnemonic = "".to_string();
+    let mnemonic = mnemonic.to_string();
 
     let mut ton_chains = vec![
         TonAgentConfig::new(
@@ -120,16 +163,6 @@ pub fn generate_ton_config(output_name: &str) -> Result<Vec<TonAgentConfig>, Err
             mnemonic.as_str(),
         ),
     ];
-
-    let zero_address =
-        String::from("0x0000000000000000000000000000000000000000000000000000000000000000");
-
-    for chain in &mut ton_chains {
-        chain.mailbox = zero_address.clone();
-        chain.interchain_gas_paymaster = zero_address.clone();
-        chain.validator_announce = zero_address.clone();
-        chain.merkle_tree_hook = zero_address.clone();
-    }
 
     let mut chains_map = BTreeMap::new();
     for chain in ton_chains.clone() {

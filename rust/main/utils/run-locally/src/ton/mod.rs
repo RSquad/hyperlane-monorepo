@@ -62,20 +62,17 @@ impl Drop for TonHyperlaneStack {
 
 fn run_locally() {
     info!("Start run_locally() for Ton");
+    let mnemonic = "";
+
+    let mailbox_address = "EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v";
+    let igp_address = "EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE";
+    let recipient_address = "EQBWmHkjpLAwyJ1qQwH9tIfDKiOyEIa_nH29iJon3qduwWBy";
+    let multisig_address = "EQDiSTbhD8dbtUQTldaJ3mbkznRQpw1PzhMzo7GJBpopxxoQ";
 
     let file_name = "ton_config";
-    let agent_config = generate_ton_config(file_name).unwrap();
+    let agent_config = generate_ton_config(file_name, mnemonic).unwrap();
 
-    let mut agent_config_path =
-        concat_path("utils/run-locally/src/ton/configs", "ton_agent_config.toml")
-            .to_str()
-            .unwrap()
-            .to_string();
-
-    agent_config_path = format!(
-        "/Users/vasilijlazarev/Rsquad/Ton/hyperlane-monorepo/rust/main/config/{file_name}.json"
-    )
-    .to_string();
+    let agent_config_path = format!("../../../config/{file_name}.json").to_string();
 
     info!("Agent config path:{:?}", agent_config_path);
     let relay_chains = vec!["tontest1".to_string(), "tontest2".to_string()];
@@ -161,6 +158,7 @@ pub fn launch_ton_relayer(
         .hyp_env("tontest1", "1")
         .hyp_env("tontest2", "1")
         .hyp_env("TRACING_LEVEL", "info")
+        .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]") //
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("TON_RELAYER", None);
 
@@ -197,14 +195,15 @@ pub fn launch_ton_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("DB", validator_base.to_str().unwrap())
         .hyp_env("METRICSPORT", metrics_port.to_string())
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env(
             "VALIDATOR_MNEMONIC_PHRASE",
-            agent_config.signer.mnemonic_phrase.join(" "),
+            agent_config.signer.mnemonic_phrase,
         )
+        .hyp_env("SIGNER_SIGNER_TYPE", "TonMnemonic")
         .hyp_env("VALIDATOR_WALLET_VERSION", "V4R2")
-        .spawn("TON_VALIDATOR", None);
+        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .spawn("TON-VALIDATOR", None);
 
     validator
 }
@@ -222,10 +221,10 @@ fn launch_ton_scraper(
         "Current working directory: {:?}",
         env::current_dir().unwrap()
     );
-    info!(
-        "Resolved scraper config path: {:?}",
-        fs::canonicalize("../utils/run-locally/src/ton/configs/ton_scraper_config.json")
-    );
+    // info!(
+    //     "Resolved scraper config path: {:?}",
+    //     fs::canonicalize("../utils/run-locally/src/ton/configs/ton_scraper_config.json")
+    // );
     info!("CHAINSTOSCRAPE env variable: {}", chains.join(","));
 
     let scraper = Program::default()
@@ -234,6 +233,8 @@ fn launch_ton_scraper(
         .env("CONFIG_FILES", agent_config_path)
         .env("RUST_BACKTRACE", "1")
         .hyp_env("CHAINSTOSCRAPE", chains.join(","))
+        .hyp_env("tontest1", "1")
+        .hyp_env("tontest2", "1")
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
