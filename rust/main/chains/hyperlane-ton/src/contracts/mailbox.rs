@@ -549,6 +549,29 @@ impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
     }
 }
 
+#[async_trait]
+impl Indexer<H256> for TonMailboxIndexer {
+    async fn fetch_logs_in_range(
+        &self,
+        _range: RangeInclusive<u32>,
+    ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
+        todo!()
+    }
+
+    async fn get_finalized_block_number(&self) -> ChainResult<u32> {
+        <TonMailboxIndexer as Indexer<HyperlaneMessage>>::get_finalized_block_number(self).await
+    }
+}
+#[async_trait]
+impl SequenceAwareIndexer<H256> for TonMailboxIndexer {
+    async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
+        // TODO: implement when ton scraper support is implemented
+        info!("Message delivery indexing not implemented");
+        let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
+        Ok((Some(1), tip))
+    }
+}
+
 pub(crate) fn build_message(
     opcode: u32,
     message_cell: ArcCell,
