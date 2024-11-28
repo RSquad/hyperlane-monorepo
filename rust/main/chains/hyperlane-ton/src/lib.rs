@@ -2,7 +2,6 @@
 
 mod client;
 mod contracts;
-mod mailbox_test;
 mod signer;
 mod trait_builder;
 mod traits;
