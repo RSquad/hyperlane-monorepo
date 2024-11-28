@@ -421,8 +421,19 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
-            ChainConnectionConf::Ton(_) => {
-                todo!()
+            ChainConnectionConf::Ton(conf) => {
+                let provider =
+                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
+                let signer = self.ton_signer().await.context(ctx)?;
+
+                let mailbox_address =
+                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0)
+                        .expect("Failed to convert mailbox address");
+
+                let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
+
+                let indexer = Box::new(h_ton::TonMailboxIndexer { mailbox });
+                Ok(indexer as Box<dyn SequenceAwareIndexer<H256>>)
             }
         }
         .context(ctx)
