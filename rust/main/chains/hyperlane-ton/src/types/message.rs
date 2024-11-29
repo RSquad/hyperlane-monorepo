@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct MessageResponse {
-    pub address_book: HashMap<String, Address>,
+    pub address_book: Option<HashMap<String, Address>>,
     pub messages: Vec<Message>,
 }
 

@@ -4,14 +4,18 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H256, U256,
 };
+use log::{error, warn};
 use num_bigint::BigUint;
+use std::time::Duration;
 use std::{
     fmt::{Debug, Formatter},
     num::NonZeroU64,
     ops::RangeInclusive,
     time::SystemTime,
 };
+use tokio::time::{sleep, timeout};
 
+use tonlib_core::cell::TonCellError;
 use tonlib_core::message::{InternalMessage, TonMessage};
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
@@ -19,7 +23,8 @@ use tonlib_core::{
     TonAddress,
 };
 
-use tracing::info;
+use log::info;
+use num_traits::{ToBytes, ToPrimitive};
 
 use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
@@ -127,7 +132,7 @@ impl Mailbox for TonMailbox {
         let boc = BagOfCells::from_root(cell).serialize(true).unwrap();
         let boc_str = base64::encode(boc.clone());
 
-        log::info!("Boc:{:?}", boc_str);
+        info!("Boc:{:?}", boc_str);
 
         let stack = vec![boc_str];
 
@@ -416,6 +421,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             )
             .await
             .expect("Failed to get start block info");
+        sleep(Duration::from_secs(1)).await;
         let end_block_info = self
             .mailbox
             .provider
@@ -440,6 +446,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                 ))
             })?;
 
+        sleep(Duration::from_secs(1)).await;
         let start_utime = start_block_info.blocks[0]
             .gen_utime
             .parse::<i64>()
@@ -456,15 +463,17 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                 ChainCommunicationError::CustomError(format!("Failed to parse end_utime: {:?}", e))
             })?;
 
+        info!("StartTime:{:?} EndTime:{:?}", start_utime, end_utime);
+
         let message_response = self
             .mailbox
             .provider
             .get_messages(
                 None,
                 None,
-                Some(self.mailbox.mailbox_address.to_hex()),
+                Some(self.mailbox.mailbox_address.to_string()),
                 Some("null".to_string()),
-                Some(TonMailbox::DISPATCH_OPCODE.to_string()),
+                None,
                 Some(start_utime),
                 Some(end_utime),
                 None,
@@ -477,28 +486,27 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             .await;
         match message_response {
             Ok(messages) => {
+                info!("Messages: {:?}", messages);
                 let mut events = vec![];
                 for message in messages.messages {
-                    let hyperlane_message = HyperlaneMessage {
-                        version: 0,
-                        nonce: 0,
-                        origin: 0,
-                        sender: Default::default(),
-                        destination: 0,
-                        recipient: Default::default(),
-                        body: base64::decode(&message.message_content.body)
-                            .expect("Invalid base64 body"),
-                    };
-                    let index_event = Indexed::from(hyperlane_message);
-                    let log_meta = LogMeta {
-                        address: Default::default(),
-                        block_number: 0,
-                        block_hash: Default::default(),
-                        transaction_id: Default::default(),
-                        transaction_index: 0,
-                        log_index: Default::default(),
-                    };
-                    events.push((index_event, log_meta));
+                    let parsed_result = parse_message(&message.message_content.body);
+                    match parsed_result {
+                        Ok(hyperlane_message) => {
+                            let index_event = Indexed::from(hyperlane_message);
+                            let log_meta = LogMeta {
+                                address: Default::default(),
+                                block_number: 0,
+                                block_hash: Default::default(),
+                                transaction_id: Default::default(),
+                                transaction_index: 0,
+                                log_index: Default::default(),
+                            };
+                            events.push((index_event, log_meta));
+                        }
+                        Err(e) => {
+                            warn!("Failed to parse message body: {:?}", e);
+                        }
+                    }
                 }
                 Ok(events)
             }
@@ -595,4 +603,109 @@ pub(crate) fn build_message(
         .expect("Failed to store metadata")
         .build()
         .map_err(|e| ChainCommunicationError::CustomError(format!("Cell build failed: {}", e)))
+}
+pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
+    info!("Boc:{:?}", boc);
+    let cell = ConversionUtils::parse_root_cell_from_boc(boc).map_err(|e| {
+        error!("Failed to parse root cell from BOC: {:?}", e);
+        TonCellError::BagOfCellsDeserializationError(
+            "Failed to parse root cell from BOC".to_string(),
+        )
+    })?;
+
+    let mut parser = cell.parser();
+
+    let id = parser.load_uint(256).map_err(|e| {
+        TonCellError::BagOfCellsDeserializationError(format!("Failed to parse ID: {:?}", e))
+    })?;
+    let id_u64 = id.bits();
+    info!("Parsed message ID: {}", id_u64);
+
+    let p = parser.next_reference().map_err(|e| {
+        TonCellError::BagOfCellsDeserializationError(format!(
+            "Failed to load next reference: {:?}",
+            e
+        ))
+    })?;
+    info!("Next reference found: {:?}", p);
+
+    let reference = p.parser().load_maybe_cell_ref().map_err(|e| {
+        TonCellError::BagOfCellsDeserializationError(format!(
+            "Failed to load cell reference: {:?}",
+            e
+        ))
+    })?;
+    info!("Reference cell found: {}", reference.is_some());
+
+    if let Some(reference) = reference {
+        let mut parser_ref = reference.parser();
+
+        let mut string_bytes = vec![0u8; 32];
+        parser_ref.load_slice(&mut string_bytes).map_err(|e| {
+            TonCellError::BagOfCellsDeserializationError(format!(
+                "Failed to parse sender address: {:?}",
+                e
+            ))
+        })?;
+        info!("Parsed sender bytes: {:?}", string_bytes);
+
+        let sender_h256 = H256::from_slice(&string_bytes);
+        info!("Parsed sender address: {}", sender_h256);
+
+        let dest_domain = parser_ref.load_uint(32).map_err(|e| {
+            TonCellError::BagOfCellsDeserializationError(format!(
+                "Failed to parse destination domain: {:?}",
+                e
+            ))
+        })?;
+        let dest_domain_u32 = dest_domain.to_u32().unwrap_or(0);
+        info!("Parsed destination domain: {}", dest_domain_u32);
+
+        let recipient = parser_ref.load_uint(256).map_err(|e| {
+            TonCellError::BagOfCellsDeserializationError(format!(
+                "Failed to parse recipient address: {:?}",
+                e
+            ))
+        })?;
+        info!("Parsed recipient address: {}", recipient);
+
+        let recipient_bytes = recipient.to_be_bytes();
+        let recipient_h256 = H256::from_slice(&recipient_bytes);
+        info!("Parsed H256 recipient: {:?}", recipient_h256);
+
+        let body = parser_ref.next_reference().map_err(|e| {
+            TonCellError::BagOfCellsDeserializationError(format!(
+                "Failed to parse body reference: {:?}",
+                e
+            ))
+        })?;
+        let data = body.data();
+        info!("Parsed body: {:?}", body);
+        info!("Body data bytes: {:?}", data);
+
+        if data.len() == 4 {
+            let number = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
+            info!("Extracted number from body: {}", number);
+        } else {
+            return Err(TonCellError::BagOfCellsDeserializationError(format!(
+                "Unexpected body data length: {:?}",
+                data.len()
+            )));
+        }
+
+        let message = HyperlaneMessage {
+            version: 0,
+            nonce: 0,
+            origin: 0,
+            sender: sender_h256,
+            destination: dest_domain_u32,
+            recipient: recipient_h256,
+            body: data.to_vec(),
+        };
+        Ok(message)
+    } else {
+        Err(TonCellError::BagOfCellsDeserializationError(
+            "Expected reference cell but found none".to_string(),
+        ))
+    }
 }

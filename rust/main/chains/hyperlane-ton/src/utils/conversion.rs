@@ -3,7 +3,6 @@ use hex::FromHex;
 use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
-//use num_traits::ToPrimitive;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -117,7 +116,7 @@ impl ConversionUtils {
     /// Parses the root `root_cell` and extracts a dictionary of addresses with their storage locations.
     /// Uses a nested dictionary to store strings in the `BigUint -> Vec<String>` format.
     pub fn parse_address_storage_locations(
-        root_cell: &tonlib_core::cell::ArcCell,
+        root_cell: &ArcCell,
     ) -> Result<HashMap<BigUint, Vec<String>>, TonCellError> {
         let mut storage_locations: HashMap<BigUint, Vec<String>> = HashMap::new();
 
@@ -300,9 +299,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::ConversionUtils;
-    use crate::runtime_test::create_address_linked_cells;
-    use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
-    use log::info;
+    use hyperlane_core::{H160, H512, U256};
     use num_bigint::BigUint;
     use num_traits::Zero;
 

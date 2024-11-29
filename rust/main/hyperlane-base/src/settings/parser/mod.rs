@@ -298,13 +298,12 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 
     let mut err = ConfigParsingError::default();
 
+    info!("Signer valueParser:{:?}", signer.val);
     let signer_type = signer
         .chain(&mut err)
         .get_opt_key("type")
         .parse_string()
         .end();
-    eyre!("Signer type:{:?}", signer_type.unwrap());
-    eyre!("Signer type:{:?}", signer_type.unwrap());
 
     let key_is_some = matches!(signer.get_opt_key("key"), Ok(Some(_)));
     let id_is_some = matches!(signer.get_opt_key("id"), Ok(Some(_)));

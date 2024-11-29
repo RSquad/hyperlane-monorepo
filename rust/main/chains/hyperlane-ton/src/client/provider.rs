@@ -262,7 +262,7 @@ impl TonApiCenter for TonProvider {
         .filter_map(|(key, value)| value.map(|v| (key, v)))
         .collect();
 
-        debug!("Constructed query parameters for messages: {:?}", params);
+        info!("Constructed query parameters for messages: {:?}", params);
 
         let response = self
             .http_client
@@ -275,7 +275,7 @@ impl TonApiCenter for TonProvider {
         let response_text = response.text().await;
         match response_text {
             Ok(text) => {
-                debug!("Received response text: {:?}", text);
+                info!("Received response text: {:?}", text);
 
                 let message_response: Result<MessageResponse, _> = serde_json::from_str(&text);
                 match message_response {
@@ -686,7 +686,7 @@ impl TonApiCenter for TonProvider {
 
         let response: BlockResponse = serde_json::from_str(&raw_response)?;
 
-        info!("Successfully retrieved transaction response");
+        info!("Successfully retrieved blocks response");
         Ok(response)
     }
 }
