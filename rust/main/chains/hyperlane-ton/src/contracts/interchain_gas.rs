@@ -133,11 +133,9 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
             .get_messages(
                 None,
                 None,
-                Some(self.igp_address.to_hex()), // I need check this
-                //None,
+                Some(self.igp_address.to_string()),
                 Some("null".to_string()),
-                Some(TonInterchainGasPaymaster::EVENT_GAS_PAYMENT.to_string()),
-                //None,
+                None,
                 Some(start_utime),
                 Some(end_utime),
                 None,

@@ -518,7 +518,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let response = self
+        let response_result = self
             .mailbox
             .provider
             .get_blocks(
@@ -534,15 +534,27 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                 None,
                 None,
             )
-            .await
-            .expect("Failed to get latest block");
+            .await;
 
-        if let Some(block) = response.blocks.first() {
-            Ok(block.seqno as u32)
-        } else {
-            Err(ChainCommunicationError::CustomError(
-                "No blocks found".to_string(),
-            ))
+        match response_result {
+            Ok(response) => {
+                if let Some(block) = response.blocks.first() {
+                    info!("Latest block found: {:?}", block);
+                    Ok(block.seqno as u32)
+                } else {
+                    warn!("No blocks found in the response: {:?}", response);
+                    Err(ChainCommunicationError::CustomError(
+                        "No blocks found".to_string(),
+                    ))
+                }
+            }
+            Err(e) => {
+                log::error!("Error fetching latest block: {:?}", e);
+                Err(ChainCommunicationError::CustomError(format!(
+                    "Failed to get latest block: {:?}",
+                    e
+                )))
+            }
         }
     }
 }
