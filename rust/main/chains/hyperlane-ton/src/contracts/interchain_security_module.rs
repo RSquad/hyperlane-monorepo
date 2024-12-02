@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use base64::Engine;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
@@ -194,7 +195,7 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             .map_err(|e| {
                 ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
             })?;
-        let boc_str = base64::encode(boc.clone());
+        let boc_str = base64::engine::general_purpose::STANDARD.encode(boc.clone());
         info!("create_external_message:{:?}", boc_str);
 
         let tx = self.provider.send_message(boc_str).await.map_err(|e| {

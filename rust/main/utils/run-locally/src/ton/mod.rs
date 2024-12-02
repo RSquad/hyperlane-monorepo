@@ -5,7 +5,7 @@ use crate::logging::log;
 use crate::program::Program;
 use crate::ton::client::send_messages_between_chains;
 use crate::ton::deploy::deploy_all_contracts;
-use crate::utils::{as_task, concat_path, stop_child, AgentHandles, TaskHandle};
+use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
 
 use crate::ton::types::{generate_ton_config, TonAgentConfig};
 use hyperlane_base::settings::parser::h_ton::{TonConnectionConf, TonProvider};
@@ -62,19 +62,20 @@ impl Drop for TonHyperlaneStack {
 
 fn run_locally() {
     info!("Start run_locally() for Ton");
-    let mnemonic = "";
+    let mnemonic = std::env::var("MNEMONIC").expect("MNEMONIC env is missing");
 
     let mailbox_address = "EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v";
     let igp_address = "EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE";
     let recipient_address = "EQBWmHkjpLAwyJ1qQwH9tIfDKiOyEIa_nH29iJon3qduwWBy";
     let multisig_address = "EQDiSTbhD8dbtUQTldaJ3mbkznRQpw1PzhMzo7GJBpopxxoQ";
 
+    info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
-    let agent_config = generate_ton_config(file_name, mnemonic).unwrap();
+    let agent_config = generate_ton_config(file_name, &mnemonic).unwrap();
 
-    let agent_config_path = format!("../../../config/{file_name}.json").to_string();
+    let agent_config_path = format!("../../config/{file_name}.json");
 
-    info!("Agent config path:{:?}", agent_config_path);
+    info!("Agent config path:{}", agent_config_path);
     let relay_chains = vec!["tontest1".to_string(), "tontest2".to_string()];
     let metrics_port = 9090;
     let debug = false;
@@ -102,14 +103,14 @@ fn run_locally() {
     );
 
     let validator1 = launch_ton_validator(
-        agent_config[0].clone(),
         agent_config_path.clone(),
+        agent_config[0].clone(),
         metrics_port + 1,
         debug,
     );
     let validator2 = launch_ton_validator(
-        agent_config[1].clone(),
         agent_config_path.clone(),
+        agent_config[1].clone(),
         metrics_port + 2,
         debug,
     );
@@ -117,7 +118,7 @@ fn run_locally() {
     let validators = vec![validator1, validator2];
 
     let scraper = launch_ton_scraper(
-        agent_config_path,
+        agent_config_path.clone(),
         relay_chains.clone(),
         scraper_metrics_port,
         debug,
@@ -145,11 +146,19 @@ pub fn launch_ton_relayer(
 ) -> AgentHandles {
     let relayer_bin = concat_path("../../target/debug", "relayer");
     let relayer_base = tempdir().unwrap();
+    let mut configs_path = std::env::current_dir().unwrap();
+    configs_path.push(agent_config_path);
+    let config_files_str = configs_path
+        .canonicalize()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned();
 
     let relayer = Program::default()
         .bin(relayer_bin)
         .working_dir("../../")
-        .env("CONFIG_FILES", agent_config_path)
+        .env("CONFIG_FILES", config_files_str)
         .env("RUST_BACKTRACE", "1")
         .env("RUST_LOG", "info")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
@@ -160,14 +169,14 @@ pub fn launch_ton_relayer(
         .hyp_env("TRACING_LEVEL", "info")
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]") //
         .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("TON_RELAYER", None);
+        .spawn("TON_RLY", None);
 
     relayer
 }
 #[apply(as_task)]
 pub fn launch_ton_validator(
-    agent_config: TonAgentConfig,
     agent_config_path: String,
+    agent_config: TonAgentConfig,
     metrics_port: u32,
     debug: bool,
 ) -> AgentHandles {
@@ -203,7 +212,7 @@ pub fn launch_ton_validator(
         .hyp_env("SIGNER_SIGNER_TYPE", "TonMnemonic")
         .hyp_env("VALIDATOR_WALLET_VERSION", "V4R2")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
-        .spawn("TON-VALIDATOR", None);
+        .spawn(make_static(format!("TON-VL{}", metrics_port % 2 + 1)), None);
 
     validator
 }
@@ -241,7 +250,7 @@ fn launch_ton_scraper(
         )
         .hyp_env("TRACING_LEVEL", if debug { "info" } else { "warn" })
         .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("TON_SCRAPER", None);
+        .spawn("TON_SCR", None);
 
     scraper
 }

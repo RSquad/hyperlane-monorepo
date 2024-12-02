@@ -30,6 +30,7 @@ use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::utils::conversion::ConversionUtils;
+use base64::{engine::general_purpose, Engine};
 
 pub struct TonMailbox {
     pub mailbox_address: TonAddress,
@@ -130,7 +131,7 @@ impl Mailbox for TonMailbox {
         log::info!("cell:{:?}", cell);
 
         let boc = BagOfCells::from_root(cell).serialize(true).unwrap();
-        let boc_str = base64::encode(boc.clone());
+        let boc_str = general_purpose::STANDARD.encode(&boc);
 
         info!("Boc:{:?}", boc_str);
 

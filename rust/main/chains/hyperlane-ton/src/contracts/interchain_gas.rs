@@ -2,6 +2,7 @@ use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
+use base64::Engine;
 use derive_new::new;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -153,7 +154,9 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                 let mut events = vec![];
                 for message in messages.messages {
                     let body_data =
-                        base64::decode(&message.message_content.body).expect("Invalid base64 body");
+                        base64::engine::general_purpose::STANDARD
+                          .decode(message.message_content.body)
+                          .expect("Invalid base64 body");
                     info!("Body:{:?}", body_data);
 
                     let interchain_gas_payment = InterchainGasPayment {
