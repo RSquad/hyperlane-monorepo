@@ -9,8 +9,8 @@ use hyperlane_core::{
     HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo,
     TxnReceiptInfo, H256, U256,
 };
-use reqwest::Client;
-use serde_json::json;
+use reqwest::{Client, Response};
+use serde_json::{json, Value};
 use tokio::time::sleep;
 
 use crate::client::error::CustomHyperlaneError;
@@ -26,12 +26,49 @@ use crate::{
     utils::conversion::ConversionUtils,
 };
 use tonlib_core::TonAddress;
+use url::Url;
 
 #[derive(Clone, new)]
 pub struct TonProvider {
     pub http_client: Client,
     pub connection_conf: TonConnectionConf,
     pub domain: HyperlaneDomain,
+}
+
+impl TonProvider {
+    async fn post_request(
+        &self,
+        url: Url,
+        params: Value,
+    ) -> Result<Response, ChainCommunicationError> {
+        self.http_client
+            .post(url)
+            .header("accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("X-API-Key", self.connection_conf.api_key.clone())
+            .json(&params)
+            .send()
+            .await
+            .map_err(|e| {
+                warn!("Error sending request: {:?}", e);
+                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
+            })
+    }
+
+    async fn query_request<T: serde::Serialize + ?Sized>(
+        &self,
+        url: Url,
+        params: &T,
+    ) -> Result<Response, reqwest::Error> {
+        self.http_client
+            .get(url)
+            .query(params)
+            .header("accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("X-API-Key", self.connection_conf.api_key.clone())
+            .send()
+            .await
+    }
 }
 impl std::fmt::Debug for TonProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -72,10 +109,7 @@ impl HyperlaneProvider for TonProvider {
         debug!("Constructed transaction URL: {}", url);
 
         let response = self
-            .http_client
-            .get(url)
-            .query(&[("hash", format!("{:?}", hash))])
-            .send()
+            .query_request(url, &[("hash", format!("{:?}", hash))])
             .await
             .map_err(|e| {
                 warn!("Error when sending request to TON API");
@@ -264,13 +298,7 @@ impl TonApiCenter for TonProvider {
 
         info!("Constructed query parameters for messages: {:?}", params);
 
-        let response = self
-            .http_client
-            .get(url)
-            .bearer_auth(&self.connection_conf.api_key)
-            .query(&params)
-            .send()
-            .await?;
+        let response = self.query_request(url, &params).await?;
 
         let response_text = response.text().await;
         match response_text {
@@ -348,11 +376,7 @@ impl TonApiCenter for TonProvider {
         .collect();
 
         let response = self
-            .http_client
-            .get(url)
-            .bearer_auth(&self.connection_conf.api_key)
-            .query(&query_params)
-            .send()
+            .query_request(url, &query_params)
             .await?
             .json::<TransactionResponse>()
             .await?;
@@ -386,11 +410,7 @@ impl TonApiCenter for TonProvider {
         ];
 
         let response = self
-            .http_client
-            .get(url)
-            .bearer_auth(&self.connection_conf.api_key)
-            .query(&query_params)
-            .send()
+            .query_request(url, &query_params)
             .await?
             .json::<AccountStateResponse>()
             .await?;
@@ -433,19 +453,7 @@ impl TonApiCenter for TonProvider {
             params.to_string()
         );
 
-        let response = self
-            .http_client
-            .post(url)
-            .bearer_auth(&self.connection_conf.api_key)
-            .header("accept", "application/json")
-            .header("Content-Type", "application/json")
-            .json(&params)
-            .send()
-            .await
-            .map_err(|e| {
-                warn!("Error sending request: {:?}", e);
-                ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
-            })?;
+        let response = self.post_request(url, params).await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -487,11 +495,7 @@ impl TonApiCenter for TonProvider {
         });
 
         let response = self
-            .http_client
-            .post(url)
-            .bearer_auth(&self.connection_conf.api_key)
-            .json(&params)
-            .send()
+            .query_request(url, &params)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error>)?;
 
@@ -590,15 +594,7 @@ impl TonApiCenter for TonProvider {
         .filter(|(_, v)| !v.is_empty())
         .collect();
 
-        let raw_response = self
-            .http_client
-            .get(url)
-            .bearer_auth(&self.connection_conf.api_key)
-            .query(&query_params)
-            .send()
-            .await?
-            .text()
-            .await?;
+        let raw_response = self.query_request(url, &query_params).await?.text().await?;
 
         info!("Raw response from server: {}", raw_response);
 
@@ -661,15 +657,8 @@ impl TonApiCenter for TonProvider {
         .collect();
 
         info!("Query params:{:?}", query_params);
-
         let raw_response = self
-            .http_client
-            .get(url)
-            .query(&query_params)
-            .header("accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header("X-API-Key", self.connection_conf.api_key.clone())
-            .send()
+            .query_request(url, &query_params)
             .await
             .map_err(|e| {
                 warn!("Error sending request to fetch blocks: {:?}", e);
