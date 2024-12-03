@@ -75,10 +75,10 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         let start_block_info = self
             .provider
             .get_blocks(
-                -1,                       //  masterchain (workchain = -1)
-                None,                     // shard
-                None,                     // block seqno
-                Some(start_block as i32), // masterchain seqno
+                -1,                //  masterchain (workchain = -1)
+                None,              // shard
+                None,              // block seqno
+                Some(start_block), // masterchain seqno
                 None,
                 None,
                 None,
@@ -93,13 +93,14 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
 
         sleep(Duration::from_secs(5)).await;
 
+        info!("End block getting start... number:{:?}", end_block);
         let end_block_info = self
             .provider
             .get_blocks(
-                -1,                     //  masterchain (workchain = -1)
-                None,                   // shard
-                None,                   // block seqno
-                Some(end_block as i32), // masterchain seqno
+                -1,              //  masterchain (workchain = -1)
+                None,            // shard
+                None,            // block seqno
+                Some(end_block), // masterchain seqno
                 None,
                 None,
                 None,
@@ -153,10 +154,9 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
 
                 let mut events = vec![];
                 for message in messages.messages {
-                    let body_data =
-                        base64::engine::general_purpose::STANDARD
-                          .decode(message.message_content.body)
-                          .expect("Invalid base64 body");
+                    let body_data = base64::engine::general_purpose::STANDARD
+                        .decode(message.message_content.body)
+                        .expect("Invalid base64 body");
                     info!("Body:{:?}", body_data);
 
                     let interchain_gas_payment = InterchainGasPayment {
@@ -219,6 +219,6 @@ impl SequenceAwareIndexer<InterchainGasPayment> for TonInterchainGasPaymasterInd
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<InterchainGasPayment>::get_finalized_block_number(self).await?;
 
-        Ok((None, tip))
+        Ok((Some(1), tip))
     }
 }

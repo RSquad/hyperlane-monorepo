@@ -37,25 +37,25 @@ impl HyperlaneChain for TonMerkleTreeHook {
     }
 
     fn provider(&self) -> Box<dyn HyperlaneProvider> {
-        unimplemented!("TON provider is not implemented yet.")
+        self.provider.provider()
     }
 }
 
 #[async_trait]
 impl MerkleTreeHook for TonMerkleTreeHook {
     async fn tree(&self, _lag: Option<std::num::NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        unimplemented!("TON MerkleTreeHook::tree is not implemented yet.")
+        todo!()
     }
 
     async fn count(&self, _lag: Option<std::num::NonZeroU64>) -> ChainResult<u32> {
-        unimplemented!("TON MerkleTreeHook::count is not implemented yet.")
+        todo!()
     }
 
     async fn latest_checkpoint(
         &self,
         _lag: Option<std::num::NonZeroU64>,
     ) -> ChainResult<Checkpoint> {
-        unimplemented!("TON MerkleTreeHook::latest_checkpoint is not implemented yet.")
+        todo!()
     }
 }
 
@@ -79,21 +79,22 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         &self,
         _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        unimplemented!("TON MerkleTreeHookIndexer::fetch_logs_in_range is not implemented yet.")
+        // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // Ok(vec![])
+        todo!()
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        unimplemented!(
-            "TON MerkleTreeHookIndexer::get_finalized_block_number is not implemented yet."
-        )
+        // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        // Ok(0)
+        todo!()
     }
 }
 
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        unimplemented!(
-            "TON MerkleTreeHookIndexer::latest_sequence_count_and_tip is not implemented yet."
-        )
+        println!("Merkle tree hook");
+        Ok((Some(1), 1))
     }
 }
