@@ -23,7 +23,7 @@ tracing = {workspace = true}
 num-bigint = {workspace = true}
 num-traits.workspace = true
 reqwest = {workspace = true, features = ["json"]}
-tokio.workspace = true
+tokio = {workspace = true, features = ["full"]}
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] }
 tonlib-core = "0.20.3"
