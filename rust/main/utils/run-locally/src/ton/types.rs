@@ -17,7 +17,6 @@ pub struct AgentConfigSigner {
     pub mnemonic_phrase: String,
     pub wallet_version: DebugWalletVersion,
 }
-
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct RawTonAmount {
     pub denom: String,
@@ -64,7 +63,7 @@ impl TonAgentConfig {
         signer_phrase: &str,
     ) -> Self {
         let mailbox_address =
-            TonAddress::from_base64_url("EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v")
+            TonAddress::from_base64_url("EQAQXNFM-cltTkmmVMt51Dp2Hz_Pll5FIbE6XRmr49SJL-Ur")
                 .unwrap();
         let igp_address =
             TonAddress::from_base64_url("EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE")
@@ -132,7 +131,10 @@ impl TonAgentConfig {
                 amount: "0.01".to_string(),
             },
             contract_address_bytes: 32,
-            index: AgentConfigIndex { from: 1, chunk: 5 },
+            index: AgentConfigIndex {
+                from: 1,
+                chunk: 25624322,
+            },
         }
     }
 }

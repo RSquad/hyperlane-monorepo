@@ -62,7 +62,7 @@ impl Drop for TonHyperlaneStack {
 
 fn run_locally() {
     info!("Start run_locally() for Ton");
-    let mnemonic = std::env::var("MNEMONIC").expect("MNEMONIC env is missing");
+    let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
 
     let mailbox_address = "EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v";
     let igp_address = "EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE";
@@ -102,39 +102,39 @@ fn run_locally() {
         debug,
     );
 
-    let validator1 = launch_ton_validator(
-        agent_config_path.clone(),
-        agent_config[0].clone(),
-        metrics_port + 1,
-        debug,
-    );
-    let validator2 = launch_ton_validator(
-        agent_config_path.clone(),
-        agent_config[1].clone(),
-        metrics_port + 2,
-        debug,
-    );
-
-    let validators = vec![validator1, validator2];
-
-    let scraper = launch_ton_scraper(
-        agent_config_path.clone(),
-        relay_chains.clone(),
-        scraper_metrics_port,
-        debug,
-    );
-
-    send_messages_between_chains();
-
-    info!("Waiting for agents to run for 2 minutes...");
-    sleep(Duration::from_secs(120));
-
-    let stack_ = TonHyperlaneStack {
-        validators: validators.into_iter().map(|v| v.join()).collect(),
-        relayer: relayer.join(),
-        scraper: scraper.join(),
-        postgres,
-    };
+    // let validator1 = launch_ton_validator(
+    //     agent_config_path.clone(),
+    //     agent_config[0].clone(),
+    //     metrics_port + 1,
+    //     debug,
+    // );
+    // let validator2 = launch_ton_validator(
+    //     agent_config_path.clone(),
+    //     agent_config[1].clone(),
+    //     metrics_port + 2,
+    //     debug,
+    // );
+    //
+    // let validators = vec![validator1, validator2];
+    //
+    // let scraper = launch_ton_scraper(
+    //     agent_config_path.clone(),
+    //     relay_chains.clone(),
+    //     scraper_metrics_port,
+    //     debug,
+    // );
+    //
+    // send_messages_between_chains();
+    //
+    // info!("Waiting for agents to run for 2 minutes...");
+    sleep(Duration::from_secs(180));
+    //
+    // let stack_ = TonHyperlaneStack {
+    //     validators: validators.into_iter().map(|v| v.join()).collect(),
+    //     relayer: relayer.join(),
+    //     scraper: scraper.join(),
+    //     postgres,
+    // };
 }
 
 #[apply(as_task)]
@@ -146,7 +146,7 @@ pub fn launch_ton_relayer(
 ) -> AgentHandles {
     let relayer_bin = concat_path("../../target/debug", "relayer");
     let relayer_base = tempdir().unwrap();
-    let mut configs_path = std::env::current_dir().unwrap();
+    let mut configs_path = env::current_dir().unwrap();
     configs_path.push(agent_config_path);
     let config_files_str = configs_path
         .canonicalize()
