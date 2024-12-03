@@ -665,10 +665,10 @@ impl TonApiCenter for TonProvider {
         let raw_response = self
             .http_client
             .get(url)
-            .bearer_auth(&self.connection_conf.api_key)
             .query(&query_params)
             .header("accept", "application/json")
             .header("Content-Type", "application/json")
+            .header("X-API-Key", self.connection_conf.api_key.clone())
             .send()
             .await
             .map_err(|e| {

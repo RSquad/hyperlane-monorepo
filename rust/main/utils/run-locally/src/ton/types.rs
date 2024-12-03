@@ -3,7 +3,7 @@ use hyperlane_ton::{ConversionUtils, DebugWalletVersion};
 use std::collections::BTreeMap;
 use std::fmt::Error;
 use std::fs;
-use std::hash::Hash;
+use tonlib_core::TonAddress;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentUrl {
@@ -63,8 +63,6 @@ impl TonAgentConfig {
         api_key: &str,
         signer_phrase: &str,
     ) -> Self {
-        use tonlib_core::TonAddress;
-
         let mailbox_address =
             TonAddress::from_base64_url("EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v")
                 .unwrap();
@@ -143,7 +141,7 @@ pub fn generate_ton_config(
     output_name: &str,
     mnemonic: &str,
 ) -> Result<Vec<TonAgentConfig>, Error> {
-    let output_path = format!("../../../config/{output_name}.json");
+    let output_path = format!("../../config/{output_name}.json");
 
     let mnemonic = mnemonic.to_string();
 
