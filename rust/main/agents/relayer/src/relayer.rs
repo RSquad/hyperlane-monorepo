@@ -30,7 +30,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{error, info, info_span, instrument::Instrumented, log, warn, Instrument};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,
@@ -453,7 +453,9 @@ impl Relayer {
         origin: &HyperlaneDomain,
         task_monitor: TaskMonitor,
     ) -> Instrumented<JoinHandle<()>> {
+        info!("run_message_sync started!");
         let index_settings = self.as_ref().settings.chains[origin.name()].index_settings();
+        info!("Index settings:{:?}", index_settings);
         let contract_sync = self.message_syncs.get(origin).unwrap().clone();
         let cursor_instantiation_result =
             Self::instantiate_cursor_with_retries(contract_sync.clone(), index_settings.clone())

@@ -56,7 +56,6 @@ hyperlane-ton = {path = "../chains/hyperlane-ton"}
 hyperlane-test = { path = "../hyperlane-test" }
 
 reqwest.workspace = true
-
 tonlib-core = "0.20.3"
 
 # dependency version is determined by etheres
