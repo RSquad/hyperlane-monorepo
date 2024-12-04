@@ -102,12 +102,12 @@ fn run_locally() {
         debug,
     );
 
-    // let validator1 = launch_ton_validator(
-    //     agent_config_path.clone(),
-    //     agent_config[0].clone(),
-    //     metrics_port + 1,
-    //     debug,
-    // );
+    let validator1 = launch_ton_validator(
+        agent_config_path.clone(),
+        agent_config[0].clone(),
+        metrics_port + 1,
+        debug,
+    );
     // let validator2 = launch_ton_validator(
     //     agent_config_path.clone(),
     //     agent_config[1].clone(),
@@ -137,6 +137,17 @@ fn run_locally() {
     // };
 }
 
+fn resolve_abs_path<P: AsRef<Path>>(rel_path: P) -> String {
+    let mut configs_path = env::current_dir().unwrap();
+    configs_path.push(rel_path);
+    configs_path
+        .canonicalize()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned()
+}
+
 #[apply(as_task)]
 pub fn launch_ton_relayer(
     agent_config_path: String,
@@ -146,19 +157,11 @@ pub fn launch_ton_relayer(
 ) -> AgentHandles {
     let relayer_bin = concat_path("../../target/debug", "relayer");
     let relayer_base = tempdir().unwrap();
-    let mut configs_path = env::current_dir().unwrap();
-    configs_path.push(agent_config_path);
-    let config_files_str = configs_path
-        .canonicalize()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_owned();
 
     let relayer = Program::default()
         .bin(relayer_bin)
         .working_dir("../../")
-        .env("CONFIG_FILES", config_files_str)
+        .env("CONFIG_FILES", resolve_abs_path(agent_config_path))
         .env("RUST_BACKTRACE", "1")
         .env("RUST_LOG", "info")
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
@@ -193,24 +196,24 @@ pub fn launch_ton_validator(
     let validator = Program::default()
         .bin(validator_bin)
         .working_dir("../../")
-        .env("CONFIG_FILES", agent_config_path)
+        .env("CONFIG_FILES", resolve_abs_path(agent_config_path))
         .env(
             "MY_VALIDATOR_SIGNATURE_DIRECTORY",
             signature_path.to_str().unwrap(),
         )
         .env("RUST_BACKTRACE", "1")
+        .env("RUST_LOG", "info")
         .hyp_env("CHECKPOINTSYNCER_PATH", checkpoint_path.to_str().unwrap())
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("DB", validator_base.to_str().unwrap())
         .hyp_env("METRICSPORT", metrics_port.to_string())
-        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
+        .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
         .hyp_env(
-            "VALIDATOR_MNEMONIC_PHRASE",
+            "VALIDATOR_MNEMONICPHRASE",
             agent_config.signer.mnemonic_phrase,
         )
-        .hyp_env("SIGNER_SIGNER_TYPE", "TonMnemonic")
-        .hyp_env("VALIDATOR_WALLET_VERSION", "V4R2")
+        .hyp_env("VALIDATOR_WALLETVERSION", "V4R2")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .spawn(make_static(format!("TON-VL{}", metrics_port % 2 + 1)), None);
 
@@ -239,7 +242,7 @@ fn launch_ton_scraper(
     let scraper = Program::default()
         .bin(bin)
         .working_dir("../../")
-        .env("CONFIG_FILES", agent_config_path)
+        .env("CONFIG_FILES", resolve_abs_path(agent_config_path))
         .env("RUST_BACKTRACE", "1")
         .hyp_env("CHAINSTOSCRAPE", chains.join(","))
         .hyp_env("tontest1", "1")
