@@ -1,3 +1,4 @@
+use ethers_core::k256::elliptic_curve::sec1::ValidatePublicKey;
 use hyperlane_core::H256;
 use hyperlane_ton::{ConversionUtils, DebugWalletVersion};
 use std::collections::BTreeMap;
@@ -61,9 +62,9 @@ impl TonAgentConfig {
         rpc_url: &str,
         api_key: &str,
         signer_phrase: &str,
-        mailbox_address: &TonAddress,
-        igp_address: &TonAddress,
-        validator_announce_address: &TonAddress,
+        mailbox: &str,
+        igp: &str,
+        validator_announce: &str,
     ) -> Self {
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
@@ -76,30 +77,9 @@ impl TonAgentConfig {
             name: name.to_string(),
             domain_id,
             metrics_port: 9093,
-            mailbox: format!(
-                "0x{}",
-                hex::encode(
-                    ConversionUtils::ton_address_to_h256(&mailbox_address)
-                        .unwrap()
-                        .as_bytes()
-                )
-            ),
-            interchain_gas_paymaster: format!(
-                "0x{}",
-                hex::encode(
-                    ConversionUtils::ton_address_to_h256(&igp_address)
-                        .unwrap()
-                        .as_bytes()
-                )
-            ),
-            validator_announce: format!(
-                "0x{}",
-                hex::encode(
-                    ConversionUtils::ton_address_to_h256(&validator_announce_address)
-                        .unwrap()
-                        .as_bytes()
-                )
-            ),
+            mailbox: prepare_address(mailbox),
+            interchain_gas_paymaster: prepare_address(igp),
+            validator_announce: prepare_address(validator_announce),
             merkle_tree_hook: format!("0x{}", hex::encode(H256::zero())),
             protocol: "ton".to_string(),
             chain_id: format!("{}", domain_id),
@@ -126,6 +106,19 @@ impl TonAgentConfig {
     }
 }
 
+fn prepare_address(base64_addr: &str) -> String {
+    format!(
+        "0x{}",
+        hex::encode(
+            ConversionUtils::ton_address_to_h256(
+                &TonAddress::from_base64_url(base64_addr).unwrap()
+            )
+            .unwrap()
+            .as_bytes()
+        )
+    )
+}
+
 pub fn generate_ton_config(
     output_name: &str,
     mnemonic: &str,
@@ -137,22 +130,16 @@ pub fn generate_ton_config(
         (
             "tontest1",
             777001,
-            TonAddress::from_base64_url("EQBmFijEHuueqHQLlu0miQmsx6PXLKuMoEq5NvI1JY08SW30")
-                .unwrap(), // Mailbox
-            TonAddress::from_base64_url("EQBlC1mxaaAR76QM9LPMvHyd7Lnzni7D0uBhFWvEC1bnFQ3W")
-                .unwrap(), // IGP
-            TonAddress::from_base64_url("EQCi3mXdLbbSoFRKe3S7s6scEr_-9zwZfhQq54ruyaLqB5yQ")
-                .unwrap(), // Validator Announce
+            "EQBmFijEHuueqHQLlu0miQmsx6PXLKuMoEq5NvI1JY08SW30",
+            "EQBlC1mxaaAR76QM9LPMvHyd7Lnzni7D0uBhFWvEC1bnFQ3W",
+            "EQCi3mXdLbbSoFRKe3S7s6scEr_-9zwZfhQq54ruyaLqB5yQ",
         ),
         (
             "tontest2",
             777002,
-            TonAddress::from_base64_url("EQCeq8WO5V_sfhjp2uaaW7msEdVTaFFvzeQr_f9Zt3_BdP4q")
-                .unwrap(), // Mailbox
-            TonAddress::from_base64_url("EQCJ88IkmfIkvelSmnAfpeR4dAjVarRJcv_YYYPNkI0astRO")
-                .unwrap(), // IGP
-            TonAddress::from_base64_url("EQAKc8EhIduN_bZDyNk6TzLxIfNdAAbzQ572XJLvYrZAHtel")
-                .unwrap(), // Validator Announce
+            "EQCeq8WO5V_sfhjp2uaaW7msEdVTaFFvzeQr_f9Zt3_BdP4q",
+            "EQCJ88IkmfIkvelSmnAfpeR4dAjVarRJcv_YYYPNkI0astRO",
+            "EQAKc8EhIduN_bZDyNk6TzLxIfNdAAbzQ572XJLvYrZAHtel",
         ),
     ];
 
@@ -163,7 +150,7 @@ pub fn generate_ton_config(
                 name,
                 *domain_id,
                 "https://testnet.toncenter.com/api/",
-                "",
+                "ad90d423e5e6e1392753f0070f99aae79f1ab9c7da80bf11e3057731b2663fc2",
                 mnemonic.as_str(),
                 mailbox,
                 igp,

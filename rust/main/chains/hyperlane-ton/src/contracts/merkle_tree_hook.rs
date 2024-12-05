@@ -79,15 +79,14 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         &self,
         _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        // Ok(vec![])
-        todo!()
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        Ok(vec![])
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        // Ok(0)
-        todo!()
+        Ok(0)
+        //todo!()
     }
 }
 

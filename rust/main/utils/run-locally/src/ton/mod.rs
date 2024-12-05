@@ -64,10 +64,23 @@ fn run_locally() {
     info!("Start run_locally() for Ton");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
 
-    let mailbox_address = "EQBmFijEHuueqHQLlu0miQmsx6PXLKuMoEq5NvI1JY08SW30";
-    let igp_address = "EQBlC1mxaaAR76QM9LPMvHyd7Lnzni7D0uBhFWvEC1bnFQ3W";
-    let recipient_address = "EQBTwAPFA-cF2bU2_nhxr8_BaADxtZha8bW0TTXxDfdX84-P";
-    let multisig_address = "EQB4fYpbT2YN0xdGE1OL7R7hXnC_fy1B5-XNT4NNwYt7244i";
+    log!("Building rust...");
+    Program::new("cargo")
+        .cmd("build")
+        .working_dir("../../")
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run()
+        .join();
+
+    let mailbox_address = "EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v";
+    let igp_address = "EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE";
+    let recipient_address = "EQBWmHkjpLAwyJ1qQwH9tIfDKiOyEIa_nH29iJon3qduwWBy";
+    let multisig_address = "EQDiSTbhD8dbtUQTldaJ3mbkznRQpw1PzhMzo7GJBpopxxoQ";
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
@@ -102,12 +115,12 @@ fn run_locally() {
         debug,
     );
 
-    let validator1 = launch_ton_validator(
-        agent_config_path.clone(),
-        agent_config[0].clone(),
-        metrics_port + 1,
-        debug,
-    );
+    //let validator1 = launch_ton_validator(
+    //    agent_config_path.clone(),
+    //    agent_config[0].clone(),
+    //    metrics_port + 1,
+    //    debug,
+    //);
     // let validator2 = launch_ton_validator(
     //     agent_config_path.clone(),
     //     agent_config[1].clone(),
