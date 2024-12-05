@@ -130,16 +130,22 @@ pub fn generate_ton_config(
         (
             "tontest1",
             777001,
-            "EQBmFijEHuueqHQLlu0miQmsx6PXLKuMoEq5NvI1JY08SW30",
-            "EQBlC1mxaaAR76QM9LPMvHyd7Lnzni7D0uBhFWvEC1bnFQ3W",
-            "EQCi3mXdLbbSoFRKe3S7s6scEr_-9zwZfhQq54ruyaLqB5yQ",
+            TonAddress::from_base64_url("EQARM6PXvAeXopAv1JuHk5KvOAg_ko69ndzZryxzZZts9cgO")
+                .unwrap(), // Mailbox
+            TonAddress::from_base64_url("EQD67kmLjCRnK4bO9_x-UzndYLeWdBFvOxVw_7HCh-knQdvm")
+                .unwrap(), // IGP
+            TonAddress::from_base64_url("EQDV-wfJb-0dd11Yf_hZ7aycHDONqY7g_0Q1DT4EJCNV97j5")
+                .unwrap(), // Validator Announce
         ),
         (
             "tontest2",
             777002,
-            "EQCeq8WO5V_sfhjp2uaaW7msEdVTaFFvzeQr_f9Zt3_BdP4q",
-            "EQCJ88IkmfIkvelSmnAfpeR4dAjVarRJcv_YYYPNkI0astRO",
-            "EQAKc8EhIduN_bZDyNk6TzLxIfNdAAbzQ572XJLvYrZAHtel",
+            TonAddress::from_base64_url("EQDvarrw3TgKHkneBGwyExg0069goudvS2QELs5ISEUNftvV")
+                .unwrap(), // Mailbox
+            TonAddress::from_base64_url("EQDqUtfEZNOcLtagvnCjeVsJUtPH2qXs27-bByN3Y_hn6oA8")
+                .unwrap(), // IGP
+            TonAddress::from_base64_url("EQDJduysuwgTd9oNxBah1YJFBLo7mAQ9eeUfPIfMlBqk926r")
+                .unwrap(), // Validator Announce
         ),
     ];
 
@@ -152,9 +158,9 @@ pub fn generate_ton_config(
                 "https://testnet.toncenter.com/api/",
                 "ad90d423e5e6e1392753f0070f99aae79f1ab9c7da80bf11e3057731b2663fc2",
                 mnemonic.as_str(),
-                mailbox,
-                igp,
-                validator_announce,
+                mailbox.to_base64_url().as_str(),
+                igp.to_base64_url().as_str(),
+                validator_announce.to_base64_url().as_str(),
             )
         })
         .collect();

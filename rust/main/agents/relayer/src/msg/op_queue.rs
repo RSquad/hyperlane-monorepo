@@ -47,6 +47,7 @@ impl OpQueue {
     /// Pop multiple elements at once from the queue and update metrics
     #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
+        info!("pop_many try run");
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
@@ -73,6 +74,7 @@ impl OpQueue {
         // be very low.
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
+        info!("process_retry_requests run");
         let mut message_retry_requests = vec![];
         while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
             message_retry_requests.push(message_id);

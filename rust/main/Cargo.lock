@@ -7391,6 +7391,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml_edit 0.19.15",
+ "tonlib-core",
  "ureq",
  "url",
  "vergen",
