@@ -130,16 +130,16 @@ pub fn generate_ton_config(
         (
             "tontest1",
             777001,
-            "EQARM6PXvAeXopAv1JuHk5KvOAg_ko69ndzZryxzZZts9cgO", // Mailbox
-            "EQD67kmLjCRnK4bO9_x-UzndYLeWdBFvOxVw_7HCh-knQdvm", // IGP
-            "EQDV-wfJb-0dd11Yf_hZ7aycHDONqY7g_0Q1DT4EJCNV97j5", // Validator Announce
+            "EQCyYQm0pw1YSY7AmxD_Bws4N4jw_It7Lfc3XUB7FGF2ySpm", // Mailbox
+            "EQCfAffupy_tT36rMJTR0Yfiv9r9_OBnTrI9E29V2OorJl8r", // IGP
+            "EQCeGnsX2hLYjeb4Y87fOvBf5sBRi_fqoXNMCtLTAgeaLGf7", // Validator Announce
         ),
         (
             "tontest2",
             777002,
-            "EQDvarrw3TgKHkneBGwyExg0069goudvS2QELs5ISEUNftvV", // Mailbox
-            "EQDqUtfEZNOcLtagvnCjeVsJUtPH2qXs27-bByN3Y_hn6oA8", // IGP
-            "EQDJduysuwgTd9oNxBah1YJFBLo7mAQ9eeUfPIfMlBqk926r", // Validator Announce
+            "EQAqtkMDNrbhVf9bzQMXh4aMYzbi2LBRLOtQdu0rBSXME2WQ", // Mailbox
+            "EQBqQWhQkPS9k8SXRv3Xz4FY4F7jOtgSshQqWb4niZy-JwcC", // IGP
+            "EQBULO4OwI4uTfOqewZxHv6fF0dOvlZIKiUtuK1F1JSXsAKQ", // Validator Announce
         ),
     ];
 
@@ -150,7 +150,7 @@ pub fn generate_ton_config(
                 name,
                 *domain_id,
                 "https://testnet.toncenter.com/api/",
-                "ad90d423e5e6e1392753f0070f99aae79f1ab9c7da80bf11e3057731b2663fc2",
+                "",
                 mnemonic.as_str(),
                 mailbox,
                 igp,
