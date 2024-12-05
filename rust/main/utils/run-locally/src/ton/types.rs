@@ -61,23 +61,10 @@ impl TonAgentConfig {
         rpc_url: &str,
         api_key: &str,
         signer_phrase: &str,
+        mailbox_address: &TonAddress,
+        igp_address: &TonAddress,
+        validator_announce_address: &TonAddress,
     ) -> Self {
-        let mailbox_address =
-            TonAddress::from_base64_url("EQAQXNFM-cltTkmmVMt51Dp2Hz_Pll5FIbE6XRmr49SJL-Ur")
-                .unwrap();
-        let igp_address =
-            TonAddress::from_base64_url("EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE")
-                .unwrap();
-        let recipient_address =
-            TonAddress::from_base64_url("EQBWmHkjpLAwyJ1qQwH9tIfDKiOyEIa_nH29iJon3qduwWBy")
-                .unwrap();
-        let multisig_address =
-            TonAddress::from_base64_url("EQDiSTbhD8dbtUQTldaJ3mbkznRQpw1PzhMzo7GJBpopxxoQ")
-                .unwrap();
-        let validator_announce =
-            TonAddress::from_base64_url("EQATPBRdYOV8bfAyL7s1H_fUL1JGUiYas6A0zDTKgAFO3EPi")
-                .unwrap();
-
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
             .map(|s| s.to_string())
@@ -108,7 +95,7 @@ impl TonAgentConfig {
             validator_announce: format!(
                 "0x{}",
                 hex::encode(
-                    ConversionUtils::ton_address_to_h256(&validator_announce)
+                    ConversionUtils::ton_address_to_h256(&validator_announce_address)
                         .unwrap()
                         .as_bytes()
                 )
@@ -146,23 +133,44 @@ pub fn generate_ton_config(
     let output_path = format!("../../config/{output_name}.json");
 
     let mnemonic = mnemonic.to_string();
-
-    let mut ton_chains = vec![
-        TonAgentConfig::new(
+    let addresses = [
+        (
             "tontest1",
             777001,
-            "https://testnet.toncenter.com/api/",
-            "",
-            mnemonic.as_str(),
+            TonAddress::from_base64_url("EQBmFijEHuueqHQLlu0miQmsx6PXLKuMoEq5NvI1JY08SW30")
+                .unwrap(), // Mailbox
+            TonAddress::from_base64_url("EQBlC1mxaaAR76QM9LPMvHyd7Lnzni7D0uBhFWvEC1bnFQ3W")
+                .unwrap(), // IGP
+            TonAddress::from_base64_url("EQCi3mXdLbbSoFRKe3S7s6scEr_-9zwZfhQq54ruyaLqB5yQ")
+                .unwrap(), // Validator Announce
         ),
-        TonAgentConfig::new(
+        (
             "tontest2",
             777002,
-            "https://testnet.toncenter.com/api/",
-            "",
-            mnemonic.as_str(),
+            TonAddress::from_base64_url("EQCeq8WO5V_sfhjp2uaaW7msEdVTaFFvzeQr_f9Zt3_BdP4q")
+                .unwrap(), // Mailbox
+            TonAddress::from_base64_url("EQCJ88IkmfIkvelSmnAfpeR4dAjVarRJcv_YYYPNkI0astRO")
+                .unwrap(), // IGP
+            TonAddress::from_base64_url("EQAKc8EhIduN_bZDyNk6TzLxIfNdAAbzQ572XJLvYrZAHtel")
+                .unwrap(), // Validator Announce
         ),
     ];
+
+    let ton_chains: Vec<TonAgentConfig> = addresses
+        .iter()
+        .map(|(name, domain_id, mailbox, igp, validator_announce)| {
+            TonAgentConfig::new(
+                name,
+                *domain_id,
+                "https://testnet.toncenter.com/api/",
+                "",
+                mnemonic.as_str(),
+                mailbox,
+                igp,
+                validator_announce,
+            )
+        })
+        .collect();
 
     let mut chains_map = BTreeMap::new();
     for chain in ton_chains.clone() {
