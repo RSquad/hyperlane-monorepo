@@ -152,9 +152,9 @@ pub fn generate_ton_config(
                 "https://testnet.toncenter.com/api/",
                 "ad90d423e5e6e1392753f0070f99aae79f1ab9c7da80bf11e3057731b2663fc2",
                 mnemonic.as_str(),
-                mailbox.to_base64_url().as_str(),
-                igp.to_base64_url().as_str(),
-                validator_announce.to_base64_url().as_str(),
+                mailbox,
+                igp,
+                validator_announce,
             )
         })
         .collect();

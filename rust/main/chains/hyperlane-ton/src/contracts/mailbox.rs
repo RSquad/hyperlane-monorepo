@@ -15,6 +15,7 @@ use std::{
 };
 use tokio::time::{sleep, timeout};
 use tracing::{error, info, warn};
+use url::form_urlencoded::parse;
 
 use tonlib_core::cell::TonCellError;
 use tonlib_core::message::{InternalMessage, TonMessage};
@@ -642,8 +643,7 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
     let id = parser.load_uint(256).map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!("Failed to parse ID: {:?}", e))
     })?;
-    let id_u64 = id.bits();
-    info!("Parsed message ID: {}", id_u64);
+    info!("Parsed message ID: {:x}", id);
 
     let p = parser.next_reference().map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(
@@ -653,83 +653,60 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
     })?;
     info!("Next reference found: {:?}", p);
 
-    let reference = p.parser().load_maybe_cell_ref().map_err(|e| {
+    let reference = p.parser().next_reference().map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(
             "Failed to load cell reference: {:?}",
             e
         ))
     })?;
-    info!("Reference cell found: {}", reference.is_some());
 
-    if let Some(reference) = reference {
-        let mut parser_ref = reference.parser();
+    let mut parser_ref = reference.parser();
+    let version = parser_ref.load_u8(8)?;
+    let nonce = parser_ref.load_u32(32)?;
+    let origin = parser_ref.load_u32(32)?;
 
-        let mut string_bytes = vec![0u8; 32];
-        parser_ref.load_slice(&mut string_bytes).map_err(|e| {
-            TonCellError::BagOfCellsDeserializationError(format!(
-                "Failed to parse sender address: {:?}",
-                e
-            ))
-        })?;
-        info!("Parsed sender bytes: {:?}", string_bytes);
-
-        let sender_h256 = H256::from_slice(&string_bytes);
-        info!("Parsed sender address: {}", sender_h256);
-
-        let dest_domain = parser_ref.load_uint(32).map_err(|e| {
-            TonCellError::BagOfCellsDeserializationError(format!(
-                "Failed to parse destination domain: {:?}",
-                e
-            ))
-        })?;
-        let dest_domain_u32 = dest_domain.to_u32().unwrap_or(0);
-        info!("Parsed destination domain: {}", dest_domain_u32);
-
-        let recipient = parser_ref.load_uint(256).map_err(|e| {
-            TonCellError::BagOfCellsDeserializationError(format!(
-                "Failed to parse recipient address: {:?}",
-                e
-            ))
-        })?;
-        info!("Parsed recipient address: {}", recipient);
-
-        let recipient_bytes = recipient.to_be_bytes();
-        let recipient_h256 = H256::from_slice(&recipient_bytes);
-        info!("Parsed H256 recipient: {:?}", recipient_h256);
-
-        let body = parser_ref.next_reference().map_err(|e| {
-            TonCellError::BagOfCellsDeserializationError(format!(
-                "Failed to parse body reference: {:?}",
-                e
-            ))
-        })?;
-        let data = body.data();
-        info!("Parsed body: {:?}", body);
-        info!("Body data bytes: {:?}", data);
-
-        if data.len() == 4 {
-            let number = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-            info!("Extracted number from body: {}", number);
-        } else {
-            return Err(TonCellError::BagOfCellsDeserializationError(format!(
-                "Unexpected body data length: {:?}",
-                data.len()
-            )));
-        }
-
-        let message = HyperlaneMessage {
-            version: 0,
-            nonce: 0,
-            origin: 0,
-            sender: sender_h256,
-            destination: dest_domain_u32,
-            recipient: recipient_h256,
-            body: data.to_vec(),
-        };
-        Ok(message)
-    } else {
-        Err(TonCellError::BagOfCellsDeserializationError(
-            "Expected reference cell but found none".to_string(),
+    let mut address_bytes = vec![0u8; 32];
+    parser_ref.load_slice(&mut address_bytes).map_err(|e| {
+        TonCellError::BagOfCellsDeserializationError(format!(
+            "Failed to parse sender address: {:?}",
+            e
         ))
-    }
+    })?;
+
+    let sender = H256::from_slice(&address_bytes);
+    info!("Parsed sender address: {:x}", sender);
+
+    let destination = parser_ref.load_u32(32)?;
+    info!("Parsed destination domain: {}", destination);
+
+    parser_ref.load_slice(&mut address_bytes).map_err(|e| {
+        TonCellError::BagOfCellsDeserializationError(format!(
+            "Failed to parse recipient address: {:?}",
+            e
+        ))
+    })?;
+
+    let recipient = H256::from_slice(&address_bytes);
+    info!("Parsed H256 recipient: {:x}", recipient);
+
+    let body = parser_ref.next_reference().map_err(|e| {
+        TonCellError::BagOfCellsDeserializationError(format!(
+            "Failed to parse body reference: {:?}",
+            e
+        ))
+    })?;
+    let data = body.data();
+    info!("Parsed body: {:?}", body);
+    info!("Body data bytes: {:?}", data);
+
+    let message = HyperlaneMessage {
+        version,
+        nonce,
+        origin,
+        sender,
+        destination,
+        recipient,
+        body: data.to_vec(),
+    };
+    Ok(message)
 }
