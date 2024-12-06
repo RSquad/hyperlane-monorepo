@@ -1,6 +1,7 @@
 use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
+use crate::ConversionUtils;
 use async_trait::async_trait;
 use base64::Engine;
 use derive_new::new;
@@ -30,9 +31,7 @@ impl TonInterchainGasPaymaster {
 
 impl HyperlaneContract for TonInterchainGasPaymaster {
     fn address(&self) -> H256 {
-        let hex = self.igp_address.to_hex();
-        let bytes = hex.as_bytes();
-        H256::from_slice(bytes)
+        ConversionUtils::ton_address_to_h256(&self.igp_address).unwrap()
     }
 }
 impl HyperlaneChain for TonInterchainGasPaymaster {

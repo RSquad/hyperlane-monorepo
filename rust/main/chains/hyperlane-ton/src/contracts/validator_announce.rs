@@ -98,9 +98,7 @@ impl TonValidatorAnnounce {
 }
 impl HyperlaneContract for TonValidatorAnnounce {
     fn address(&self) -> H256 {
-        let hex = self.address.to_hex();
-        let bytes = hex.as_bytes();
-        H256::from_slice(bytes)
+        ConversionUtils::ton_address_to_h256(&self.address).unwrap()
     }
 }
 

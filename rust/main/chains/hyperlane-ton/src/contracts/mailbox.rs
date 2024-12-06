@@ -58,9 +58,7 @@ impl TonMailbox {
 
 impl HyperlaneContract for TonMailbox {
     fn address(&self) -> H256 {
-        let hex = self.mailbox_address.to_hex();
-        let bytes = hex.as_bytes();
-        H256::from_slice(bytes)
+        ConversionUtils::ton_address_to_h256(&self.mailbox_address).unwrap()
     }
 }
 
