@@ -6,7 +6,9 @@ use num_bigint::BigUint;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
+use tonlib_core::cell::dict::predefined_readers::{
+    key_reader_256bit, key_reader_uint, val_reader_cell,
+};
 use tonlib_core::cell::{ArcCell, BagOfCells, Cell, CellBuilder, TonCellError};
 use tonlib_core::{TonAddress, TonHash};
 
@@ -73,14 +75,12 @@ impl ConversionUtils {
 
     /// Creates a linked list of cells, each containing up to 6 addresses.
     /// If there are more than 6 addresses, the next cell is created with a reference to the previous cell.
-    pub fn create_address_linked_cells(addresses: &[H160]) -> Result<Cell, TonCellError> {
+    pub fn create_address_linked_cells(addresses: &[H256]) -> Result<Cell, TonCellError> {
         let mut remaining_addresses = addresses;
         let mut current_cell = CellBuilder::new();
 
         loop {
-            let addresses_in_cell = remaining_addresses.len().min(6);
-            //let remaining_count = remaining_addresses.len() - addresses_in_cell;
-
+            let addresses_in_cell = remaining_addresses.len().min(3);
             info!(
                 "Creating a new cell segment with {} addresses.",
                 addresses_in_cell
@@ -92,7 +92,7 @@ impl ConversionUtils {
             // We write down the addresses ourselves
             for address in &remaining_addresses[..addresses_in_cell] {
                 info!("Storing address: {:?}", address);
-                current_cell.store_uint(160, &BigUint::from_bytes_be(address.as_bytes()))?;
+                current_cell.store_uint(256, &BigUint::from_bytes_be(address.as_bytes()))?;
             }
             remaining_addresses = &remaining_addresses[addresses_in_cell..];
 
@@ -178,14 +178,7 @@ impl ConversionUtils {
         Ok(address)
     }
     pub fn ton_address_to_h256(address: &TonAddress) -> Result<H256, String> {
-        let address_hex = address.to_hex();
-        let clean_hex = address_hex.trim_start_matches(&format!("{}:", address.workchain));
-
-        let bytes =
-            <[u8; 32]>::from_hex(clean_hex).map_err(|e| format!("Failed to parse hex: {:?}", e))?;
-
-        info!("H256: {:?}", H256::from(bytes));
-        Ok(H256::from(bytes))
+        Ok(H256::from(address.hash_part))
     }
 
     pub fn u256_to_biguint(value: U256) -> BigUint {

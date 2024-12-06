@@ -35,9 +35,7 @@ impl HyperlaneChain for TonMultisigIsm {
 
 impl HyperlaneContract for TonMultisigIsm {
     fn address(&self) -> H256 {
-        let hex = self.multisig_address.to_hex();
-        let bytes = hex.as_bytes();
-        H256::from_slice(bytes)
+        ConversionUtils::ton_address_to_h256(&self.multisig_address).unwrap()
     }
 }
 

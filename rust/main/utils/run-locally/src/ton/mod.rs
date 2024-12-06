@@ -77,11 +77,6 @@ fn run_locally() {
         .run()
         .join();
 
-    let mailbox_address = "EQBMKHZ4kGptW4veOnDZoeVxahcc5ACyq4EIAcI0oqJBwB2v";
-    let igp_address = "EQCHfzFW3GBgjUYRrQrnMh7bvDsbSTo3ehWLzKgZEdrQxlWE";
-    let recipient_address = "EQBWmHkjpLAwyJ1qQwH9tIfDKiOyEIa_nH29iJon3qduwWBy";
-    let multisig_address = "EQDiSTbhD8dbtUQTldaJ3mbkznRQpw1PzhMzo7GJBpopxxoQ";
-
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
     let agent_config = generate_ton_config(file_name, &mnemonic).unwrap();

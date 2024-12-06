@@ -646,7 +646,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let validator_announce_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
+                    ConversionUtils::h256_to_ton_address(&self.addresses.validator_announce, 0);
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
