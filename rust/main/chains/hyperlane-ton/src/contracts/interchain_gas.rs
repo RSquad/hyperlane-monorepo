@@ -10,6 +10,7 @@ use hyperlane_core::{
     SequenceAwareIndexer, H256, U256,
 };
 use log::info;
+use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 use std::ops::RangeInclusive;
 use std::string::ToString;
@@ -69,8 +70,8 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        let start_block = *range.start();
-        let end_block = *range.end();
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
 
         let start_block_info = self
             .provider
