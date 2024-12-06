@@ -35,7 +35,8 @@ impl HyperlaneChain for TonMultisigIsm {
 
 impl HyperlaneContract for TonMultisigIsm {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.multisig_address).unwrap()
+        ConversionUtils::ton_address_to_h256(&self.multisig_address)
+            .expect("Failed to convert address")
     }
 }
 

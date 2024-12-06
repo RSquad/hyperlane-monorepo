@@ -58,7 +58,8 @@ impl TonMailbox {
 
 impl HyperlaneContract for TonMailbox {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.mailbox_address).unwrap()
+        ConversionUtils::ton_address_to_h256(&self.mailbox_address)
+            .expect("Failed to convert address")
     }
 }
 
