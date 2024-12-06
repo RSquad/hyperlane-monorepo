@@ -12,9 +12,11 @@ use hyperlane_core::{
 };
 use log::info;
 use std::cmp::max;
-use std::fmt::{Debug, Formatter};
-use std::ops::RangeInclusive;
-use std::string::ToString;
+use std::{
+    fmt::{Debug, Formatter},
+    ops::RangeInclusive,
+    string::ToString,
+};
 use tonlib_core::TonAddress;
 
 #[derive(Clone)]

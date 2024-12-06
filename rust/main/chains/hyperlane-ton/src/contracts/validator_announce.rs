@@ -13,10 +13,9 @@ use log::{info, warn};
 use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
 use std::time::SystemTime;
-use tonlib_core::message::{CommonMsgInfo, InternalMessage, TonMessage};
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
-    message::TransferMessage,
+    message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
 };
 

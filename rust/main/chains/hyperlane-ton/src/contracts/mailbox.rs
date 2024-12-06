@@ -4,7 +4,6 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, SequenceAwareIndexer,
     TxCostEstimate, TxOutcome, H256, U256,
 };
-//use log::{error, warn, info};
 use num_bigint::BigUint;
 use std::time::Duration;
 use std::{
