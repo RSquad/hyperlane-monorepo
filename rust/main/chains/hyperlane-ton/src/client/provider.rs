@@ -168,12 +168,7 @@ impl HyperlaneProvider for TonProvider {
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         info!("Checking if contract exists at address: {:?}", address);
 
-        let ton_address = ConversionUtils::h256_to_ton_address(address, 0).map_err(|e| {
-            warn!("Failed to parse address: {:?}", e);
-            ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(
-                CustomHyperlaneError(format!("Failed to parse address: {:?}", e)),
-            )))
-        })?;
+        let ton_address = ConversionUtils::h256_to_ton_address(address, 0).to_string();
 
         let account_state = match self.get_account_state(ton_address.to_string(), true).await {
             Ok(state) => state,
@@ -517,16 +512,7 @@ impl TonApiCenter for TonProvider {
                 Box::new(e) as Box<dyn Error>
             })?;
 
-            match ConversionUtils::h256_to_ton_address(&h256, 0) {
-                Ok(ton_address) => account = ton_address.to_string(),
-                Err(e) => {
-                    warn!("Failed to convert H256 to TonAddress: {:?}", e);
-                    return Err(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        format!("Conversion failed: {:?}", e),
-                    )));
-                }
-            }
+            account = ConversionUtils::h256_to_ton_address(&h256, 0).to_string();
         }
         let mut url = self
             .connection_conf

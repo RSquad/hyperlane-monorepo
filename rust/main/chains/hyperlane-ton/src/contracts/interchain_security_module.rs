@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use base64::Engine;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType, H256, U256,
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
+    H256, U256,
 };
 use log::warn;
 use num_bigint::BigUint;
@@ -23,6 +24,7 @@ use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::utils::conversion::ConversionUtils;
+use crate::TonConnectionConf;
 
 pub struct TonInterchainSecurityModule {
     /// The address of the ISM contract.
@@ -35,6 +37,17 @@ pub struct TonInterchainSecurityModule {
 }
 impl TonInterchainSecurityModule {
     const VERIFY: u32 = 0x3b3cca17;
+    pub fn new(locator: ContractLocator, conf: TonConnectionConf, signer: TonSigner) -> Self {
+        let ism_address = ConversionUtils::h256_to_ton_address(&locator.address, 0);
+        let provider = TonProvider::new(reqwest::Client::new(), conf, locator.domain.clone());
+
+        Self {
+            ism_address,
+            provider,
+            signer,
+            workchain: 0,
+        }
+    }
 }
 impl Debug for TonInterchainSecurityModule {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

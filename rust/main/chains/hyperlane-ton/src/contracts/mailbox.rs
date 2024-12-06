@@ -222,16 +222,14 @@ impl Mailbox for TonMailbox {
     }
 
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let recipient_address =
-            ConversionUtils::h256_to_ton_address(&recipient, self.workchain).unwrap();
-        info!("Recipient address:{:?}", recipient_address);
+        let recipient_address = ConversionUtils::h256_to_ton_address(&recipient, self.workchain);
 
-        let recipient_result = self
+        let result = self
             .provider
             .run_get_method(recipient_address.to_hex(), "get_ism".to_string(), None)
             .await;
 
-        match recipient_result {
+        match result {
             Ok(response) => {
                 if let Some(stack) = response.stack.first() {
                     if stack.r#type == "cell" {

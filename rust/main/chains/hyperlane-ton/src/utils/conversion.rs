@@ -193,21 +193,8 @@ impl ConversionUtils {
         value.to_little_endian(&mut bytes);
         BigUint::from_bytes_le(&bytes)
     }
-    pub fn h256_to_ton_address(h256: &H256, workchain: i32) -> Result<TonAddress, String> {
-        let h256_str = format!("{:x}", h256);
-
-        let h256_hex = h256_str.trim_start_matches("0x");
-        info!("H256_hex:{:?}", h256_hex);
-
-        let bytes: TonHash = hex::decode(h256_hex)
-            .map_err(|e| format!("Failed to decode H256 hex to bytes: {:?}", e))?
-            .as_slice()
-            .try_into()
-            .map_err(|e| format!("Failed to convert decoded bytes into TonHash: {:?}", e))?;
-
-        let addr = TonAddress::new(workchain, &bytes);
-
-        Ok(addr)
+    pub fn h256_to_ton_address(h256: &H256, workchain: i32) -> TonAddress {
+        TonAddress::new(workchain, &h256.0)
     }
 
     pub fn parse_data_cell(_data: &ArcCell) -> Result<HyperlaneMessage, Error> {

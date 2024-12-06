@@ -234,6 +234,7 @@ impl MessageMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<IsmWithMetadataAndType> {
+        info!("build_ism_and_metadata");
         let ism: Box<dyn InterchainSecurityModule> = self
             .build_ism(ism_address)
             .await

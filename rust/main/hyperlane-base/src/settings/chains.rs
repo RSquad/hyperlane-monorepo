@@ -267,8 +267,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let mailbox_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0)
-                        .expect("Failed to convert TonAddress from H256");
+                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
@@ -312,8 +311,7 @@ impl ChainConf {
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
                 let address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0)
-                        .expect("Failed to build address for merkle tree hook");
+                    ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
                 let hook = TonMerkleTreeHook::new(provider, address)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -368,8 +366,7 @@ impl ChainConf {
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0)
-                        .expect("Failed to convert mailbox address");
+                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
 
@@ -427,8 +424,7 @@ impl ChainConf {
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0)
-                        .expect("Failed to convert mailbox address");
+                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
 
@@ -551,8 +547,7 @@ impl ChainConf {
                 let igp_address = ConversionUtils::h256_to_ton_address(
                     &self.addresses.interchain_gas_paymaster,
                     0,
-                )
-                .expect("Failed to convert address");
+                );
 
                 let indexer = Box::new(h_ton::TonInterchainGasPaymasterIndexer::new(
                     provider,
@@ -611,8 +606,7 @@ impl ChainConf {
             }
             ChainConnectionConf::Ton(_) => {
                 let address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0)
-                        .expect("Failed");
+                    ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
                 let indexer = Box::new(TonMerkleTreeHookIndexer::new(address)?);
 
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
@@ -652,8 +646,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let validator_announce_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0)
-                        .expect("Failed to convert TonAddress from H256");
+                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
@@ -705,22 +698,13 @@ impl ChainConf {
                 Ok(ism as Box<dyn InterchainSecurityModule>)
             }
             ChainConnectionConf::Ton(conf) => {
-                let provider =
-                    TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
-
                 let signer = self.ton_signer().await.context(ctx)?;
-
-                let ism_address = ConversionUtils::h256_to_ton_address(&address, 0)
-                    .expect("Failed to convert ISM address");
-
-                let ism = h_ton::TonInterchainSecurityModule {
-                    ism_address,
-                    provider,
-                    signer: signer.unwrap(),
-                    workchain: 0,
-                };
-
-                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+                let ism = Box::new(h_ton::TonInterchainSecurityModule::new(
+                    locator,
+                    conf.clone(),
+                    signer.unwrap(),
+                ));
+                Ok(ism as Box<dyn InterchainSecurityModule>)
             }
         }
         .context(ctx)
@@ -760,8 +744,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
-                let multisig_address = ConversionUtils::h256_to_ton_address(&address, 0)
-                    .expect("Failed to convert ISM address");
+                let multisig_address = ConversionUtils::h256_to_ton_address(&address, 0);
 
                 let ism = h_ton::TonMultisigIsm::new(provider, multisig_address);
 
@@ -805,7 +788,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
-                let address = ConversionUtils::h256_to_ton_address(&address, 0).expect("Failed");
+                let address = ConversionUtils::h256_to_ton_address(&address, 0);
                 let ism = Box::new(TonRoutingIsm::new(provider, address)?);
 
                 Ok(ism as Box<dyn RoutingIsm>)
@@ -849,7 +832,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
-                let address = ConversionUtils::h256_to_ton_address(&address, 0).expect("Failed");
+                let address = ConversionUtils::h256_to_ton_address(&address, 0);
                 let ism = Box::new(TonAggregationIsm::new(provider, address)?);
 
                 Ok(ism as Box<dyn AggregationIsm>)
