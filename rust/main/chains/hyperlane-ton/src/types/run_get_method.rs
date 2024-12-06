@@ -1,3 +1,4 @@
+use derive_new::new;
 use serde::{Deserialize, Serialize};
 
 // #[derive(Debug, Serialize, Deserialize)]
@@ -14,7 +15,7 @@ pub struct RunGetMethodResponse {
     pub stack: Vec<StackItem>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, new)]
 pub struct StackItem {
     #[serde(rename = "type")]
     pub r#type: String,

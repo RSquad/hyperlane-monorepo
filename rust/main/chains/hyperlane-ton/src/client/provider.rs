@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use tokio::time::sleep;
 
 use crate::client::error::CustomHyperlaneError;
+use crate::run_get_method::StackItem;
 use crate::{
     trait_builder::TonConnectionConf,
     traits::ton_api_center::TonApiCenter,
@@ -418,7 +419,7 @@ impl TonApiCenter for TonProvider {
         &self,
         address: String,
         method: String,
-        stack: Option<Vec<String>>,
+        stack: Option<Vec<StackItem>>,
     ) -> Result<RunGetMethodResponse, Box<dyn Error + Send + Sync>> {
         info!(
             "Calling get method for address: {:?}, method: {:?}, stack: {:?}",

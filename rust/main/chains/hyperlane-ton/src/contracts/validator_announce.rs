@@ -8,6 +8,7 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
 };
 
+use crate::run_get_method::StackItem;
 use log::{info, warn};
 use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
@@ -140,7 +141,10 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .map_err(|_e| ChainCommunicationError::CustomError(_e.to_string()))?;
         let boc_str = base64::encode(&boc);
 
-        let stack = Some(vec![boc_str]);
+        let stack = Some(vec![StackItem {
+            r#type: "cell".to_string(),
+            value: boc_str,
+        }]);
 
         let response = self
             .provider

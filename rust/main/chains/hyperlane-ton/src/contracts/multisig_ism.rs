@@ -1,4 +1,5 @@
 use crate::client::provider::TonProvider;
+use crate::run_get_method::StackItem;
 use crate::traits::ton_api_center::TonApiCenter;
 use async_trait::async_trait;
 use derive_new::new;
@@ -44,31 +45,35 @@ impl MultisigIsm for TonMultisigIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
+        info!("validators_and_threshold call");
         let domain = message.origin;
         let mut builder = CellBuilder::new();
 
+        info!("Domain:{:?}", domain);
         let id = builder
             .store_uint(32, &BigUint::from(domain))
             .unwrap()
             .build()
             .unwrap();
+        info!("Id:{:?}", id);
 
-        let boc_vec = BagOfCells::from_root(id).serialize(true).map_err(|_e| {
-            ChainCommunicationError::CustomError("Failed to create BagOfCells".to_string())
-        })?;
+        let stack = Some(vec![StackItem {
+            r#type: "num".to_string(),
+            value: domain.to_string(),
+        }]);
+        info!("Stack:{:?}", stack);
 
-        let boc_str = base64::encode(&boc_vec);
-
-        let stack = Some(vec![boc_str]);
-
-        let function_name = "get_validators_and_threshold".to_string();
+        let function_name = "get_validators_and_threshhold".to_string();
         let response = self
             .provider
             .run_get_method(self.multisig_address.to_hex(), function_name, stack)
             .await;
 
         if let Ok(response) = response {
-            info!("Response runGetMethod: {:?}", response);
+            info!(
+                "Response runGetMethod for validators_and_threshold: {:?}",
+                response
+            );
             if let Some(stack_item_validators) = response.stack.get(0) {
                 let validators_hex = stack_item_validators.value.trim_start_matches("0x");
                 let mut validators = Vec::new();

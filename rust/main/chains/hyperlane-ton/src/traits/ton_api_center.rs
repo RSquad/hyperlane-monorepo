@@ -1,3 +1,4 @@
+use crate::run_get_method::StackItem;
 use crate::types::block_response::BlockResponse;
 use crate::types::message::SendMessageResponse;
 use crate::types::{
@@ -55,7 +56,7 @@ pub trait TonApiCenter {
         &self,
         address: String,
         method: String,
-        stack: Option<Vec<String>>,
+        stack: Option<Vec<StackItem>>,
     ) -> Result<RunGetMethodResponse, Box<dyn std::error::Error + Send + Sync>>;
 
     async fn send_message(
