@@ -122,42 +122,32 @@ impl Mailbox for TonMailbox {
 
     //
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let mut builder = CellBuilder::new();
-        let id_bigint = BigUint::from_bytes_be(id.as_bytes());
-        let cell = builder
-            .store_uint(256, &id_bigint)
-            .unwrap()
-            .build()
-            .unwrap();
-        log::info!("cell:{:?}", cell);
+        // let mut builder = CellBuilder::new();
+        // let id_bigint = BigUint::from_bytes_be(id.as_bytes());
+        // let cell = builder
+        //     .store_uint(256, &id_bigint)
+        //     .unwrap()
+        //     .build()
+        //     .unwrap();
+        // log::info!("cell:{:?}", cell);
+        //
+        // let response = self
+        //     .provider
+        //     .run_get_method(
+        //         self.mailbox_address.to_hex(),
+        //         "get_deliveries".to_string(),
+        //         None,
+        //     )
+        //     .await
+        //     .map_err(|e| {
+        //         ChainCommunicationError::CustomError(format!(
+        //             "Error calling run_get_method: {:?}",
+        //             e
+        //         ))
+        //     })?;
+        // info!("delivered response:{:?}", response);
 
-        let boc = BagOfCells::from_root(cell).serialize(true).unwrap();
-        let boc_str = general_purpose::STANDARD.encode(&boc);
-
-        info!("Boc:{:?}", boc_str);
-
-        let stack = vec![boc_str];
-
-        let response = self
-            .provider
-            .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_deliveries".to_string(),
-                Some(stack),
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Error calling run_get_method: {:?}",
-                    e
-                ))
-            })?;
-
-        let is_delivered = response.stack.iter().any(|item| {
-            let stored_id = item.value.as_str();
-            stored_id == format!("{:x}", id)
-        });
-        Ok(is_delivered)
+        Ok(false)
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
@@ -199,14 +189,11 @@ impl Mailbox for TonMailbox {
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient_address =
             ConversionUtils::h256_to_ton_address(&recipient, self.workchain).unwrap();
+        info!("Recipient address:{:?}", recipient_address);
 
         let recipient_result = self
             .provider
-            .run_get_method(
-                recipient_address.to_string(),
-                "get_recipient".to_string(),
-                None,
-            )
+            .run_get_method(recipient_address.to_hex(), "get_ism".to_string(), None)
             .await;
 
         match recipient_result {
@@ -242,8 +229,8 @@ impl Mailbox for TonMailbox {
                     .provider
                     .run_get_method(
                         self.mailbox_address.to_hex(),
-                        "get_recipient_ism".to_string(),
-                        Some(vec![format!("0x{}", recipient)]),
+                        "get_default_ism".to_string(),
+                        None,
                     )
                     .await
                     .map_err(|e| {
