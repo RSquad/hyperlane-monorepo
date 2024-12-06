@@ -120,6 +120,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
+        info!("get_announced_storage_locations call!");
         let function_name = "get_announced_storage_locations".to_string();
         let validators_h160: Vec<H160> = validators
             .iter()
@@ -128,6 +129,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                 H160::from_slice(&v.as_bytes()[..20])
             })
             .collect();
+        info!("validators_h160:{:?}", validators_h160);
 
         let validators_cell = ConversionUtils::create_address_linked_cells(&validators_h160)
             .map_err(|_| {
@@ -184,10 +186,10 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                         _e
                     ))
                 })?;
-
+            info!("storage_locations:{:?}", storage_locations);
             // Convert HashMap<BigUint, Vec<String>> to Vec<Vec<String>>
             let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
-
+            info!("locations_vec:{:?}", locations_vec);
             Ok(locations_vec)
         } else {
             Err(ChainCommunicationError::CustomError(

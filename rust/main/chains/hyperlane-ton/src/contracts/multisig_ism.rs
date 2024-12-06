@@ -1,6 +1,7 @@
 use crate::client::provider::TonProvider;
 use crate::run_get_method::StackItem;
 use crate::traits::ton_api_center::TonApiCenter;
+use crate::ConversionUtils;
 use async_trait::async_trait;
 use derive_new::new;
 use hyperlane_core::{
@@ -9,6 +10,7 @@ use hyperlane_core::{
 };
 use num_bigint::BigUint;
 use std::str::FromStr;
+use tonlib_core::cell::dict::predefined_readers::{key_reader_u32, val_reader_cell};
 use tonlib_core::{
     cell::{BagOfCells, CellBuilder},
     TonAddress,
@@ -50,12 +52,6 @@ impl MultisigIsm for TonMultisigIsm {
         let mut builder = CellBuilder::new();
 
         info!("Domain:{:?}", domain);
-        let id = builder
-            .store_uint(32, &BigUint::from(domain))
-            .unwrap()
-            .build()
-            .unwrap();
-        info!("Id:{:?}", id);
 
         let stack = Some(vec![StackItem {
             r#type: "num".to_string(),
@@ -67,60 +63,36 @@ impl MultisigIsm for TonMultisigIsm {
         let response = self
             .provider
             .run_get_method(self.multisig_address.to_hex(), function_name, stack)
-            .await;
+            .await
+            .expect("Failed response get_validators_and_threshhold");
 
-        if let Ok(response) = response {
-            info!(
-                "Response runGetMethod for validators_and_threshold: {:?}",
-                response
-            );
-            if let Some(stack_item_validators) = response.stack.get(0) {
-                let validators_hex = stack_item_validators.value.trim_start_matches("0x");
-                let mut validators = Vec::new();
+        let threshold =
+            u8::from_str_radix(response.stack.first().unwrap().value.get(2..).unwrap(), 16)
+                .expect("");
+        info!("threshold:{:?}", threshold);
 
-                for chunk in validators_hex.as_bytes().chunks(64) {
-                    if let Ok(hex_str) = std::str::from_utf8(chunk) {
-                        if let Ok(val) = H256::from_str(hex_str) {
-                            validators.push(val);
-                        } else {
-                            return Err(ChainCommunicationError::CustomError(
-                                "Failed to parse validator address".to_string(),
-                            ));
-                        }
-                    } else {
-                        return Err(ChainCommunicationError::CustomError(
-                            "Invalid UTF-8 sequence in validator address".to_string(),
-                        ));
-                    }
-                }
+        let cell = &response.stack.get(1).unwrap().value;
 
-                if let Some(stack_item_threshold) = response.stack.get(1) {
-                    if let Ok(threshold) = u8::from_str_radix(&stack_item_threshold.value[2..], 16)
-                    {
-                        info!(
-                            "Parsed validators: {:?}, threshold: {:?}",
-                            validators, threshold
-                        );
-                        Ok((validators, threshold))
-                    } else {
-                        Err(ChainCommunicationError::CustomError(
-                            "Failed to parse threshold".to_string(),
-                        ))
-                    }
-                } else {
-                    Err(ChainCommunicationError::CustomError(
-                        "Missing threshold in stack response".to_string(),
-                    ))
-                }
-            } else {
-                Err(ChainCommunicationError::CustomError(
-                    "Empty stack in response".to_string(),
-                ))
-            }
-        } else {
-            Err(ChainCommunicationError::CustomError(
-                "Failed to get response".to_string(),
-            ))
+        let root_cell = ConversionUtils::parse_root_cell_from_boc(cell.as_str())
+            .expect("Failed to parse_root_cell_from_boc in validators_and_threshold");
+
+        let mut parser = root_cell.parser();
+        let dict = parser
+            .load_dict(32, key_reader_u32, val_reader_cell)
+            .expect("aboba");
+
+        let mut validators: Vec<H256> = vec![];
+
+        for (key, value_cell) in &dict {
+            info!("Key:{:?} value_cell:{:?}", key, value_cell);
+            let mut validator_address = H256::zero();
+            value_cell
+                .parser()
+                .load_slice(&mut validator_address.0)
+                .expect("failed load_slice");
+
+            validators.push(validator_address);
         }
+        Ok((validators, threshold))
     }
 }
