@@ -32,6 +32,7 @@ use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::utils::conversion::ConversionUtils;
 use base64::{engine::general_purpose, Engine};
+use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
 
 pub struct TonMailbox {
     pub mailbox_address: TonAddress,
@@ -122,32 +123,66 @@ impl Mailbox for TonMailbox {
 
     //
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        // let mut builder = CellBuilder::new();
-        // let id_bigint = BigUint::from_bytes_be(id.as_bytes());
-        // let cell = builder
-        //     .store_uint(256, &id_bigint)
-        //     .unwrap()
-        //     .build()
-        //     .unwrap();
-        // log::info!("cell:{:?}", cell);
-        //
-        // let response = self
-        //     .provider
-        //     .run_get_method(
-        //         self.mailbox_address.to_hex(),
-        //         "get_deliveries".to_string(),
-        //         None,
-        //     )
-        //     .await
-        //     .map_err(|e| {
-        //         ChainCommunicationError::CustomError(format!(
-        //             "Error calling run_get_method: {:?}",
-        //             e
-        //         ))
-        //     })?;
-        // info!("delivered response:{:?}", response);
+        let response = self
+            .provider
+            .run_get_method(
+                self.mailbox_address.to_hex(),
+                "get_deliveries".to_string(),
+                None,
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Error calling run_get_method: {:?}",
+                    e
+                ))
+            })?;
 
-        Ok(false)
+        info!("delivered response:{:?}", response);
+        if let Some(stack_item) = response.stack.first() {
+            if stack_item.r#type == "cell" {
+                info!("delivered boc:{:?}", stack_item.value);
+                let root_cell =
+                    ConversionUtils::parse_root_cell_from_boc(stack_item.value.as_str())
+                        .expect("Failed parse_root_cell_from_boc");
+                let parsed =
+                    match root_cell
+                        .parser()
+                        .load_dict(256, key_reader_uint, val_reader_cell)
+                    {
+                        Ok(dict) => dict,
+                        Err(e) => {
+                            error!("Failed to load dictionary from root cell: {:?}", e);
+                            return Err(ChainCommunicationError::CustomError(format!(
+                                "Failed to load dictionary: {:?}",
+                                e
+                            )));
+                        }
+                    };
+
+                for (key, value_cell) in &parsed {
+                    info!("Key:{:?} value_cell:{:?}", key, value_cell);
+
+                    if BigUint::from_bytes_be(id.as_bytes()) == *key {
+                        info!("Message ID matches dictionary key!");
+                        return Ok(true);
+                    }
+                }
+                // No matching ID found
+                Ok(false)
+            } else {
+                error!("Unexpected stack item type: {:?}", stack_item.r#type);
+                Err(ChainCommunicationError::CustomError(format!(
+                    "Unexpected stack item type: {:?}",
+                    stack_item.r#type
+                )))
+            }
+        } else {
+            error!("No stack item found in response");
+            Err(ChainCommunicationError::CustomError(
+                "No stack item found in response".to_string(),
+            ))
+        }
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
