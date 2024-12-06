@@ -14,8 +14,6 @@ use std::cmp::max;
 use std::fmt::{Debug, Formatter};
 use std::ops::RangeInclusive;
 use std::string::ToString;
-use std::time::Duration;
-use tokio::time::sleep;
 use tonlib_core::TonAddress;
 
 #[derive(Clone)]
@@ -72,7 +70,6 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
-
         let start_block_info = self
             .provider
             .get_blocks(
@@ -91,10 +88,6 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
             .await
             .expect("Failed to get start block info");
         info!("Start block info:{:?}", start_block_info);
-
-        sleep(Duration::from_secs(5)).await;
-
-        info!("End block getting start... number:{:?}", end_block);
         let end_block_info = self
             .provider
             .get_blocks(
@@ -113,7 +106,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
             .await
             .expect("Failed to get end block info");
 
-        info!("End block info:{:?}", start_block_info);
+        info!("End block info:{:?}", end_block_info);
 
         let start_utime = start_block_info.blocks[0]
             .gen_utime

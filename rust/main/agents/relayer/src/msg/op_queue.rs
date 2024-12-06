@@ -73,7 +73,6 @@ impl OpQueue {
         // be very low.
         // The other consideration is whether to put the channel receiver in the OpQueue or in a dedicated task
         // that also holds an Arc to the Mutex. For simplicity, we'll put it in the OpQueue for now.
-        info!("process_retry_requests run");
         let mut message_retry_requests = vec![];
         while let Ok(message_id) = self.retry_rx.lock().await.try_recv() {
             message_retry_requests.push(message_id);

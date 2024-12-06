@@ -334,7 +334,6 @@ async fn submit_task(
 ) {
     let recv_limit = max_batch_size as usize;
     loop {
-        info!("submit_task call");
         let mut batch = submit_queue.pop_many(recv_limit).await;
         info!(
             "Batch:{:?} submit_queue:{:?} recv_limit:{:?}",
