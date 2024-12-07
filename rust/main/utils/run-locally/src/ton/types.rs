@@ -62,6 +62,7 @@ impl TonAgentConfig {
         rpc_url: &str,
         api_key: &str,
         signer_phrase: &str,
+        wallet_version: &str,
         mailbox: &str,
         igp: &str,
         validator_announce: &str,
@@ -70,8 +71,6 @@ impl TonAgentConfig {
             .split_whitespace()
             .map(|s| s.to_string())
             .collect();
-
-        let version = DebugWalletVersion::from_str("V4R2").unwrap();
 
         TonAgentConfig {
             name: name.to_string(),
@@ -90,7 +89,7 @@ impl TonAgentConfig {
             signer: AgentConfigSigner {
                 typ: "TonMnemonic".to_string(),
                 mnemonic_phrase: mnemonic_vec.join(" "),
-                wallet_version: version,
+                wallet_version: DebugWalletVersion::from_str(wallet_version).unwrap(),
             },
 
             gas_price: RawTonAmount {
@@ -122,6 +121,7 @@ fn prepare_address(base64_addr: &str) -> String {
 pub fn generate_ton_config(
     output_name: &str,
     mnemonic: &str,
+    wallet_version: &str,
 ) -> Result<Vec<TonAgentConfig>, Error> {
     let output_path = format!("../../config/{output_name}.json");
 
@@ -132,14 +132,14 @@ pub fn generate_ton_config(
             777001,
             "EQC5xrynw_llDS7czwH70rIeiblbn0rbtk-zjI8erKyIMTN6", // Mailbox
             "EQBVavno3F5CYcmOzyvyd-F3HIuLn4fppQ7ULC0xlgqEUY6O", // IGP
-            "EQB7y0hqqPBCxz5oV6gLgatdcE4lhZ3a3ZbMVOCN-d_7pi6Y", // Validator Announce
+            "EQCZzFV1Uktr3Se86q4UABFsOGFJMyV7nnAyobuU94neq2xm", // Validator Announce
         ),
         (
             "tontest2",
             777002,
             "EQCqjMKRcYtuuucN4VirAd-DXrLc9DNTR1IWcaoNs2IMX7h8", // Mailbox
             "EQDPSU7WmtRLWqjldIfQTOGij285bbmLQvkrBpUCiPdAfGJ6", // IGP
-            "EQA0K1Twif9qPg5YwzVnIQeQqdEYYtBMipOlC4EcVJaALEi5", // Validator Announce
+            "EQDNIW0d0NT_0VZe5CULX18bYAgcAJaw3_0iHmEd6rTYTKLV", // Validator Announce
         ),
     ];
 
@@ -152,6 +152,7 @@ pub fn generate_ton_config(
                 "https://testnet.toncenter.com/api/",
                 "ad90d423e5e6e1392753f0070f99aae79f1ab9c7da80bf11e3057731b2663fc2",
                 mnemonic.as_str(),
+                wallet_version,
                 mailbox,
                 igp,
                 validator_announce,

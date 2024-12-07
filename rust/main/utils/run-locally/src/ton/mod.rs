@@ -63,6 +63,7 @@ impl Drop for TonHyperlaneStack {
 fn run_locally() {
     info!("Start run_locally() for Ton");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
+    let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
 
     log!("Building rust...");
     Program::new("cargo")
@@ -79,7 +80,7 @@ fn run_locally() {
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
-    let agent_config = generate_ton_config(file_name, &mnemonic).unwrap();
+    let agent_config = generate_ton_config(file_name, &mnemonic, &wallet_version).unwrap();
 
     let agent_config_path = format!("../../config/{file_name}.json");
 
@@ -103,19 +104,19 @@ fn run_locally() {
 
     sleep(Duration::from_secs(10));
 
-    let relayer = launch_ton_relayer(
-        agent_config_path.clone(),
-        relay_chains.clone(),
-        metrics_port,
-        debug,
-    );
-
-    //let validator1 = launch_ton_validator(
+    //let relayer = launch_ton_relayer(
     //    agent_config_path.clone(),
-    //    agent_config[0].clone(),
-    //    metrics_port + 1,
+    //    relay_chains.clone(),
+    //    metrics_port,
     //    debug,
     //);
+
+    let validator1 = launch_ton_validator(
+        agent_config_path.clone(),
+        agent_config[0].clone(),
+        metrics_port + 1,
+        debug,
+    );
     // let validator2 = launch_ton_validator(
     //     agent_config_path.clone(),
     //     agent_config[1].clone(),
@@ -216,13 +217,21 @@ pub fn launch_ton_validator(
         .hyp_env("ORIGINCHAINNAME", agent_config.name)
         .hyp_env("DB", validator_base.to_str().unwrap())
         .hyp_env("METRICSPORT", metrics_port.to_string())
-        .hyp_env("VALIDATOR_TYPE", agent_config.signer.typ)
+        .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
+        .hyp_env(
+            "VALIDATOR_KEY",
+            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+        )
         .hyp_env(
             "VALIDATOR_MNEMONICPHRASE",
             agent_config.signer.mnemonic_phrase,
         )
-        .hyp_env("VALIDATOR_WALLETVERSION", "V4R2")
-        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env(
+            "VALIDATOR_WALLETVERSION",
+            agent_config.signer.wallet_version,
+        )
+        .hyp_env("LOG_LEVEL", if debug { "debug" } else { "info" })
+        .hyp_env("LOG_FORMAT", "pretty")
         .spawn(make_static(format!("TON-VL{}", metrics_port % 2 + 1)), None);
 
     validator

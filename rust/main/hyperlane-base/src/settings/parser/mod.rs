@@ -360,7 +360,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .chain(&mut err)
                 .get_key("mnemonic_phrase")
                 .parse_string()
-                .unwrap_or_else(|| "V4R2");
+                .unwrap_or_default();
 
             let mnemonic_vec: Vec<String> = mnemonic_phrase
                 .split_whitespace()
@@ -371,7 +371,7 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
                 .chain(&mut err)
                 .get_key("wallet_version")
                 .parse_string()
-                .unwrap_or_else(|| "V4R2");
+                .unwrap_or_else(|| "V3R2");
 
             info!("Wallet version:{:?}", wallet_version);
 

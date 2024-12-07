@@ -192,7 +192,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .map_err(|_e| ChainCommunicationError::CustomError(_e))?;
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
-            bounce: false,
+            bounce: true,
             bounced: false,
             src: self.signer.address.clone(),
             dest: self.address.clone(),
@@ -209,9 +209,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         }
         .build()
         .expect("Failed create transfer message");
-
-        tracing::info!("Transfer message:{:?}", transfer_message);
-
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Failed to build duration_since")

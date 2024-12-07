@@ -40,14 +40,14 @@ impl TonProvider {
     async fn post_request(
         &self,
         url: Url,
-        params: Value,
+        params: &Value,
     ) -> Result<Response, ChainCommunicationError> {
         self.http_client
             .post(url)
             .header("accept", "application/json")
             .header("Content-Type", "application/json")
             .header("X-API-Key", self.connection_conf.api_key.clone())
-            .json(&params)
+            .json(params)
             .send()
             .await
             .map_err(|e| {
@@ -449,7 +449,7 @@ impl TonApiCenter for TonProvider {
             params.to_string()
         );
 
-        let response = self.post_request(url, params).await?;
+        let response = self.post_request(url, &params).await?;
 
         if !response.status().is_success() {
             let status = response.status();
@@ -491,7 +491,7 @@ impl TonApiCenter for TonProvider {
         });
 
         let response = self
-            .query_request(url, &params)
+            .post_request(url, &params)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error>)?;
 
