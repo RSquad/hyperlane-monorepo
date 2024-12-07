@@ -255,6 +255,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
     }
 
     async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
-        todo!()
+        Some(U256::zero())
     }
 }
