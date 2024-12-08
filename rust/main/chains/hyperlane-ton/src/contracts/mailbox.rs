@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox, SequenceAwareIndexer,
-    TxCostEstimate, TxOutcome, H256, U256,
+    ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
+    SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 use num_bigint::BigUint;
 use std::time::Duration;
@@ -401,7 +401,11 @@ impl Mailbox for TonMailbox {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
-        todo!()
+        Ok(TxCostEstimate {
+            gas_limit: U256::zero(),
+            gas_price: FixedPointNumber::zero(),
+            l2_gas_limit: None,
+        })
     }
 
     fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {

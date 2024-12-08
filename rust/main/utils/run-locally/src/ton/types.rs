@@ -132,7 +132,7 @@ pub fn generate_ton_config(
             777001,
             "EQC5xrynw_llDS7czwH70rIeiblbn0rbtk-zjI8erKyIMTN6", // Mailbox
             "EQBVavno3F5CYcmOzyvyd-F3HIuLn4fppQ7ULC0xlgqEUY6O", // IGP
-            "EQCZzFV1Uktr3Se86q4UABFsOGFJMyV7nnAyobuU94neq2xm", // Validator Announce
+            "EQBJ4-2pv4-Z0Gl2TpgcGfd4f9ujw1qcC42xQX93km073xt5", // Validator Announce
         ),
         (
             "tontest2",
