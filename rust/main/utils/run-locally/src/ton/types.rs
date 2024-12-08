@@ -132,14 +132,14 @@ pub fn generate_ton_config(
             777001,
             "EQC5xrynw_llDS7czwH70rIeiblbn0rbtk-zjI8erKyIMTN6", // Mailbox
             "EQBVavno3F5CYcmOzyvyd-F3HIuLn4fppQ7ULC0xlgqEUY6O", // IGP
-            "EQBJ4-2pv4-Z0Gl2TpgcGfd4f9ujw1qcC42xQX93km073xt5", // Validator Announce
+            "EQCMvFutaer4cfHqigGGWKyhd0r6qXxAkaj14e9CVVFSi8pz", // Validator Announce
         ),
         (
             "tontest2",
             777002,
             "EQCqjMKRcYtuuucN4VirAd-DXrLc9DNTR1IWcaoNs2IMX7h8", // Mailbox
             "EQDPSU7WmtRLWqjldIfQTOGij285bbmLQvkrBpUCiPdAfGJ6", // IGP
-            "EQDNIW0d0NT_0VZe5CULX18bYAgcAJaw3_0iHmEd6rTYTKLV", // Validator Announce
+            "EQDFuoW1v_8FkBTkCQk7IbJGGxEdyg6vH1AAs1fLfBbYtiSs", // Validator Announce
         ),
     ];
 
@@ -150,7 +150,7 @@ pub fn generate_ton_config(
                 name,
                 *domain_id,
                 "https://testnet.toncenter.com/api/",
-                "ad90d423e5e6e1392753f0070f99aae79f1ab9c7da80bf11e3057731b2663fc2",
+                "",
                 mnemonic.as_str(),
                 wallet_version,
                 mailbox,

@@ -5,7 +5,8 @@ use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H160, H256, U256,
+    HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome, ValidatorAnnounce, H160,
+    H256, U256,
 };
 
 use crate::run_get_method::StackItem;
@@ -180,13 +181,22 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             info!("locations_vec:{:?}", locations_vec);
             Ok(locations_vec)
         } else {
-            Err(ChainCommunicationError::CustomError(
-                "Empty stack in response".to_string(),
-            ))
+            Ok(vec![vec![]])
         }
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
+        info!("announce call!");
+        info!(
+            "announcement value:{:?} signature:{:?}",
+            announcement.value, announcement.signature
+        );
+
+        info!(
+            "eth_signed_message_hash:{:x}",
+            announcement.value.eth_signed_message_hash()
+        );
+        info!("signing_hash:{:x}", announcement.value.signing_hash());
         let cell = self
             .build_announcement_cell(announcement)
             .map_err(|_e| ChainCommunicationError::CustomError(_e))?;
@@ -233,6 +243,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                 false,
             )
             .expect("");
+        info!("Message cell in announce:{:?}", message);
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)

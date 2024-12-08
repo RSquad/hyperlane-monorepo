@@ -44,11 +44,11 @@ impl HyperlaneChain for TonMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for TonMerkleTreeHook {
     async fn tree(&self, _lag: Option<std::num::NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        todo!()
+        Ok(IncrementalMerkle::default())
     }
 
     async fn count(&self, _lag: Option<std::num::NonZeroU64>) -> ChainResult<u32> {
-        todo!()
+        Ok(1)
     }
 
     async fn latest_checkpoint(
@@ -86,7 +86,6 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         Ok(0)
-        //todo!()
     }
 }
 
