@@ -470,11 +470,8 @@ impl TonApiCenter for TonProvider {
         })?;
         info!("Received response text: {:?}", response_text);
 
-        let parsed_response = serde_json::from_str::<RunGetMethodResponse>(&response_text)
-            .map_err(|e| {
-                warn!("Error parsing JSON response: {:?}", e);
-                Box::new(e) as Box<dyn Error + Send + Sync>
-            })?;
+        let parsed_response =
+            serde_json::from_str::<RunGetMethodResponse>(&response_text).unwrap_or_default();
 
         info!("Successfully executed run_get_method request");
         Ok(parsed_response)
