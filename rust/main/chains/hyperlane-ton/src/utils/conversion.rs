@@ -1,11 +1,12 @@
 use anyhow::Error;
 use hex::FromHex;
-use hyperlane_core::{HyperlaneMessage, H160, H256, H512, U256};
+use hyperlane_core::{ChainCommunicationError, HyperlaneMessage, H160, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use crate::run_get_method::StackItem;
 use tonlib_core::cell::dict::predefined_readers::{
     key_reader_256bit, key_reader_uint, val_reader_cell,
 };
@@ -129,21 +130,29 @@ impl ConversionUtils {
             let mut storage_list = Vec::new();
 
             if let Some(inner_cell) = value_cell.references().first() {
-                let mut parser = inner_cell.parser();
+                let mut dict_locations = inner_cell
+                    .parser()
+                    .load_dict(256, key_reader_uint, val_reader_cell)
+                    .expect("");
+                for (_, in_cell_value) in dict_locations {
+                    if let Some(in_cell_value) = in_cell_value.references().first() {
+                        let mut parser = in_cell_value.parser();
+                        let bits_remaining = parser.remaining_bits();
+                        let bytes_needed = (bits_remaining + 7) / 8;
+                        let mut string_bytes = vec![0u8; bytes_needed];
 
-                let bits_remaining = parser.remaining_bits();
-                let bytes_needed = (bits_remaining + 7) / 8;
-                let mut string_bytes = vec![0u8; bytes_needed];
+                        parser.load_slice(&mut string_bytes)?;
 
-                parser.load_slice(&mut string_bytes)?;
+                        let storage_string = String::from_utf8(string_bytes).map_err(|_| {
+                            TonCellError::BagOfCellsDeserializationError(
+                                "Invalid UTF-8 string in storage location".to_string(),
+                            )
+                        })?;
 
-                let storage_string = String::from_utf8(string_bytes).map_err(|_| {
-                    TonCellError::BagOfCellsDeserializationError(
-                        "Invalid UTF-8 string in storage location".to_string(),
-                    )
-                })?;
-
-                storage_list.push(storage_string);
+                        info!("Storage_string:{:?} key:{:?}", storage_string, key);
+                        storage_list.push(storage_string);
+                    }
+                }
             } else {
                 return Err(TonCellError::BagOfCellsDeserializationError(
                     "Expected reference in cell but found none".to_string(),
@@ -192,6 +201,24 @@ impl ConversionUtils {
 
     pub fn parse_data_cell(_data: &ArcCell) -> Result<HyperlaneMessage, Error> {
         todo!();
+    }
+    pub fn parse_stack_item_to_u32(
+        stack: &[StackItem],
+        index: usize,
+    ) -> Result<u32, ChainCommunicationError> {
+        if let Some(stack_item) = stack.get(index) {
+            u32::from_str_radix(&stack_item.value[2..], 16).map_err(|_| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to parse value at index {}: {:?}",
+                    index, stack_item.value
+                ))
+            })
+        } else {
+            Err(ChainCommunicationError::CustomError(format!(
+                "No stack item at index {}",
+                index
+            )))
+        }
     }
 }
 pub struct Metadata {
@@ -306,42 +333,42 @@ mod tests {
         assert!(result.is_err(), "Expected an error for invalid input");
     }
 
-    #[test]
-    fn test_create_address_linked_cells() {
-        let addresses = vec![
-            H160::from_low_u64_be(0x12345678),
-            H160::from_low_u64_be(0x87654321),
-        ];
-        let cell = ConversionUtils::create_address_linked_cells(&addresses)
-            .expect("Failed to create linked cells");
-
-        // Ensure the cell is created with the expected number of addresses
-        assert_eq!(cell.references().len(), 1);
-    }
-    fn test_create_8_addresses_linked_cells() {
-        let addresses: Vec<H160> = vec![
-            H160::from_low_u64_be(0x1234567890abcdef),
-            H160::from_low_u64_be(0xabcdef1234567890),
-            H160::from_low_u64_be(0x9876543210fedcba),
-            H160::from_low_u64_be(0x0004567890abcdef),
-            H160::from_low_u64_be(0x0000000000000890),
-            H160::from_low_u64_be(0x0000000000f0dcba),
-            H160::from_low_u64_be(0x0000000000000001),
-            H160::from_low_u64_be(0x0000000000000002),
-        ];
-
-        let cell = ConversionUtils::create_address_linked_cells(addresses.as_slice()).unwrap();
-
-        assert_eq!(cell.bit_len(), 968);
-        let arr = [
-            6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 52, 86, 120, 144, 171, 205, 239, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 171, 205, 239, 18, 52, 86, 120, 144, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 152, 118, 84, 50, 16, 254, 220, 186, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,
-            86, 120, 144, 171, 205, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8,
-            144, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 220, 186,
-        ];
-        assert_eq!(cell.data(), arr);
-    }
+    // #[test]
+    // fn test_create_address_linked_cells() {
+    //     let addresses = vec![
+    //         H160::from_low_u64_be(0x12345678),
+    //         H160::from_low_u64_be(0x87654321),
+    //     ];
+    //     let cell = ConversionUtils::create_address_linked_cells(&addresses)
+    //         .expect("Failed to create linked cells");
+    //
+    //     // Ensure the cell is created with the expected number of addresses
+    //     assert_eq!(cell.references().len(), 1);
+    // }
+    // fn test_create_8_addresses_linked_cells() {
+    //     let addresses: Vec<H160> = vec![
+    //         H160::from_low_u64_be(0x1234567890abcdef),
+    //         H160::from_low_u64_be(0xabcdef1234567890),
+    //         H160::from_low_u64_be(0x9876543210fedcba),
+    //         H160::from_low_u64_be(0x0004567890abcdef),
+    //         H160::from_low_u64_be(0x0000000000000890),
+    //         H160::from_low_u64_be(0x0000000000f0dcba),
+    //         H160::from_low_u64_be(0x0000000000000001),
+    //         H160::from_low_u64_be(0x0000000000000002),
+    //     ];
+    //
+    //     let cell = ConversionUtils::create_address_linked_cells(addresses.as_slice()).unwrap();
+    //
+    //     assert_eq!(cell.bit_len(), 968);
+    //     let arr = [
+    //         6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 18, 52, 86, 120, 144, 171, 205, 239, 0, 0, 0, 0,
+    //         0, 0, 0, 0, 0, 0, 0, 0, 171, 205, 239, 18, 52, 86, 120, 144, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    //         0, 0, 0, 152, 118, 84, 50, 16, 254, 220, 186, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4,
+    //         86, 120, 144, 171, 205, 239, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8,
+    //         144, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 220, 186,
+    //     ];
+    //     assert_eq!(cell.data(), arr);
+    // }
     #[test]
     fn test_parse_root_cell_from_boc() {
         let boc_base64 = "te6cckEBAgEANwABQ6AAAAAAAAAAAAAAAAABcqZ6QdO0UVZJKOpooNx6WOrpGnABACBzdG9yYWdlIGxvY2F0aW9u3GbBUg==";

@@ -36,7 +36,7 @@ impl HyperlaneChain for TonMultisigIsm {
 impl HyperlaneContract for TonMultisigIsm {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.multisig_address)
-            .expect("Failed to convert address")
+            .expect("Failed to parse ton address to h256")
     }
 }
 
@@ -48,7 +48,6 @@ impl MultisigIsm for TonMultisigIsm {
     ) -> ChainResult<(Vec<H256>, u8)> {
         info!("validators_and_threshold call");
         let domain = message.origin;
-        let mut builder = CellBuilder::new();
 
         info!("Domain:{:?}", domain);
 
@@ -63,22 +62,45 @@ impl MultisigIsm for TonMultisigIsm {
             .provider
             .run_get_method(self.multisig_address.to_hex(), function_name, stack)
             .await
-            .expect("Failed response get_validators_and_threshhold");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to get response for get_validators_and_threshhold: {:?}",
+                    e
+                ))
+            })?;
 
-        let threshold =
-            u8::from_str_radix(response.stack.first().unwrap().value.get(2..).unwrap(), 16)
-                .expect("");
+        let threshold_stack_item = response.stack.first().ok_or_else(|| {
+            ChainCommunicationError::CustomError("No threshold stack item in response".to_string())
+        })?;
+        let threshold = u8::from_str_radix(threshold_stack_item.value.get(2..).unwrap_or(""), 16)
+            .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse threshold value: {:?}",
+                e
+            ))
+        })?;
         info!("threshold:{:?}", threshold);
 
-        let cell = &response.stack.get(1).unwrap().value;
-
-        let root_cell = ConversionUtils::parse_root_cell_from_boc(cell.as_str())
-            .expect("Failed to parse_root_cell_from_boc in validators_and_threshold");
+        let cell_stack_item = response.stack.get(1).ok_or_else(|| {
+            ChainCommunicationError::CustomError("No cell stack item in response".to_string())
+        })?;
+        let root_cell = ConversionUtils::parse_root_cell_from_boc(cell_stack_item.value.as_str())
+            .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse_root_cell_from_boc: {:?}",
+                e
+            ))
+        })?;
 
         let mut parser = root_cell.parser();
         let dict = parser
             .load_dict(32, key_reader_u32, val_reader_cell)
-            .expect("aboba");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to load dictionary from cell: {:?}",
+                    e
+                ))
+            })?;
 
         let mut validators: Vec<H256> = vec![];
 
@@ -88,7 +110,12 @@ impl MultisigIsm for TonMultisigIsm {
             value_cell
                 .parser()
                 .load_slice(&mut validator_address.0)
-                .expect("failed load_slice");
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to load_slice for validator address: {:?}",
+                        e
+                    ))
+                })?;
 
             validators.push(validator_address);
         }

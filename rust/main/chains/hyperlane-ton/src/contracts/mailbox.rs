@@ -58,7 +58,7 @@ impl TonMailbox {
 impl HyperlaneContract for TonMailbox {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.mailbox_address)
-            .expect("Failed to convert address")
+            .expect("Failed to parse ton address to h256")
     }
 }
 
@@ -98,24 +98,13 @@ impl Mailbox for TonMailbox {
             )
             .await;
 
-        if let Ok(response) = response {
-            if let Some(stack_item) = response.stack.get(0) {
-                if let Ok(count) = u32::from_str_radix(&stack_item.value[2..], 16) {
-                    Ok(count)
-                } else {
-                    Err(ChainCommunicationError::CustomError(
-                        "Failed to parse count".to_string(),
-                    ))
-                }
-            } else {
-                Err(ChainCommunicationError::CustomError(
-                    "Empty stack in response".to_string(),
-                ))
+        match response {
+            Ok(run_get_method) => {
+                ConversionUtils::parse_stack_item_to_u32(&run_get_method.stack, 0)
             }
-        } else {
-            Err(ChainCommunicationError::CustomError(
+            Err(_) => Err(ChainCommunicationError::CustomError(
                 "Failed to get response".to_string(),
-            ))
+            )),
         }
     }
 
@@ -377,20 +366,22 @@ impl Mailbox for TonMailbox {
                 vec![ArcCell::new(transfer_message.clone())],
                 false,
             )
-            .expect("");
+            .expect("Failed to create external message");
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
             .expect("Failed to get boc from root");
 
-        let boc_str = base64::encode(boc.clone());
+        let boc_str = general_purpose::STANDARD.encode(&boc);
         info!("create_external_message:{:?}", boc_str);
 
-        let tx = self
-            .provider
-            .send_message(boc_str)
-            .await
-            .expect("Failed to get tx");
+        let tx = self.provider.send_message(boc_str).await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to send message in provider{:?}",
+                e
+            ))
+        })?;
+
         info!("Tx hash:{:?}", tx.message_hash);
 
         self.provider.wait_for_transaction(tx.message_hash).await
@@ -718,8 +709,6 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
         ))
     })?;
     let data = body.data();
-    info!("Parsed body: {:?}", body);
-    info!("Body data bytes: {:?}", data);
 
     let message = HyperlaneMessage {
         version,

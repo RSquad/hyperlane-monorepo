@@ -10,6 +10,8 @@ use hyperlane_core::{
 };
 
 use crate::run_get_method::StackItem;
+use base64::engine::general_purpose;
+use base64::Engine;
 use log::{info, warn};
 use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
@@ -98,7 +100,8 @@ impl TonValidatorAnnounce {
 }
 impl HyperlaneContract for TonValidatorAnnounce {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.address).expect("Failed to convert address")
+        ConversionUtils::ton_address_to_h256(&self.address)
+            .expect("Failed to parse ton address to h256")
     }
 }
 
@@ -118,7 +121,10 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        info!("get_announced_storage_locations call!");
+        info!(
+            "get_announced_storage_locations call! validators:{:?}",
+            validators
+        );
         let function_name = "get_announced_storage_locations".to_string();
         let validators_cell =
             ConversionUtils::create_address_linked_cells(&validators).map_err(|_| {
@@ -130,7 +136,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         let boc = BagOfCells::from_root(validators_cell)
             .serialize(true)
             .map_err(|_e| ChainCommunicationError::CustomError(_e.to_string()))?;
-        let boc_str = base64::encode(&boc);
+        let boc_str = general_purpose::STANDARD.encode(&boc);
 
         let stack = Some(vec![StackItem {
             r#type: "cell".to_string(),
@@ -206,7 +212,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             bounced: false,
             src: self.signer.address.clone(),
             dest: self.address.clone(),
-            value: BigUint::from(100000000u32),
+            value: BigUint::from(20000000u32),
             ihr_fee: Default::default(),
             fwd_fee: Default::default(),
             created_lt: 0,
@@ -232,7 +238,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .wallets[0]
             .seqno as u32;
 
-        // need check
         let message = self
             .signer
             .wallet
@@ -242,14 +247,21 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                 vec![ArcCell::new(transfer_message.clone())],
                 false,
             )
-            .expect("");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to create external message:{:?}",
+                    e
+                ))
+            })?;
         info!("Message cell in announce:{:?}", message);
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
-            .expect("Failed to get boc from root");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to get boc from root:{:?}", e))
+            })?;
 
-        let boc_str = base64::encode(boc.clone());
+        let boc_str = general_purpose::STANDARD.encode(boc.clone());
         tracing::info!("create_external_message:{:?}", boc_str);
 
         let tx = self

@@ -30,7 +30,8 @@ impl TonMerkleTreeHook {
 
 impl HyperlaneContract for TonMerkleTreeHook {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.address).expect("Failed")
+        ConversionUtils::ton_address_to_h256(&self.address)
+            .expect("Failed to parse ton address to h256")
     }
 }
 
@@ -67,23 +68,12 @@ impl MerkleTreeHook for TonMerkleTreeHook {
 
         match response {
             Ok(run_get_method) => {
-                if let Some(stack_item) = run_get_method.stack.get(0) {
-                    if let Ok(count) = u32::from_str_radix(&stack_item.value[2..], 16) {
-                        Ok(count)
-                    } else {
-                        Err(ChainCommunicationError::CustomError(
-                            "Failed to parse count".to_string(),
-                        ))
-                    }
-                } else {
-                    Err(ChainCommunicationError::CustomError(
-                        "Empty stack in response".to_string(),
-                    ))
-                }
+                ConversionUtils::parse_stack_item_to_u32(&run_get_method.stack, 0)
             }
-            Err(e) => Err(ChainCommunicationError::CustomError(
-                "Failed to get response".to_string(),
-            )),
+            Err(e) => Err(ChainCommunicationError::CustomError(format!(
+                "Failed to get response: {:?}",
+                e
+            ))),
         }
     }
 
@@ -110,18 +100,8 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                     ));
                 }
 
-                let root_item = &stack[0];
-                let root_value = &root_item.value;
-
-                let root = u32::from_str_radix(&root_value[2..], 16).map_err(|_| {
-                    ChainCommunicationError::CustomError("Failed to parse root value".to_string())
-                })?;
-
-                let index_item = &stack[1];
-                let index_value = &index_item.value;
-                let index = u32::from_str_radix(&index_value[2..], 16).map_err(|_| {
-                    ChainCommunicationError::CustomError("Failed to parse index value".to_string())
-                })?;
+                let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0)?;
+                let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1)?;
 
                 Ok(Checkpoint {
                     merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(
@@ -166,7 +146,6 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         Ok(0)
     }
 }
