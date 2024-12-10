@@ -116,7 +116,6 @@ impl MerkleTreeHook for TonMerkleTreeHook {
 
 #[derive(Debug, Clone)]
 pub struct TonMerkleTreeHookIndexer {
-    /// The TonMerkleTreeHook
     merkle_tree_hook_address: TonAddress,
 }
 
