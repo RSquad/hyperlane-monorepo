@@ -58,7 +58,6 @@ impl TonMailbox {
 impl HyperlaneContract for TonMailbox {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.mailbox_address)
-            .expect("Failed to parse ton address to h256")
     }
 }
 
@@ -194,7 +193,7 @@ impl Mailbox for TonMailbox {
                         ))
                     })?;
 
-                let ism_hash = ConversionUtils::ton_address_to_h256(&ism_address).unwrap();
+                let ism_hash = ConversionUtils::ton_address_to_h256(&ism_address);
                 return Ok(ism_hash);
             } else {
                 return Err(ChainCommunicationError::CustomError(
@@ -229,8 +228,7 @@ impl Mailbox for TonMailbox {
                                 ))
                             })?;
 
-                        let ism_hash =
-                            ConversionUtils::ton_address_to_h256(&recipient_ism).unwrap();
+                        let ism_hash = ConversionUtils::ton_address_to_h256(&recipient_ism);
                         return Ok(ism_hash);
                     } else {
                         return Err(ChainCommunicationError::CustomError(format!(
@@ -271,8 +269,7 @@ impl Mailbox for TonMailbox {
                                 ))
                             })?;
 
-                        let ism_hash =
-                            ConversionUtils::ton_address_to_h256(&recipient_ism).unwrap();
+                        let ism_hash = ConversionUtils::ton_address_to_h256(&recipient_ism);
                         return Ok(ism_hash);
                     } else {
                         Err(ChainCommunicationError::CustomError(format!(

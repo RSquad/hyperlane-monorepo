@@ -135,7 +135,7 @@ impl HyperlaneProvider for TonProvider {
                 sender: H256::from_slice(&hex::decode(&transaction.account).unwrap()),
                 recipient: transaction.in_msg.as_ref().and_then(|msg| {
                     match TonAddress::from_base64_url(msg.destination.as_str()) {
-                        Ok(ton_address) => ConversionUtils::ton_address_to_h256(&ton_address).ok(),
+                        Ok(ton_address) => Some(ConversionUtils::ton_address_to_h256(&ton_address)),
                         Err(e) => {
                             warn!(
                                 "Failed to parse TON address from destination '{}': {:?}",

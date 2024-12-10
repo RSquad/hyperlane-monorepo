@@ -35,7 +35,6 @@ impl TonInterchainGasPaymaster {
 impl HyperlaneContract for TonInterchainGasPaymaster {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.igp_address)
-            .expect("Failed to parse ton address to h256")
     }
 }
 impl HyperlaneChain for TonInterchainGasPaymaster {

@@ -189,11 +189,11 @@ impl ConversionUtils {
         let cell = Self::parse_root_cell_from_boc(boc)?;
         let mut parser = cell.parser();
         let address = parser.load_address()?;
-        info!("Parsed address from BOC: {:?}", address);
+
         Ok(address)
     }
-    pub fn ton_address_to_h256(address: &TonAddress) -> Result<H256, String> {
-        Ok(H256::from(address.hash_part))
+    pub fn ton_address_to_h256(address: &TonAddress) -> H256 {
+        H256::from(address.hash_part)
     }
 
     pub fn u256_to_biguint(value: U256) -> BigUint {
@@ -205,9 +205,6 @@ impl ConversionUtils {
         TonAddress::new(workchain, &h256.0)
     }
 
-    pub fn parse_data_cell(_data: &ArcCell) -> Result<HyperlaneMessage, Error> {
-        todo!();
-    }
     pub fn parse_stack_item_to_u32(
         stack: &[StackItem],
         index: usize,
@@ -238,18 +235,20 @@ impl Metadata {
 
     pub fn to_cell(&self) -> Cell {
         let mut writer = CellBuilder::new();
-        let cell = writer
-            .store_slice(&self.signature)
-            .expect("Failed to store signature")
-            .build()
-            .map_err(|e| {
-                TonCellError::CellBuilderError(format!(
-                    "Failed to store_slice for signature{:?}",
-                    e
-                ))
-            })?;
 
-        cell
+        if let Err(e) = writer.store_slice(&self.signature) {
+            panic!(
+                "Failed to store_slice for signature: {:?}",
+                TonCellError::CellBuilderError(format!("{:?}", e))
+            );
+        }
+
+        writer.build().unwrap_or_else(|e| {
+            panic!(
+                "Failed to build cell: {:?}",
+                TonCellError::CellBuilderError(format!("{:?}", e))
+            )
+        })
     }
 }
 #[derive(Debug, PartialEq)]
@@ -306,9 +305,9 @@ impl Message {
             .store_uint(256, &BigUint::from_bytes_be(self.recipient.as_slice()))
             .expect("Failed to store recipient")
             .store_reference(&ArcCell::new(self.body.clone()))
-            .expect("")
+            .expect("Failed to store_reference body")
             .build()
-            .expect("");
+            .expect("Failed to build cell");
 
         cell
     }
@@ -317,7 +316,7 @@ impl Message {
 #[cfg(test)]
 mod tests {
     use super::ConversionUtils;
-    use hyperlane_core::{H160, H512, U256};
+    use hyperlane_core::{H512, U256};
     use num_bigint::BigUint;
     use num_traits::Zero;
 

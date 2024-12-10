@@ -61,7 +61,6 @@ impl Debug for TonInterchainSecurityModule {
 impl HyperlaneContract for TonInterchainSecurityModule {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.ism_address)
-            .expect("Failed to parse ton address to h256")
     }
 }
 impl HyperlaneChain for TonInterchainSecurityModule {

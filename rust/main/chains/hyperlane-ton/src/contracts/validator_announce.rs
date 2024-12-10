@@ -101,7 +101,6 @@ impl TonValidatorAnnounce {
 impl HyperlaneContract for TonValidatorAnnounce {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.address)
-            .expect("Failed to parse ton address to h256")
     }
 }
 

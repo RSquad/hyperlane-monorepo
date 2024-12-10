@@ -31,7 +31,6 @@ impl TonMerkleTreeHook {
 impl HyperlaneContract for TonMerkleTreeHook {
     fn address(&self) -> H256 {
         ConversionUtils::ton_address_to_h256(&self.address)
-            .expect("Failed to parse ton address to h256")
     }
 }
 
@@ -106,8 +105,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 Ok(Checkpoint {
                     merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(
                         &self.address.clone(),
-                    )
-                    .unwrap(),
+                    ),
                     mailbox_domain: 777001,
                     root: H256::from_low_u64_be(root as u64),
                     index,
