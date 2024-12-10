@@ -3,7 +3,6 @@
 use crate::config::Config;
 use crate::logging::log;
 use crate::program::Program;
-use crate::ton::client::send_messages_between_chains;
 use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
 
 use crate::ton::types::{generate_ton_config, TonAgentConfig};
@@ -20,8 +19,6 @@ use std::time::{Duration, Instant};
 use std::{env, fs};
 use tempfile::tempdir;
 use url::Url;
-
-mod client;
 mod deploy;
 mod types;
 
@@ -275,19 +272,6 @@ fn launch_ton_scraper(
         .spawn("TON_SCR", None);
 
     scraper
-}
-
-fn cycle_messages() -> u32 {
-    info!("Sending messages between TONTEST1 and TONTEST2...");
-    let mut dispatched_messages = 0;
-
-    for i in 0..5 {
-        send_messages_between_chains();
-        dispatched_messages += 1;
-        info!("Dispatched message #{} from TONTEST1 to TONTEST2", i + 1);
-    }
-
-    dispatched_messages
 }
 
 #[cfg(feature = "ton")]
