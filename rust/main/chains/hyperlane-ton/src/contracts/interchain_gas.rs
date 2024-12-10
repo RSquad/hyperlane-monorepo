@@ -18,6 +18,7 @@ use std::{
     string::ToString,
 };
 use tonlib_core::TonAddress;
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct TonInterchainGasPaymaster {
@@ -87,7 +88,13 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                 None,
             )
             .await
-            .expect("Failed to get start block info");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to get start block info: {:?}",
+                    e
+                ))
+            })?;
+
         info!("Start block info:{:?}", start_block_info);
         let end_block_info = self
             .provider
@@ -105,7 +112,12 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                 None,
             )
             .await
-            .expect("Failed to get end block info");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to get end block info: {:?}",
+                    e
+                ))
+            })?;
 
         info!("End block info:{:?}", end_block_info);
 
@@ -149,27 +161,26 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
 
                 let mut events = vec![];
                 for message in messages.messages {
-                    let body_data = base64::engine::general_purpose::STANDARD
-                        .decode(message.message_content.body)
-                        .expect("Invalid base64 body");
-                    info!("Body:{:?}", body_data);
-
-                    let interchain_gas_payment = InterchainGasPayment {
-                        message_id: H256::from_slice(&body_data[0..32]), //Default::default(),
-                        destination: u32::from_be_bytes(body_data[32..36].try_into().unwrap()), //0,
-                        payment: U256::from_big_endian(&body_data[36..68]), //Default::default(),
-                        gas_amount: U256::from_big_endian(&body_data[68..100]), //Default::default(),
-                    };
-                    let index_event = Indexed::from(interchain_gas_payment);
-                    let log_meta = LogMeta {
-                        address: Default::default(),
-                        block_number: 0,
-                        block_hash: Default::default(),
-                        transaction_id: Default::default(),
-                        transaction_index: 0,
-                        log_index: Default::default(),
-                    };
-                    events.push((index_event, log_meta));
+                    match parse_igp_events(message.message_content.body.as_str()) {
+                        Ok(index_event) => {
+                            let indexed_data = Indexed::new(index_event);
+                            let log_meta = LogMeta {
+                                address: Default::default(),
+                                block_number: 0,
+                                block_hash: Default::default(),
+                                transaction_id: Default::default(),
+                                transaction_index: 0,
+                                log_index: Default::default(),
+                            };
+                            events.push((indexed_data, log_meta));
+                        }
+                        Err(e) => {
+                            warn!(
+                        "Failed to parse interchain gas payment for message: {:?}, error: {:?}",
+                        message, e
+                    );
+                        }
+                    }
                 }
                 Ok(events)
             }
@@ -197,7 +208,12 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                 None,
             )
             .await
-            .expect("Failed to get latest block");
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to get start block info: {:?}",
+                    e
+                ))
+            })?;
 
         if let Some(block) = response.blocks.first() {
             Ok(block.seqno as u32)
@@ -216,4 +232,41 @@ impl SequenceAwareIndexer<InterchainGasPayment> for TonInterchainGasPaymasterInd
 
         Ok((Some(1), tip))
     }
+}
+
+fn parse_igp_events(boc: &str) -> Result<InterchainGasPayment, ChainCommunicationError> {
+    let parsed_cell = ConversionUtils::parse_root_cell_from_boc(boc).expect("");
+
+    let mut parser = parsed_cell.parser();
+
+    let message_id = parser.load_uint(256).map_err(|e| {
+        ChainCommunicationError::CustomError(format!("Failed to load_uint for message id:{:?}", e))
+    })?;
+    let message_id = H256::from_slice(message_id.to_bytes_be().as_slice());
+
+    let mut parser = parser.next_reference().expect("");
+    let mut parser = parser.references().first().expect("").parser();
+    let dest_domain = parser.load_uint(32).map_err(|e| {
+        ChainCommunicationError::CustomError(format!("Failed to load dest_domain: {:?}", e))
+    })?;
+    let destination = u32::try_from(dest_domain).map_err(|_| {
+        ChainCommunicationError::CustomError("Failed to convert dest_domain to u32".to_string())
+    })?;
+
+    let gas_limit = parser.load_uint(256).map_err(|e| {
+        ChainCommunicationError::CustomError(format!("Failed to load gas_limit: {:?}", e))
+    })?;
+    let payment = U256::from_big_endian(gas_limit.to_bytes_be().as_slice());
+
+    let required_payment = parser.load_uint(256).map_err(|e| {
+        ChainCommunicationError::CustomError(format!("Failed to load required_payment: {:?}", e))
+    })?;
+    let gas_amount = U256::from_big_endian(required_payment.to_bytes_be().as_slice());
+
+    Ok(InterchainGasPayment {
+        message_id,
+        destination,
+        payment,
+        gas_amount,
+    })
 }
