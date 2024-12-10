@@ -1,8 +1,10 @@
 use hyperlane_core::H256;
 use hyperlane_ton::{ConversionUtils, DebugWalletVersion};
-use std::collections::BTreeMap;
-use std::fmt::Error;
-use std::fs;
+use std::{
+    collections::BTreeMap,
+    fmt::Error,
+    fs
+};
 use tonlib_core::TonAddress;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]

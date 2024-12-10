@@ -180,7 +180,7 @@ pub fn launch_ton_relayer(
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env("tontest1", "1")
         .hyp_env("tontest2", "1")
-        .hyp_env("TRACING_LEVEL", "info")
+        .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]") //
         .hyp_env("METRICSPORT", metrics.to_string())
         .spawn("TON_RLY", None);
