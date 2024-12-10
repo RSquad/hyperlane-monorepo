@@ -123,7 +123,7 @@ where
 
     let res = raw_config.parse_config(&root_path);
     if res.is_err() {
-        //eprintln!("Loaded config for debugging: {formatted_config}");
+        eprintln!("Loaded config for debugging: {formatted_config}");
     }
     res
 }

@@ -330,10 +330,13 @@ impl BaseMetadataBuilder {
     }
 
     pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
+        // FIXME It's a stub for hyperlane-ton e2e test debugging.
+        // Remove when debugging is finished.
         let _merkle_leaf = self
             .db
             .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
         Ok(Some(1))
+        //Ok(merkle_leaf)
     }
 
     pub async fn build_ism(&self, address: H256) -> Result<Box<dyn InterchainSecurityModule>> {
