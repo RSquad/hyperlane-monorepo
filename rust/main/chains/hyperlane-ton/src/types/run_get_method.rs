@@ -15,16 +15,6 @@ pub struct StackItem {
     pub r#type: String,
     pub value: String,
 }
-// #[derive(Debug, Serialize, Deserialize)]
-// #[serde(tag = "type", content = "value")]
-// pub enum Type {
-//     #[serde(rename = "num")]
-//     Num(String),
-//     #[serde(rename = "list")]
-//     List(Vec<Value>),
-//     #[serde(rename = "cell")]
-//     Cell(String),
-// }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ErrorResponse {

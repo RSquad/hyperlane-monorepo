@@ -30,12 +30,16 @@ impl TonSigner {
     ) -> Result<Self, Error> {
         let mnemonic_phrase_str: Vec<&str> =
             mnemonic_phrase.iter().map(|item| item.as_str()).collect();
-        let mnemonic = Mnemonic::new(mnemonic_phrase_str, &None)
-            .expect("Failed to create Mnemonic from phrase");
+        let mnemonic = Mnemonic::new(mnemonic_phrase_str, &None).map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to create Mnemonic from phrase: {:?}",
+                e
+            ))
+        })?;
 
-        let key_pair = mnemonic
-            .to_key_pair()
-            .expect("Failed to generate KeyPair from mnemonic");
+        let key_pair = mnemonic.to_key_pair().map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to generate KeyPair: {:?}", e))
+        })?;
 
         Self::new(key_pair, wallet_version)
     }
