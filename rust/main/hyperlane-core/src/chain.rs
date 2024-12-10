@@ -190,6 +190,8 @@ pub enum KnownHyperlaneDomain {
     SealevelTest2 = 13376,
     CosmosTest99990 = 99990,
     CosmosTest99991 = 99991,
+    TonTest1 = 777001,
+    TonTest2 = 777002,
 
     // -- Test chains --
     //
@@ -204,8 +206,6 @@ pub enum KnownHyperlaneDomain {
     ScrollSepolia = 534351,
     Sepolia = 11155111,
     SuperpositionTestnet = 98985,
-    TONTEST1 = 777001,
-    TONTEST2 = 777002,
 }
 
 #[derive(Clone, Serialize)]
@@ -334,7 +334,7 @@ impl KnownHyperlaneDomain {
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
-                CosmosTest99991, TONTEST1, TONTEST2
+                CosmosTest99991, TonTest1, TonTest2
             ],
         })
     }
@@ -367,7 +367,7 @@ impl KnownHyperlaneDomain {
                 CosmosTest99990, CosmosTest99991,
             ],
             HyperlaneDomainProtocol::Ton: [
-                TonMainnet, TONTEST1, TONTEST2
+                TonMainnet, TonTest1, TonTest2
             ]
         })
     }
@@ -400,20 +400,20 @@ impl KnownHyperlaneDomain {
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
-                Test2, Test3, TONTEST1, TONTEST2,
+                Test2, Test3, TonTest1, TonTest2,
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
                 Sepolia,
            ]
         })
-    } 
+    }
 }
 
 impl PartialEq<Self> for HyperlaneDomain {
-  fn eq(&self, other: &Self) -> bool {
-      self.id() == other.id()
-  }
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
 }
 
 impl Eq for HyperlaneDomain {}

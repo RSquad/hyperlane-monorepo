@@ -335,10 +335,6 @@ async fn submit_task(
     let recv_limit = max_batch_size as usize;
     loop {
         let mut batch = submit_queue.pop_many(recv_limit).await;
-        info!(
-            "Batch:{:?} submit_queue:{:?} recv_limit:{:?}",
-            batch, submit_queue, recv_limit
-        );
         match batch.len().cmp(&1) {
             std::cmp::Ordering::Less => {
                 info!("std::cmp::Ordering::Less");
