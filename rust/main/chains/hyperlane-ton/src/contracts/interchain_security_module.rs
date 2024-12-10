@@ -60,9 +60,8 @@ impl Debug for TonInterchainSecurityModule {
 
 impl HyperlaneContract for TonInterchainSecurityModule {
     fn address(&self) -> H256 {
-        let hex = self.ism_address.to_hex();
-        let address = H256::from_slice(hex.as_bytes());
-        address
+        ConversionUtils::ton_address_to_h256(&self.ism_address)
+            .expect("Failed to parse ton address to h256")
     }
 }
 impl HyperlaneChain for TonInterchainSecurityModule {
@@ -176,15 +175,28 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("Failed to build duration_since")
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to build duration_since: {:?}",
+                    e
+                ))
+            })?
             .as_secs() as u32;
 
-        let seqno = self
+        let wallet_state_response = self
             .provider
             .get_wallet_states(self.signer.address.to_hex())
             .await
-            .expect("Failed to get wallet state")
-            .wallets[0]
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to get wallet state: {:?}", e))
+            })?;
+
+        let seqno = wallet_state_response
+            .wallets
+            .get(0)
+            .ok_or_else(|| {
+                ChainCommunicationError::CustomError("Wallet state is empty".to_string())
+            })?
             .seqno as u32;
 
         let message = self
@@ -209,7 +221,7 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
                 ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
             })?;
         let boc_str = base64::engine::general_purpose::STANDARD.encode(boc.clone());
-        info!("create_external_message:{:?}", boc_str);
+        info!("external_message:{:?}", boc_str);
 
         let tx = self.provider.send_message(boc_str).await.map_err(|e| {
             ChainCommunicationError::CustomError(format!("Failed to send message: {}", e))
