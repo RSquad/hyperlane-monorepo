@@ -4,7 +4,6 @@ use crate::config::Config;
 use crate::logging::log;
 use crate::program::Program;
 use crate::ton::client::send_messages_between_chains;
-use crate::ton::deploy::deploy_all_contracts;
 use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
 
 use crate::ton::types::{generate_ton_config, TonAgentConfig};
@@ -89,8 +88,6 @@ fn run_locally() {
     let metrics_port = 9090;
     let debug = false;
 
-    // let deploy = deploy_all_contracts();
-
     let scraper_metrics_port = metrics_port + 10;
     info!("Running postgres db...");
     let postgres = Program::new("docker")
@@ -104,46 +101,51 @@ fn run_locally() {
 
     sleep(Duration::from_secs(10));
 
-    //let relayer = launch_ton_relayer(
-    //    agent_config_path.clone(),
-    //    relay_chains.clone(),
-    //    metrics_port,
-    //    debug,
-    //);
+    let relayer = launch_ton_relayer(
+        agent_config_path.clone(),
+        relay_chains.clone(),
+        metrics_port,
+        debug,
+    );
+
+    let persistent_path = "./persistent_data";
+    let db_path = format!("{}/db", persistent_path);
+    fs::create_dir_all(&db_path).expect("Failed to create persistent database path");
 
     let validator1 = launch_ton_validator(
         agent_config_path.clone(),
         agent_config[0].clone(),
         metrics_port + 1,
         debug,
+        Some(persistent_path.to_string()),
     );
-    // let validator2 = launch_ton_validator(
-    //     agent_config_path.clone(),
-    //     agent_config[1].clone(),
-    //     metrics_port + 2,
-    //     debug,
-    // );
-    //
-    // let validators = vec![validator1, validator2];
-    //
-    // let scraper = launch_ton_scraper(
-    //     agent_config_path.clone(),
-    //     relay_chains.clone(),
-    //     scraper_metrics_port,
-    //     debug,
-    // );
-    //
-    // send_messages_between_chains();
-    //
-    // info!("Waiting for agents to run for 2 minutes...");
+
+    let validator2 = launch_ton_validator(
+        agent_config_path.clone(),
+        agent_config[1].clone(),
+        metrics_port + 2,
+        debug,
+        Some(persistent_path.to_string()),
+    );
+
+    let validators = vec![validator1, validator2];
+
+    let scraper = launch_ton_scraper(
+        agent_config_path.clone(),
+        relay_chains.clone(),
+        scraper_metrics_port,
+        debug,
+    );
+
+    info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(180));
-    //
-    // let stack_ = TonHyperlaneStack {
-    //     validators: validators.into_iter().map(|v| v.join()).collect(),
-    //     relayer: relayer.join(),
-    //     scraper: scraper.join(),
-    //     postgres,
-    // };
+
+    let stack_ = TonHyperlaneStack {
+        validators: validators.into_iter().map(|v| v.join()).collect(),
+        relayer: relayer.join(),
+        scraper: scraper.join(),
+        postgres,
+    };
 }
 
 fn resolve_abs_path<P: AsRef<Path>>(rel_path: P) -> String {
@@ -191,9 +193,13 @@ pub fn launch_ton_validator(
     agent_config: TonAgentConfig,
     metrics_port: u32,
     debug: bool,
+    persistent_path: Option<String>,
 ) -> AgentHandles {
     let validator_bin = concat_path("../../target/debug", "validator");
-    let validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    let mut validator_base = tempdir().expect("Failed to create a temp dir").into_path();
+    if let Some(persistent_path) = persistent_path {
+        validator_base = PathBuf::from(persistent_path);
+    }
     let validator_base_db = concat_path(&validator_base, "db");
 
     fs::create_dir_all(&validator_base_db).expect("Failed to create validator base DB directory");
@@ -250,10 +256,6 @@ fn launch_ton_scraper(
         "Current working directory: {:?}",
         env::current_dir().unwrap()
     );
-    // info!(
-    //     "Resolved scraper config path: {:?}",
-    //     fs::canonicalize("../utils/run-locally/src/ton/configs/ton_scraper_config.json")
-    // );
     info!("CHAINSTOSCRAPE env variable: {}", chains.join(","));
 
     let scraper = Program::default()

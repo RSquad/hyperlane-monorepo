@@ -1,4 +1,3 @@
-use ethers_core::k256::elliptic_curve::sec1::ValidatePublicKey;
 use hyperlane_core::H256;
 use hyperlane_ton::{ConversionUtils, DebugWalletVersion};
 use std::collections::BTreeMap;
@@ -131,14 +130,14 @@ pub fn generate_ton_config(
             777001,
             "EQC5xrynw_llDS7czwH70rIeiblbn0rbtk-zjI8erKyIMTN6", // Mailbox
             "EQBVavno3F5CYcmOzyvyd-F3HIuLn4fppQ7ULC0xlgqEUY6O", // IGP
-            "EQCMvFutaer4cfHqigGGWKyhd0r6qXxAkaj14e9CVVFSi8pz", // Validator Announce
+            "EQAOErGrEhb5h8GlOP3LXhYVFB3Lp_oBz_QTX26Rk8eWCJ8s", // Validator Announce
         ),
         (
             "tontest2",
             777002,
             "EQCqjMKRcYtuuucN4VirAd-DXrLc9DNTR1IWcaoNs2IMX7h8", // Mailbox
             "EQDPSU7WmtRLWqjldIfQTOGij285bbmLQvkrBpUCiPdAfGJ6", // IGP
-            "EQDFuoW1v_8FkBTkCQk7IbJGGxEdyg6vH1AAs1fLfBbYtiSs", // Validator Announce
+            "EQAmsBEgZrzyiSmDYrDsvws1tABT6PP9XQIQhMToP9A1JH5D", // Validator Announce
         ),
     ];
 
