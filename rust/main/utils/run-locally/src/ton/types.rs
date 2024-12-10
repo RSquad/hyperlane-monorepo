@@ -112,7 +112,6 @@ fn prepare_address(base64_addr: &str) -> String {
             ConversionUtils::ton_address_to_h256(
                 &TonAddress::from_base64_url(base64_addr).unwrap()
             )
-            .unwrap()
             .as_bytes()
         )
     )

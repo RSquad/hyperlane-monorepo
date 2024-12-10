@@ -1,6 +1,8 @@
 use anyhow::Error;
 use hex::FromHex;
-use hyperlane_core::{ChainCommunicationError, HyperlaneMessage, H160, H256, H512, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
+};
 use log::info;
 use num_bigint::BigUint;
 use std::collections::HashMap;
@@ -205,23 +207,17 @@ impl ConversionUtils {
         TonAddress::new(workchain, &h256.0)
     }
 
-    pub fn parse_stack_item_to_u32(
-        stack: &[StackItem],
-        index: usize,
-    ) -> Result<u32, ChainCommunicationError> {
-        if let Some(stack_item) = stack.get(index) {
-            u32::from_str_radix(&stack_item.value[2..], 16).map_err(|_| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to parse value at index {}: {:?}",
-                    index, stack_item.value
-                ))
-            })
-        } else {
-            Err(ChainCommunicationError::CustomError(format!(
-                "No stack item at index {}",
-                index
-            )))
-        }
+    pub fn parse_stack_item_to_u32(stack: &[StackItem], index: usize) -> ChainResult<u32> {
+        let stack_item = stack.get(index).ok_or_else(|| {
+            ChainCommunicationError::CustomError(format!("No stack item at index {index}"))
+        })?;
+
+        u32::from_str_radix(&stack_item.value[2..], 16).map_err(|_| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse value at index {}: {:?}",
+                index, stack_item.value
+            ))
+        })
     }
 }
 pub struct Metadata {

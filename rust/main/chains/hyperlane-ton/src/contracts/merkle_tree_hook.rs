@@ -63,17 +63,12 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         let response = self
             .provider
             .run_get_method(self.address.to_string(), "get_count".to_string(), None)
-            .await;
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("run_get_method failed: {e}"))
+            })?;
 
-        match response {
-            Ok(run_get_method) => {
-                ConversionUtils::parse_stack_item_to_u32(&run_get_method.stack, 0)
-            }
-            Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to get response: {:?}",
-                e
-            ))),
-        }
+        ConversionUtils::parse_stack_item_to_u32(&response.stack, 0)
     }
 
     async fn latest_checkpoint(
