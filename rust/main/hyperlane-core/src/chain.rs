@@ -190,7 +190,6 @@ pub enum KnownHyperlaneDomain {
     SealevelTest2 = 13376,
     CosmosTest99990 = 99990,
     CosmosTest99991 = 99991,
-    TonTest1 = 777,
 
     // -- Test chains --
     //
@@ -274,6 +273,7 @@ pub enum HyperlaneDomainProtocol {
     Sealevel,
     /// A Cosmos-based chain type which uses hyperlane-cosmos.
     Cosmos,
+    /// A TON-based chain type which uses hyperlane-ton.
     Ton,
 }
 
@@ -330,11 +330,11 @@ impl KnownHyperlaneDomain {
             ],
             Testnet: [
                 Alfajores, BinanceSmartChainTestnet, Chiado, ConnextSepolia, Fuji, Holesky, MoonbaseAlpha,
-                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet, TonTest1,TONTEST1, TONTEST2
+                PlumeTestnet, ScrollSepolia, Sepolia, SuperpositionTestnet,
             ],
             LocalTestChain: [
                 Test1, Test2, Test3, FuelTest1, SealevelTest1, SealevelTest2, CosmosTest99990,
-                CosmosTest99991
+                CosmosTest99991, TONTEST1, TONTEST2
             ],
         })
     }
@@ -367,7 +367,7 @@ impl KnownHyperlaneDomain {
                 CosmosTest99990, CosmosTest99991,
             ],
             HyperlaneDomainProtocol::Ton: [
-                TonMainnet, TonTest1, TONTEST1, TONTEST2
+                TonMainnet, TONTEST1, TONTEST2
             ]
         })
     }
@@ -396,16 +396,16 @@ impl KnownHyperlaneDomain {
             HyperlaneDomainTechnicalStack::Other: [
                 Avalanche, BinanceSmartChain, Celo, EclipseMainnet, Endurance, Ethereum,
                 FuseMainnet, Gnosis, Injective, Linea, Lukso, Neutron, Osmosis, Polygon,
-                Sei, SolanaMainnet, Taiko, Viction, Zetachain,
+                Sei, SolanaMainnet, Taiko, Viction, Zetachain, TonMainnet,
 
                 // Local chains
                 CosmosTest99990, CosmosTest99991, FuelTest1, SealevelTest1, SealevelTest2, Test1,
-                Test2, Test3,
+                Test2, Test3, TONTEST1, TONTEST2,
 
                 // Test chains
                 Alfajores, BinanceSmartChainTestnet, Chiado, Fuji, Holesky, MoonbaseAlpha, ScrollSepolia,
-                Sepolia
-           ],
+                Sepolia,
+           ]
         })
     } 
 }

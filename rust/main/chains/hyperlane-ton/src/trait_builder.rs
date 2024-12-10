@@ -23,12 +23,12 @@ pub enum TonConnectionConfError {
 }
 
 impl TonConnectionConf {
-    pub fn new(url: Url, api_key: String, max_attempts: u8, timeout: Duration) -> Self {
+    pub fn new(url: Url, api_key: String, max_attempts: u8) -> Self {
         Self {
             url,
             api_key,
             max_attempts,
-            timeout,
+            timeout: Duration::from_secs(5),
         }
     }
 }

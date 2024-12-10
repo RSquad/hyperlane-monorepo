@@ -3,7 +3,6 @@ use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::ConversionUtils;
 use async_trait::async_trait;
-use base64::Engine;
 use derive_new::new;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
@@ -27,10 +26,7 @@ pub struct TonInterchainGasPaymaster {
     pub signer: TonSigner,
     pub workchain: i32,
 }
-impl TonInterchainGasPaymaster {
-    const EVENT_GAS_PAYMENT: &'static str = "event::gas_payment";
-    const EVENT_REQUIRED_PAYMENT: &'static str = "event::required_payment";
-}
+impl TonInterchainGasPaymaster {}
 
 impl HyperlaneContract for TonInterchainGasPaymaster {
     fn address(&self) -> H256 {
@@ -244,7 +240,7 @@ fn parse_igp_events(boc: &str) -> Result<InterchainGasPayment, ChainCommunicatio
     })?;
     let message_id = H256::from_slice(message_id.to_bytes_be().as_slice());
 
-    let mut parser = parser.next_reference().expect("");
+    let parser = parser.next_reference().expect("");
     let mut parser = parser.references().first().expect("").parser();
     let dest_domain = parser.load_uint(32).map_err(|e| {
         ChainCommunicationError::CustomError(format!("Failed to load dest_domain: {:?}", e))

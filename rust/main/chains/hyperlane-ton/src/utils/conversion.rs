@@ -1,31 +1,24 @@
 use anyhow::Error;
-use hex::FromHex;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
-};
+use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneMessage, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::run_get_method::StackItem;
-use tonlib_core::cell::dict::predefined_readers::{
-    key_reader_256bit, key_reader_uint, val_reader_cell,
-};
+use base64::{engine::general_purpose, Engine};
+use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
 use tonlib_core::cell::{ArcCell, BagOfCells, Cell, CellBuilder, TonCellError};
-use tonlib_core::{TonAddress, TonHash};
+use tonlib_core::TonAddress;
 
 pub struct ConversionUtils;
 
 impl ConversionUtils {
     pub fn base64_to_h512(hash: &str) -> Result<H512, Error> {
-        let decoded = base64::decode(hash)
-            .map_err(|e| Error::msg(format!("Failed to decode base64 hash: {}", e)))?;
-        if decoded.len() > 64 {
-            return Err(Error::msg("Decoded hash length exceeds 64 bytes"));
-        }
         let mut padded = [0u8; 64];
-        padded[..decoded.len()].copy_from_slice(&decoded);
+        general_purpose::STANDARD
+            .decode_slice(hash, &mut padded)
+            .map_err(|e| Error::msg(format!("Failed to decode base64 hash: {}", e)))?;
 
         Ok(H512::from_slice(&padded))
     }
@@ -132,7 +125,7 @@ impl ConversionUtils {
             let mut storage_list = Vec::new();
 
             if let Some(inner_cell) = value_cell.references().first() {
-                let mut dict_locations = inner_cell
+                let dict_locations = inner_cell
                     .parser()
                     .load_dict(256, key_reader_uint, val_reader_cell)
                     .map_err(|e| {
@@ -174,7 +167,7 @@ impl ConversionUtils {
     }
     /// Decodes a Base64 string into a `BagOfCells` and returns the root cell.
     pub fn parse_root_cell_from_boc(boc_base64: &str) -> Result<Arc<Cell>, TonCellError> {
-        let boc_bytes = base64::decode(boc_base64).map_err(|_| {
+        let boc_bytes = general_purpose::STANDARD.decode(boc_base64).map_err(|_| {
             TonCellError::BagOfCellsDeserializationError(
                 "Failed to decode BOC from Base64".to_string(),
             )

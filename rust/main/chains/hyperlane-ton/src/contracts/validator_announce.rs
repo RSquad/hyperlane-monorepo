@@ -5,8 +5,8 @@ use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome, ValidatorAnnounce, H160,
-    H256, U256,
+    HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome, ValidatorAnnounce, H256,
+    U256,
 };
 
 use crate::run_get_method::StackItem;
@@ -159,11 +159,13 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         }
 
         if let Some(stack_item) = response.stack.get(0) {
-            let cell_boc_decoded = base64::decode(&stack_item.value).map_err(|_| {
-                ChainCommunicationError::CustomError(
-                    "Failed to decode cell BOC from response".to_string(),
-                )
-            })?;
+            let cell_boc_decoded = general_purpose::STANDARD
+                .decode(&stack_item.value)
+                .map_err(|_| {
+                    ChainCommunicationError::CustomError(
+                        "Failed to decode cell BOC from response".to_string(),
+                    )
+                })?;
 
             let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
                 ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
@@ -273,7 +275,10 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         self.provider.wait_for_transaction(tx.message_hash).await
     }
 
-    async fn announce_tokens_needed(&self, announcement: SignedType<Announcement>) -> Option<U256> {
+    async fn announce_tokens_needed(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> Option<U256> {
         Some(U256::zero())
     }
 }

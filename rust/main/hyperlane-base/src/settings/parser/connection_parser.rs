@@ -1,9 +1,4 @@
 use eyre::eyre;
-use h_eth::TransactionOverrides;
-use hyperlane_core::config::{ConfigErrResultExt, OperationBatchConfig};
-use hyperlane_core::{config::ConfigParsingError, HyperlaneDomainProtocol};
-use hyperlane_ton::{TonConnectionConf, TonConnectionConfError};
-use std::time::Duration;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -206,8 +201,6 @@ fn build_ton_connection_conf(
     chain: &ValueParser,
     err: &mut ConfigParsingError,
 ) -> Option<ChainConnectionConf> {
-    let conf_path = &chain.cwp;
-
     let url = rpcs
         .get(0)
         .cloned()
@@ -239,14 +232,13 @@ fn build_ton_connection_conf(
         .end()
         .unwrap_or(3);
 
-    let timeout = Duration::from_secs(10);
-
-    Some(ChainConnectionConf::Ton(TonConnectionConf::new(
-        url,
-        api_key.to_string(),
-        max_attempts.try_into().unwrap(),
-        timeout,
-    )))
+    Some(ChainConnectionConf::Ton(
+        hyperlane_ton::TonConnectionConf::new(
+            url,
+            api_key.to_string(),
+            max_attempts.try_into().unwrap(),
+        ),
+    ))
 }
 
 pub fn build_connection_conf(

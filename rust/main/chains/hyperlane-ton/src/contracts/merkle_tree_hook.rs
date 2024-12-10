@@ -7,7 +7,7 @@ use hyperlane_core::accumulator::{TREE_DEPTH, ZERO_HASHES};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, SequenceAwareIndexer, H256,
+    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
 use std::ops::RangeInclusive;
 use tonlib_core::TonAddress;
@@ -46,8 +46,8 @@ impl HyperlaneChain for TonMerkleTreeHook {
 
 #[async_trait]
 impl MerkleTreeHook for TonMerkleTreeHook {
-    async fn tree(&self, _lag: Option<std::num::NonZeroU64>) -> ChainResult<IncrementalMerkle> {
-        let count = self.count(_lag).await?;
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let count = self.count(reorg_period).await?;
         let mut branch: [H256; TREE_DEPTH] = Default::default();
         branch
             .iter_mut()
@@ -59,7 +59,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         })
     }
 
-    async fn count(&self, _lag: Option<std::num::NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let response = self
             .provider
             .run_get_method(self.address.to_string(), "get_count".to_string(), None)
@@ -71,10 +71,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         ConversionUtils::parse_stack_item_to_u32(&response.stack, 0)
     }
 
-    async fn latest_checkpoint(
-        &self,
-        _lag: Option<std::num::NonZeroU64>,
-    ) -> ChainResult<Checkpoint> {
+    async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         let response = self
             .provider
             .run_get_method(
@@ -116,6 +113,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
 
 #[derive(Debug, Clone)]
 pub struct TonMerkleTreeHookIndexer {
+    #[allow(dead_code)]
     merkle_tree_hook_address: TonAddress,
 }
 

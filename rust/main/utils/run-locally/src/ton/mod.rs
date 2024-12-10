@@ -1,24 +1,17 @@
 #![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
 
-use crate::config::Config;
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
 
 use crate::ton::types::{generate_ton_config, TonAgentConfig};
-use hyperlane_base::settings::parser::h_ton::{TonConnectionConf, TonProvider};
-use hyperlane_core::{HyperlaneDomain, KnownHyperlaneDomain};
-use log::{error, info};
+use log::info;
 use macro_rules_attribute::apply;
-use reqwest::Client;
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::thread::sleep;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use std::{env, fs};
 use tempfile::tempdir;
-use url::Url;
 mod deploy;
 mod types;
 
@@ -137,7 +130,7 @@ fn run_locally() {
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(180));
 
-    let stack_ = TonHyperlaneStack {
+    let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join()).collect(),
         relayer: relayer.join(),
         scraper: scraper.join(),

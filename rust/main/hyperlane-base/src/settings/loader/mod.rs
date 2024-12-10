@@ -114,9 +114,9 @@ where
             };
 
             for cfg_path in base_config_sources.iter().chain(config_file_paths.iter()) {
-                //err = err.with_context(|| format!("Config loaded: {cfg_path}"));
+                err = err.with_context(|| format!("Config loaded: {cfg_path}"));
             }
-            //eprintln!("Loaded config for debugging: {formatted_config}");
+            eprintln!("Loaded config for debugging: {formatted_config}");
             err.context("Config deserialization error, please check the config reference (https://docs.hyperlane.xyz/docs/operators/agent-configuration/configuration-reference)")
         })
         .into_config_result(|| root_path.clone())?;

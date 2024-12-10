@@ -2,19 +2,15 @@ use async_trait::async_trait;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
-    SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
+    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
 };
 use num_bigint::BigUint;
-use std::time::Duration;
 use std::{
     fmt::{Debug, Formatter},
-    num::NonZeroU64,
     ops::RangeInclusive,
     time::SystemTime,
 };
-use tokio::time::{sleep, timeout};
 use tracing::{error, info, warn};
-use url::form_urlencoded::parse;
 
 use tonlib_core::cell::TonCellError;
 use tonlib_core::message::{InternalMessage, TonMessage};
@@ -23,8 +19,6 @@ use tonlib_core::{
     message::{CommonMsgInfo, TransferMessage},
     TonAddress,
 };
-
-use num_traits::{ToBytes, ToPrimitive};
 
 use crate::client::provider::TonProvider;
 use crate::signer::signer::TonSigner;
@@ -81,13 +75,12 @@ impl Debug for TonMailbox {
     }
 }
 impl TonMailbox {
-    const DISPATCH_OPCODE: u32 = 0xf8cf866bu32;
     const PROCESS_OPCODE: u32 = 0xea81949bu32;
     const PROCESS_INIT: u32 = 0xba35fd5f;
 }
 #[async_trait]
 impl Mailbox for TonMailbox {
-    async fn count(&self, lag: Option<NonZeroU64>) -> ChainResult<u32> {
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let response = self
             .provider
             .run_get_method(
@@ -290,7 +283,7 @@ impl Mailbox for TonMailbox {
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-        tx_gas_limit: Option<U256>,
+        _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         info!("HyperlaneMessage:{:?}", message);
         info!("Metadata:{:?}", metadata);
@@ -386,8 +379,8 @@ impl Mailbox for TonMailbox {
 
     async fn process_estimate_costs(
         &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
+        _message: &HyperlaneMessage,
+        _metadata: &[u8],
     ) -> ChainResult<TxCostEstimate> {
         Ok(TxCostEstimate {
             gas_limit: U256::zero(),
@@ -396,7 +389,7 @@ impl Mailbox for TonMailbox {
         })
     }
 
-    fn process_calldata(&self, message: &HyperlaneMessage, metadata: &[u8]) -> Vec<u8> {
+    fn process_calldata(&self, _message: &HyperlaneMessage, _metadata: &[u8]) -> Vec<u8> {
         todo!()
     }
 }
@@ -583,7 +576,7 @@ impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
         info!("Tip:{:?}", tip);
-        let count = Mailbox::count(&self.mailbox, None).await?;
+        let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }
 }

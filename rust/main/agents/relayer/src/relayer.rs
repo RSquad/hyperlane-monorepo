@@ -30,7 +30,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_metrics::TaskMonitor;
-use tracing::{error, info, info_span, instrument::Instrumented, log, warn, Instrument};
+use tracing::{error, info, info_span, instrument::Instrumented, warn, Instrument};
 
 use crate::{
     merkle_tree::builder::MerkleTreeBuilder,

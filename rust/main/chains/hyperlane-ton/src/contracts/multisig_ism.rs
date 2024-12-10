@@ -8,13 +8,8 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
 };
-use num_bigint::BigUint;
-use std::str::FromStr;
 use tonlib_core::cell::dict::predefined_readers::{key_reader_u32, val_reader_cell};
-use tonlib_core::{
-    cell::{BagOfCells, CellBuilder},
-    TonAddress,
-};
+use tonlib_core::TonAddress;
 use tracing::info;
 
 #[derive(Clone, Debug, new)]

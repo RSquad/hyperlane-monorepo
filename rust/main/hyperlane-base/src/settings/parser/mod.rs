@@ -10,13 +10,7 @@ use std::{
 };
 
 use convert_case::{Case, Casing};
-use eyre::{bail, eyre, Context};
-use h_cosmos::RawCosmosAmount;
-use h_ton::DebugWalletVersion;
-use hyperlane_core::{
-    cfg_unwrap_all, config::*, HyperlaneDomain, HyperlaneDomainProtocol,
-    HyperlaneDomainTechnicalStack, IndexMode,
-};
+use eyre::{eyre, Context};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
@@ -377,7 +371,8 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 
             err.into_result(SignerConf::TonMnemonic {
                 mnemonic_phrase: mnemonic_vec,
-                wallet_version: DebugWalletVersion::from_str(wallet_version).unwrap(),
+                wallet_version: hyperlane_ton::DebugWalletVersion::from_str(wallet_version)
+                    .unwrap(),
             })
         }};
     }

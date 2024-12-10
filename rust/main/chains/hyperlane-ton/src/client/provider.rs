@@ -5,9 +5,9 @@ use std::error::Error;
 use std::str::FromStr;
 
 use hyperlane_core::{
-    BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber, HyperlaneChain,
-    HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo,
-    TxnReceiptInfo, H256, U256,
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
+    HyperlaneChain, HyperlaneCustomErrorWrapper, HyperlaneDomain, HyperlaneProvider, TxOutcome,
+    TxnInfo, TxnReceiptInfo, H256, H512, U256,
 };
 use reqwest::{Client, Response};
 use serde_json::{json, Value};
@@ -90,12 +90,12 @@ impl HyperlaneChain for TonProvider {
 
 #[async_trait]
 impl HyperlaneProvider for TonProvider {
-    async fn get_block_by_hash(&self, hash: &H256) -> ChainResult<BlockInfo> {
-        info!("Fetching block by hash: {:?}", hash);
-        todo!()
+    async fn get_block_by_height(&self, _height: u64) -> ChainResult<BlockInfo> {
+        unimplemented!()
     }
 
-    async fn get_txn_by_hash(&self, hash: &H256) -> ChainResult<TxnInfo> {
+    async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
+        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
         info!("Fetching transaction by hash: {:?}", hash);
 
         let url = self
@@ -125,7 +125,7 @@ impl HyperlaneProvider for TonProvider {
 
         if let Some(transaction) = response.transactions.first() {
             let txn_info = TxnInfo {
-                hash: H256::from_slice(&hex::decode(&transaction.hash).unwrap()),
+                hash: H512::from_slice(&hex::decode(&transaction.hash).unwrap()),
                 gas_limit: U256::from_dec_str(&transaction.description.compute_ph.gas_limit)
                     .unwrap_or_default(),
                 max_priority_fee_per_gas: None,
@@ -151,6 +151,7 @@ impl HyperlaneProvider for TonProvider {
                     cumulative_gas_used: U256::zero(),
                     effective_gas_price: None,
                 }),
+                raw_input_data: None,
             };
 
             info!("Successfully retrieved transaction: {:?}", txn_info);

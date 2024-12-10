@@ -1,4 +1,5 @@
 use anyhow::Error;
+use base64::{engine::general_purpose, Engine};
 use hyperlane_core::ChainCommunicationError;
 use serde::{Deserialize, Serialize};
 use tonlib_core::{
@@ -70,7 +71,7 @@ impl TonSigner {
                 ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
             })?;
 
-        Ok(base64::encode(boc))
+        Ok(general_purpose::STANDARD.encode(boc))
     }
 }
 

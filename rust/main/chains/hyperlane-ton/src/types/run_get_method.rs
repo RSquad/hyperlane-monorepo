@@ -1,6 +1,5 @@
 use derive_new::new;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
 #[derive(Deserialize, Debug, Default)]
 pub struct RunGetMethodResponse {
