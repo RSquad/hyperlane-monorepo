@@ -116,21 +116,17 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        info!("Let's build process");
-        let message_t = ConversionUtils::hyperlane_message_to_message(message)
-            .map_err(|e| ChainCommunicationError::CustomError(format!("Failed to build: {}", e)))?;
-        info!("Message_t:{:?}", message_t);
-
-        let message_cell = message_t.to_cell();
-        info!("message_cell:{:?}", message_cell);
+        let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
+            ChainCommunicationError::ParseError {
+                msg: format!("Failed to parse HyperlaneMessage to Ton Cell:{:?}", e),
+            }
+        })?;
 
         let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
-                "Failed to convert metadata to cell: {}",
-                e
-            ))
+            ChainCommunicationError::ParseError {
+                msg: format!("Failed to parse metadata to Ton Cell:{:?}", e),
+            }
         })?;
-        info!("Metadata:{:?}", metadata_cell);
 
         let query_id = 1;
         let block_number = 1;
@@ -169,8 +165,6 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         .map_err(|e| {
             ChainCommunicationError::CustomError(format!("Failed to create transferMessage: {}", e))
         })?;
-
-        info!("Transfer message:{:?}", transfer_message);
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
