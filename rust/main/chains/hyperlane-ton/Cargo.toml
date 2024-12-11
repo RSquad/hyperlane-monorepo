@@ -26,5 +26,5 @@ reqwest = {workspace = true, features = ["json"]}
 tokio = {workspace = true, features = ["full"]}
 
 hyperlane-core = { path = "../../hyperlane-core", features = ["async", "agent"] }
-tonlib-core = "0.20.3"
+tonlib-core = "0.22.2"
 

@@ -9,7 +9,7 @@ use crate::run_get_method::StackItem;
 use base64::{engine::general_purpose, Engine};
 use tonlib_core::cell::dict::predefined_readers::{key_reader_uint, val_reader_cell};
 use tonlib_core::cell::{ArcCell, BagOfCells, Cell, CellBuilder, TonCellError};
-use tonlib_core::TonAddress;
+use tonlib_core::{TonAddress, TonHash};
 
 pub struct ConversionUtils;
 
@@ -156,7 +156,7 @@ impl ConversionUtils {
         Ok(address)
     }
     pub fn ton_address_to_h256(address: &TonAddress) -> H256 {
-        H256::from(address.hash_part)
+        H256::from_slice(address.hash_part.as_slice())
     }
 
     pub fn u256_to_biguint(value: U256) -> BigUint {
@@ -165,7 +165,7 @@ impl ConversionUtils {
         BigUint::from_bytes_le(&bytes)
     }
     pub fn h256_to_ton_address(h256: &H256, workchain: i32) -> TonAddress {
-        TonAddress::new(workchain, &h256.0)
+        TonAddress::new(workchain, &TonHash::from(&h256.0))
     }
 
     pub fn parse_stack_item_to_u32(stack: &[StackItem], index: usize) -> ChainResult<u32> {

@@ -14,6 +14,7 @@ use eyre::{eyre, Context};
 use itertools::Itertools;
 use serde::Deserialize;
 use serde_json::Value;
+use tonlib_core::wallet::WalletVersion;
 use url::Url;
 
 use h_cosmos::RawCosmosAmount;
@@ -371,8 +372,10 @@ fn parse_signer(signer: ValueParser) -> ConfigResult<SignerConf> {
 
             err.into_result(SignerConf::TonMnemonic {
                 mnemonic_phrase: mnemonic_vec,
-                wallet_version: hyperlane_ton::DebugWalletVersion::from_str(wallet_version)
-                    .unwrap(),
+                wallet_version: hyperlane_ton::signer::signer::wallet_version_from_str(
+                    wallet_version,
+                )
+                .unwrap_or(WalletVersion::V4R2),
             })
         }};
     }

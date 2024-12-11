@@ -1,10 +1,6 @@
 use hyperlane_core::H256;
-use hyperlane_ton::{ConversionUtils, DebugWalletVersion};
-use std::{
-    collections::BTreeMap,
-    fmt::Error,
-    fs
-};
+use hyperlane_ton::ConversionUtils;
+use std::{collections::BTreeMap, fmt::Error, fs};
 use tonlib_core::TonAddress;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -17,7 +13,7 @@ pub struct AgentConfigSigner {
     #[serde(rename = "type")]
     pub typ: String,
     pub mnemonic_phrase: String,
-    pub wallet_version: DebugWalletVersion,
+    pub wallet_version: String,
 }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct RawTonAmount {
@@ -90,7 +86,7 @@ impl TonAgentConfig {
             signer: AgentConfigSigner {
                 typ: "TonMnemonic".to_string(),
                 mnemonic_phrase: mnemonic_vec.join(" "),
-                wallet_version: DebugWalletVersion::from_str(wallet_version).unwrap(),
+                wallet_version: wallet_version.to_string(),
             },
 
             gas_price: RawTonAmount {

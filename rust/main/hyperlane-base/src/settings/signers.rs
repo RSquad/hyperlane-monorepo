@@ -5,9 +5,10 @@ use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
 use hyperlane_core::{AccountAddressType, H256};
 use hyperlane_sealevel::Keypair;
-use hyperlane_ton::{DebugWalletVersion, TonSigner};
+use hyperlane_ton::TonSigner;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
+use tonlib_core::wallet::WalletVersion;
 
 use tracing::instrument;
 
@@ -44,7 +45,7 @@ pub enum SignerConf {
         /// A mnemonic phrase for tone
         mnemonic_phrase: Vec<String>,
         /// Wallet version for Ton
-        wallet_version: DebugWalletVersion,
+        wallet_version: WalletVersion,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -188,8 +189,9 @@ impl BuildableWithSignerConf for TonSigner {
         } = conf
         {
             Ok(
-                TonSigner::from_mnemonic(mnemonic_phrase.clone(), wallet_version.clone().0)
-                    .expect("Failed to create TonSigner from mnemonic"),
+                TonSigner::from_mnemonic(mnemonic_phrase.clone(), wallet_version.clone())
+                    .map_err(|e| Report::msg(e))
+                    .context("Failed to create TonSigner from mnemonic")?,
             )
         } else {
             bail!(format!("{conf:?} key is not supported by Ton"));

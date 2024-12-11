@@ -2,7 +2,7 @@
 
 mod client;
 mod contracts;
-mod signer;
+pub mod signer;
 mod trait_builder;
 mod traits;
 mod types;
