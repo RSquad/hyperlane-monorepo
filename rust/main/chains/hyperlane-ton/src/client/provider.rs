@@ -91,7 +91,46 @@ impl HyperlaneChain for TonProvider {
 #[async_trait]
 impl HyperlaneProvider for TonProvider {
     async fn get_block_by_height(&self, _height: u64) -> ChainResult<BlockInfo> {
-        unimplemented!()
+        let response = self
+            .get_blocks(
+                -1, // Masterchain
+                None,
+                Some(_height),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| {
+                log::error!("Error fetching block by height {}: {:?}", _height, e);
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to get block by height {}: {:?}",
+                    _height, e
+                ))
+            })?;
+
+        let block = response.blocks.first().ok_or_else(|| {
+            tracing::warn!("No blocks found in the response: {:?}", response);
+            ChainCommunicationError::CustomError("No blocks found in the response".to_string())
+        })?;
+
+        let timestamp = block.gen_utime.parse::<u64>().map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse block timestamp: {:?}",
+                e
+            ))
+        })?;
+
+        Ok(BlockInfo {
+            hash: H256::zero(),
+            timestamp,
+            number: block.seqno as u64,
+        })
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
@@ -593,7 +632,7 @@ impl TonApiCenter for TonProvider {
         &self,
         workchain: i32,
         shard: Option<String>,
-        seqno: Option<u32>,
+        seqno: Option<u64>,
         mc_seqno: Option<u32>,
         start_utime: Option<i64>,
         end_utime: Option<i64>,

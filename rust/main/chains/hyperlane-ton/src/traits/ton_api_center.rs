@@ -80,7 +80,7 @@ pub trait TonApiCenter {
         &self,
         workchain: i32,
         shard: Option<String>,
-        seqno: Option<u32>,
+        seqno: Option<u64>,
         mc_seqno: Option<u32>,
         start_utime: Option<i64>,
         end_utime: Option<i64>,
