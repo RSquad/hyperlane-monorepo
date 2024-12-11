@@ -770,4 +770,40 @@ impl TonProvider {
 
         Err(ChainCommunicationError::CustomError("Timeout".to_string()))
     }
+
+    pub async fn fetch_block_timestamp(&self, block_seqno: u32) -> ChainResult<i64> {
+        self.get_blocks(
+            -1,                // masterchain (workchain = -1)
+            None,              // shard
+            None,              // Block block seqno
+            Some(block_seqno), // Masterchain block seqno
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to fetch block info for block {}: {:?}",
+                block_seqno, e
+            ))
+        })?
+        .blocks
+        .get(0)
+        .ok_or_else(|| {
+            ChainCommunicationError::CustomError("No blocks found in the response".to_string())
+        })?
+        .gen_utime
+        .parse::<i64>()
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse block timestamp: {:?}",
+                e
+            ))
+        })
+    }
 }
