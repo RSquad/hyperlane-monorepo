@@ -13,7 +13,7 @@ use reqwest::{Client, Response};
 use serde_json::{json, Value};
 use tokio::time::sleep;
 
-use crate::client::error::CustomHyperlaneError;
+use crate::client::error::{CustomHyperlaneError, TonProviderError};
 use crate::run_get_method::StackItem;
 use crate::{
     trait_builder::TonConnectionConf,
@@ -804,6 +804,35 @@ impl TonProvider {
                 "Failed to parse block timestamp: {:?}",
                 e
             ))
+        })
+    }
+    pub async fn get_finalized_block(&self) -> Result<u32, TonProviderError> {
+        self.get_blocks(
+            -1,   // masterchain
+            None, // shard
+            None, // Block block seqno
+            None, // Masterchain block seqno
+            None,
+            None,
+            None,
+            None,
+            Some(1), // Limit: 1
+            None,
+            None,
+        )
+        .await
+        .map_err(|e| {
+            TonProviderError::FetchError(format!("Failed to fetch latest block: {:?}", e))
+        })?
+        .blocks
+        .first()
+        .map(|block| {
+            tracing::info!("Latest block found: {:?}", block);
+            block.seqno as u32
+        })
+        .ok_or_else(|| {
+            tracing::warn!("No blocks found in the response");
+            TonProviderError::NoBlocksFound
         })
     }
 }

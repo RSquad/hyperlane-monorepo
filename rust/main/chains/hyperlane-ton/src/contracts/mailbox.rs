@@ -10,7 +10,7 @@ use std::{
     ops::RangeInclusive,
     time::SystemTime,
 };
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use tonlib_core::cell::TonCellError;
 use tonlib_core::message::{InternalMessage, TonMessage};
@@ -444,40 +444,15 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let response = self
-            .mailbox
+        self.mailbox
             .provider
-            .get_blocks(
-                -1,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(1),
-                None,
-                None,
-            )
+            .get_finalized_block()
             .await
             .map_err(|e| {
                 ChainCommunicationError::CustomError(format!(
-                    "Failed to fetch latest block: {:?}",
+                    "Failed to fetch finalized block number for TonMailboxIndexer: {:?}",
                     e
                 ))
-            })?;
-
-        response
-            .blocks
-            .first()
-            .map(|block| {
-                info!("Latest block found: {:?}", block);
-                block.seqno as u32
-            })
-            .ok_or_else(|| {
-                warn!("No blocks found in the response: {:?}", response);
-                ChainCommunicationError::CustomError("No blocks found".to_string())
             })
     }
 }

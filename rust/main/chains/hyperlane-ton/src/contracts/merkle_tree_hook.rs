@@ -79,35 +79,31 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 "get_latest_checkpoint".to_string(),
                 None,
             )
-            .await;
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to get response: {:?}", e))
+            })?;
 
-        match response {
-            Ok(run_get_method) => {
-                let stack = run_get_method.stack;
+        let stack = response.stack;
 
-                if stack.len() < 2 {
-                    return Err(ChainCommunicationError::CustomError(
-                        "Stack does not contain enough elements".to_string(),
-                    ));
-                }
-
-                let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0)?;
-                let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1)?;
-
-                Ok(Checkpoint {
-                    merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(
-                        &self.address.clone(),
-                    ),
-                    mailbox_domain: 777001,
-                    root: H256::from_low_u64_be(root as u64),
-                    index,
-                })
-            }
-            Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to get response: {:?}",
-                e
-            ))),
+        if stack.len() < 2 {
+            return Err(ChainCommunicationError::CustomError(
+                "Stack does not contain enough elements".to_string(),
+            ));
         }
+        let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
+        })?;
+        let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1).map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
+        })?;
+
+        Ok(Checkpoint {
+            merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(&self.address.clone()),
+            mailbox_domain: self.domain().id(),
+            root: H256::from_low_u64_be(root as u64),
+            index,
+        })
     }
 }
 
@@ -115,12 +111,14 @@ impl MerkleTreeHook for TonMerkleTreeHook {
 pub struct TonMerkleTreeHookIndexer {
     #[allow(dead_code)]
     merkle_tree_hook_address: TonAddress,
+    provider: TonProvider,
 }
 
 impl TonMerkleTreeHookIndexer {
-    pub fn new(address: TonAddress) -> ChainResult<Self> {
+    pub fn new(address: TonAddress, provider: TonProvider) -> ChainResult<Self> {
         Ok(Self {
             merkle_tree_hook_address: address,
+            provider,
         })
     }
 }
@@ -136,7 +134,12 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        Ok(0)
+        self.provider.get_finalized_block().await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to fetch finalized block number for TonMerkleTreeHookIndexer: {:?}",
+                e
+            ))
+        })
     }
 }
 

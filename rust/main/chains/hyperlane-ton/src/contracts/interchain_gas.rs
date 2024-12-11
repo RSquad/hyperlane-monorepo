@@ -124,36 +124,12 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let response = self
-            .provider
-            .get_blocks(
-                -1,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(1),
-                None,
-                None,
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to get start block info: {:?}",
-                    e
-                ))
-            })?;
-
-        if let Some(block) = response.blocks.first() {
-            Ok(block.seqno as u32)
-        } else {
-            Err(ChainCommunicationError::CustomError(
-                "No blocks found".to_string(),
+        self.provider.get_finalized_block().await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to fetch finalized block number for TonIGPIndexer: {:?}",
+                e
             ))
-        }
+        })
     }
 }
 
