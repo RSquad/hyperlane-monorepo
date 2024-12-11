@@ -1,6 +1,5 @@
 // use std::process::Command;
 
-
 // pub async fn deploy_all_contracts() -> Vec<String> {
 //     let output = Command::new("node")
 //         .arg("./scripts/deploy.js")

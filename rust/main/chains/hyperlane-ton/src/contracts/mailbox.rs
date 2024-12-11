@@ -270,8 +270,6 @@ impl Mailbox for TonMailbox {
             ChainCommunicationError::CustomError(format!("Failed to build message: {:?}", e))
         })?;
 
-        info!("Msg cell:{:?}", msg);
-
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
             bounce: false,
