@@ -9,7 +9,6 @@ use hyperlane_core::{
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
     SequenceAwareIndexer, H256, U256,
 };
-use log::info;
 use std::cmp::max;
 use std::{
     fmt::{Debug, Formatter},
@@ -68,70 +67,9 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
-        let start_block_info = self
-            .provider
-            .get_blocks(
-                -1,                //  masterchain (workchain = -1)
-                None,              // shard
-                None,              // block seqno
-                Some(start_block), // masterchain seqno
-                None,
-                None,
-                None,
-                None,
-                None, // limit
-                None,
-                None,
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to get start block info: {:?}",
-                    e
-                ))
-            })?;
 
-        info!("Start block info:{:?}", start_block_info);
-        let end_block_info = self
-            .provider
-            .get_blocks(
-                -1,              //  masterchain (workchain = -1)
-                None,            // shard
-                None,            // block seqno
-                Some(end_block), // masterchain seqno
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to get end block info: {:?}",
-                    e
-                ))
-            })?;
-
-        info!("End block info:{:?}", end_block_info);
-
-        let start_utime = start_block_info.blocks[0]
-            .gen_utime
-            .parse::<i64>()
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to parse start_utime: {:?}",
-                    e
-                ))
-            })?;
-        let end_utime = end_block_info.blocks[0]
-            .gen_utime
-            .parse::<i64>()
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse end_utime: {:?}", e))
-            })?;
+        let start_utime = self.provider.fetch_block_timestamp(start_block).await?;
+        let end_utime = self.provider.fetch_block_timestamp(end_block).await?;
 
         let message_response = self
             .provider
@@ -150,41 +88,39 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                 None,
                 Some("desc".to_string()),
             )
-            .await;
-        match message_response {
-            Ok(messages) => {
-                info!("Messages:{:?}", messages);
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to fetch messages: {:?}", e))
+            })?;
 
-                let mut events = vec![];
-                for message in messages.messages {
-                    match parse_igp_events(message.message_content.body.as_str()) {
-                        Ok(index_event) => {
-                            let indexed_data = Indexed::new(index_event);
-                            let log_meta = LogMeta {
-                                address: Default::default(),
-                                block_number: 0,
-                                block_hash: Default::default(),
-                                transaction_id: Default::default(),
-                                transaction_index: 0,
-                                log_index: Default::default(),
-                            };
-                            events.push((indexed_data, log_meta));
-                        }
-                        Err(e) => {
-                            warn!(
-                        "Failed to parse interchain gas payment for message: {:?}, error: {:?}",
-                        message, e
-                    );
-                        }
+        let events = message_response
+            .messages
+            .iter()
+            .filter_map(
+                |message| match parse_igp_events(&message.message_content.body) {
+                    Ok(event) => Some((
+                        Indexed::new(event),
+                        LogMeta {
+                            address: Default::default(),
+                            block_number: 0,
+                            block_hash: Default::default(),
+                            transaction_id: Default::default(),
+                            transaction_index: 0,
+                            log_index: Default::default(),
+                        },
+                    )),
+                    Err(e) => {
+                        warn!(
+                            "Failed to parse interchain gas payment for message: {:?}, error: {:?}",
+                            message, e
+                        );
+                        None
                     }
-                }
-                Ok(events)
-            }
-            Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to fetch messages in range: {:?}",
-                e
-            ))),
-        }
+                },
+            )
+            .collect();
+
+        Ok(events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
