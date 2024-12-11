@@ -295,8 +295,6 @@ impl Mailbox for TonMailbox {
             ))
         })?;
 
-        info!("Transfer message:{:?}", transfer_message);
-
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| {
