@@ -9,8 +9,10 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
+use num_traits::ToPrimitive;
 use std::ops::RangeInclusive;
 use tonlib_core::TonAddress;
+use tracing::warn;
 
 #[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHook contract on some TON chain
@@ -91,14 +93,12 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             ));
         }
 
-        let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0)
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
-            })?;
-        let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1)
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
-            })?;
+        let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
+        })?;
+        let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1).map_err(|e| {
+            ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
+        })?;
 
         Ok(Checkpoint {
             merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(&self.address.clone()),
@@ -107,7 +107,6 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             index,
         })
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -132,8 +131,91 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         &self,
         _range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        Ok(vec![])
+        let start_block = *_range.start();
+        let end_block = *_range.end();
+
+        let start_utime = self.provider.fetch_block_timestamp(start_block).await?;
+        let end_utime = self.provider.fetch_block_timestamp(end_block).await?;
+
+        let messages = self
+            .provider
+            .get_messages(
+                None,
+                None,
+                Some(self.merkle_tree_hook_address.to_string()),
+                Some("null".to_string()),
+                None,
+                Some(start_utime),
+                Some(end_utime),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("desc".to_string()),
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to fetch messages in range: {:?}",
+                    e
+                ))
+            })?;
+
+        let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = messages
+            .messages
+            .iter()
+            .filter_map(|message| {
+                let boc = &message.message_content.body;
+                let cell = ConversionUtils::parse_root_cell_from_boc(boc)
+                    .map_err(|e| {
+                        warn!("Failed to parse root cell from BOC: {:?}", e);
+                        e
+                    })
+                    .ok()?;
+
+                let mut parser = cell.parser();
+
+                let message_id = parser
+                    .load_uint(256)
+                    .map_err(|e| {
+                        warn!("Failed to load_uint message_id: {:?}", e);
+                        e
+                    })
+                    .ok()?;
+                let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
+
+                let index = parser
+                    .load_uint(256)
+                    .map_err(|e| {
+                        warn!("Failed to load_uint index: {:?}", e);
+                        e
+                    })
+                    .ok()?;
+
+                let index_u32 = index
+                    .to_u32()
+                    .ok_or_else(|| {
+                        warn!("Index value is too large for u32");
+                    })
+                    .ok()?;
+
+                let merkle_tree_insertion = MerkleTreeInsertion::new(index_u32, message_id_h256);
+
+                let log_meta = LogMeta {
+                    address: ConversionUtils::ton_address_to_h256(&self.merkle_tree_hook_address),
+                    block_number: Default::default(),
+                    block_hash: Default::default(),
+                    transaction_id: Default::default(),
+                    transaction_index: 0,
+                    log_index: Default::default(),
+                };
+
+                Some((Indexed::new(merkle_tree_insertion), log_meta))
+            })
+            .collect();
+
+        Ok(events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
