@@ -120,10 +120,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        info!(
-            "get_announced_storage_locations call! validators:{:?}",
-            validators
-        );
         let function_name = "get_announced_storage_locations".to_string();
         let validators_cell =
             ConversionUtils::create_address_linked_cells(&validators).map_err(|_| {
@@ -158,38 +154,38 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             )));
         }
 
-        if let Some(stack_item) = response.stack.get(0) {
-            let cell_boc_decoded = general_purpose::STANDARD
-                .decode(&stack_item.value)
-                .map_err(|_| {
-                    ChainCommunicationError::CustomError(
-                        "Failed to decode cell BOC from response".to_string(),
-                    )
-                })?;
+        let stack_item = response.stack.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError(
+                "Response stack is empty or missing required item".to_string(),
+            )
+        })?;
 
-            let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
+        let cell_boc_decoded = general_purpose::STANDARD
+            .decode(&stack_item.value)
+            .map_err(|_| {
+                ChainCommunicationError::CustomError(
+                    "Failed to decode cell BOC from response".to_string(),
+                )
             })?;
 
-            let cell = boc.single_root().map_err(|_e| {
-                ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", _e))
+        let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
+            ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
+        })?;
+
+        let cell = boc.single_root().map_err(|_e| {
+            ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", _e))
+        })?;
+
+        let storage_locations =
+            ConversionUtils::parse_address_storage_locations(&cell).map_err(|_e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to parse address storage locations: {}",
+                    _e
+                ))
             })?;
 
-            let storage_locations = ConversionUtils::parse_address_storage_locations(&cell)
-                .map_err(|_e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to parse address storage locations: {}",
-                        _e
-                    ))
-                })?;
-            info!("storage_locations:{:?}", storage_locations);
-
-            let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
-            info!("locations_vec:{:?}", locations_vec);
-            Ok(locations_vec)
-        } else {
-            Ok(vec![vec![]])
-        }
+        let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
+        Ok(locations_vec)
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
