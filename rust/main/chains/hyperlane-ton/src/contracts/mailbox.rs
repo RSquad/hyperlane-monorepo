@@ -88,16 +88,20 @@ impl Mailbox for TonMailbox {
                 "get_nonce".to_string(),
                 Some(vec![]),
             )
-            .await;
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to run get_nonce method: {:?}",
+                    e
+                ))
+            })?;
 
-        match response {
-            Ok(run_get_method) => {
-                ConversionUtils::parse_stack_item_to_u32(&run_get_method.stack, 0)
-            }
-            Err(_) => Err(ChainCommunicationError::CustomError(
-                "Failed to get response".to_string(),
-            )),
-        }
+        ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse stack item to u32: {:?}",
+                e
+            ))
+        })
     }
 
     //
@@ -117,51 +121,34 @@ impl Mailbox for TonMailbox {
                 ))
             })?;
 
-        info!("delivered response:{:?}", response);
-        if let Some(stack_item) = response.stack.first() {
-            if stack_item.r#type == "cell" {
-                info!("delivered boc:{:?}", stack_item.value);
-                let root_cell =
-                    ConversionUtils::parse_root_cell_from_boc(stack_item.value.as_str())
-                        .expect("Failed parse_root_cell_from_boc");
-                let parsed =
-                    match root_cell
-                        .parser()
-                        .load_dict(256, key_reader_uint, val_reader_cell)
-                    {
-                        Ok(dict) => dict,
-                        Err(e) => {
-                            error!("Failed to load dictionary from root cell: {:?}", e);
-                            return Err(ChainCommunicationError::CustomError(format!(
-                                "Failed to load dictionary: {:?}",
-                                e
-                            )));
-                        }
-                    };
+        let stack_item = response.stack.first().ok_or_else(|| {
+            ChainCommunicationError::CustomError("No stack item found in response".to_string())
+        })?;
 
-                for (key, value_cell) in &parsed {
-                    info!("Key:{:?} value_cell:{:?}", key, value_cell);
+        if stack_item.r#type != "cell" {
+            return Err(ChainCommunicationError::CustomError(format!(
+                "Unexpected stack item type: {:?}",
+                stack_item.r#type
+            )));
+        };
+        let root_cell =
+            ConversionUtils::parse_root_cell_from_boc(&stack_item.value).map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to parse root cell: {:?}", e))
+            })?;
 
-                    if BigUint::from_bytes_be(id.as_bytes()) == *key {
-                        info!("Message ID matches dictionary key!");
-                        return Ok(true);
-                    }
-                }
-                // No matching ID found
-                Ok(false)
-            } else {
-                error!("Unexpected stack item type: {:?}", stack_item.r#type);
-                Err(ChainCommunicationError::CustomError(format!(
-                    "Unexpected stack item type: {:?}",
-                    stack_item.r#type
-                )))
-            }
-        } else {
-            error!("No stack item found in response");
-            Err(ChainCommunicationError::CustomError(
-                "No stack item found in response".to_string(),
-            ))
-        }
+        let parsed_dict = root_cell
+            .parser()
+            .load_dict(256, key_reader_uint, val_reader_cell)
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to load dictionary from root cell: {:?}",
+                    e
+                ))
+            })?;
+
+        Ok(parsed_dict
+            .iter()
+            .any(|(key, _)| BigUint::from_bytes_be(id.as_bytes()) == *key))
     }
 
     async fn default_ism(&self) -> ChainResult<H256> {
@@ -173,110 +160,82 @@ impl Mailbox for TonMailbox {
                 None,
             )
             .await
-            .expect("Some error");
+            .map_err(|_| {
+                ChainCommunicationError::CustomError(
+                    "Failed to get default ISM response".to_string(),
+                )
+            })?;
 
-        if let Some(stack) = response.stack.first() {
-            if stack.r#type == "cell" {
-                let ism_address = ConversionUtils::parse_address_from_boc(&stack.value)
-                    .await
-                    .map_err(|e| {
-                        ChainCommunicationError::CustomError(format!(
-                            "Failed to parse address from BOC: {:?}",
-                            e
-                        ))
-                    })?;
+        let stack = response
+            .stack
+            .first()
+            .ok_or_else(|| ChainCommunicationError::CustomError("No data in stack".to_string()))?;
 
-                let ism_hash = ConversionUtils::ton_address_to_h256(&ism_address);
-                return Ok(ism_hash);
-            } else {
-                return Err(ChainCommunicationError::CustomError(
-                    "Unexpected data type in stack, expected cell".to_string(),
-                ));
-            }
+        if stack.r#type != "cell" {
+            return Err(ChainCommunicationError::CustomError(
+                "Unexpected data type in stack, expected cell".to_string(),
+            ));
         }
 
-        Err(ChainCommunicationError::CustomError(
-            "No data in stack".to_string(),
-        ))
+        let ism_address = ConversionUtils::parse_address_from_boc(&stack.value)
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to parse address from BOC: {:?}",
+                    e
+                ))
+            })?;
+
+        Ok(ConversionUtils::ton_address_to_h256(&ism_address))
     }
 
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient_address = ConversionUtils::h256_to_ton_address(&recipient, self.workchain);
 
-        let result = self
+        let recipient_response = self
             .provider
             .run_get_method(recipient_address.to_hex(), "get_ism".to_string(), None)
             .await;
 
-        match result {
-            Ok(response) => {
-                if let Some(stack) = response.stack.first() {
-                    if stack.r#type == "cell" {
-                        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
-                            .await
-                            .map_err(|e| {
-                                ChainCommunicationError::CustomError(format!(
-                                    "Failed to parse address from BOC: {:?}",
-                                    e
-                                ))
-                            })?;
-
-                        let ism_hash = ConversionUtils::ton_address_to_h256(&recipient_ism);
-                        return Ok(ism_hash);
-                    } else {
-                        return Err(ChainCommunicationError::CustomError(format!(
-                            "Unexpected data type in stack: expected 'cell', got '{}'",
-                            stack.r#type
-                        )));
-                    }
-                } else {
-                    return Err(ChainCommunicationError::CustomError(
-                        "No data found in the response stack".to_string(),
-                    ));
-                }
-            }
-            Err(_) => {
-                let mailbox_response = self
-                    .provider
-                    .run_get_method(
-                        self.mailbox_address.to_hex(),
-                        "get_default_ism".to_string(),
-                        None,
-                    )
-                    .await
-                    .map_err(|e| {
-                        ChainCommunicationError::CustomError(format!(
-                            "Error calling run_get_method for mailbox: {:?}",
-                            e
-                        ))
-                    })?;
-
-                if let Some(stack) = mailbox_response.stack.first() {
-                    if stack.r#type == "cell" {
-                        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
-                            .await
-                            .map_err(|e| {
-                                ChainCommunicationError::CustomError(format!(
-                                    "Failed to parse address from BOC: {:?}",
-                                    e
-                                ))
-                            })?;
-
-                        let ism_hash = ConversionUtils::ton_address_to_h256(&recipient_ism);
-                        return Ok(ism_hash);
-                    } else {
-                        Err(ChainCommunicationError::CustomError(format!(
-                            "Unexpected data type in stack: expected 'cell', got '{}'",
-                            stack.r#type
-                        )))
-                    }
-                } else {
-                    Err(ChainCommunicationError::CustomError(
-                        "No data found in the mailbox response stack".to_string(),
+        let response = match recipient_response {
+            Ok(response) => response,
+            Err(_) => self
+                .provider
+                .run_get_method(
+                    self.mailbox_address.to_hex(),
+                    "get_default_ism".to_string(),
+                    None,
+                )
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Error calling run_get_method for mailbox: {:?}",
+                        e
                     ))
-                }
-            }
+                })?,
+        };
+
+        let stack = response.stack.first().ok_or_else(|| {
+            ChainCommunicationError::CustomError("No data found in the response stack".to_string())
+        })?;
+
+        if stack.r#type != "cell" {
+            return Err(ChainCommunicationError::CustomError(format!(
+                "Unexpected data type in stack: expected 'cell', got '{}'",
+                stack.r#type
+            )));
         }
+
+        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to parse address from BOC: {:?}",
+                    e
+                ))
+            })?;
+
+        Ok(ConversionUtils::ton_address_to_h256(&recipient_ism))
     }
 
     async fn process(
@@ -427,72 +386,50 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         let start_block = *range.start();
         let end_block = *range.end();
 
-        let start_block_info = self
-            .mailbox
-            .provider
-            .get_blocks(
-                -1,                //  masterchain (workchain = -1)
-                None,              // shard
-                None,              // Block block seqno
-                Some(start_block), // Masterchain block seqno
-                None,
-                None,
-                None,
-                None,
-                None, // limit
-                None,
-                None,
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to get start block info: {:?}",
-                    e
-                ))
-            })?;
+        let fetch_block_info = |block: u32| async move {
+            self.mailbox
+                .provider
+                .get_blocks(
+                    -1,          // masterchain (workchain = -1)
+                    None,        // shard
+                    None,        // Block block seqno
+                    Some(block), // Masterchain block seqno
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to fetch block info for block {}: {:?}",
+                        block, e
+                    ))
+                })?
+                .blocks
+                .get(0)
+                .ok_or_else(|| {
+                    ChainCommunicationError::CustomError(
+                        "No blocks found in the response".to_string(),
+                    )
+                })?
+                .gen_utime
+                .parse::<i64>()
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to parse block timestamp: {:?}",
+                        e
+                    ))
+                })
+        };
 
-        let start_utime = start_block_info.blocks[0]
-            .gen_utime
-            .parse::<i64>()
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to parse start_utime: {:?}",
-                    e
-                ))
-            })?;
+        let start_utime = fetch_block_info(start_block).await?;
+        let end_utime = fetch_block_info(end_block).await?;
 
-        let end_block_info = self
-            .mailbox
-            .provider
-            .get_blocks(
-                -1,              //  masterchain (workchain = -1)
-                None,            // shard
-                None,            // Block block seqno
-                Some(end_block), // Masterchain block seqno
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
-                    "Failed to get end block info: {:?}",
-                    e
-                ))
-            })?;
-
-        let end_utime = end_block_info.blocks[0]
-            .gen_utime
-            .parse::<i64>()
-            .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse end_utime: {:?}", e))
-            })?;
-
-        let message_response = self
+        let messages = self
             .mailbox
             .provider
             .get_messages(
@@ -510,42 +447,40 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                 None,
                 Some("desc".to_string()),
             )
-            .await;
-        match message_response {
-            Ok(messages) => {
-                info!("Messages: {:?}", messages);
-                let mut events = vec![];
-                for message in messages.messages {
-                    let parsed_result = parse_message(&message.message_content.body);
-                    match parsed_result {
-                        Ok(hyperlane_message) => {
-                            let index_event = Indexed::from(hyperlane_message);
-                            let log_meta = LogMeta {
-                                address: Default::default(),
-                                block_number: 0,
-                                block_hash: Default::default(),
-                                transaction_id: Default::default(),
-                                transaction_index: 0,
-                                log_index: Default::default(),
-                            };
-                            events.push((index_event, log_meta));
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse message body: {:?}", e);
-                        }
-                    }
-                }
-                Ok(events)
-            }
-            Err(e) => Err(ChainCommunicationError::CustomError(format!(
-                "Failed to fetch messages in range: {:?}",
-                e
-            ))),
-        }
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to fetch messages in range: {:?}",
+                    e
+                ))
+            })?;
+
+        let events = messages
+            .messages
+            .into_iter()
+            .filter_map(|message| {
+                parse_message(&message.message_content.body)
+                    .ok()
+                    .map(|hyperlane_message| {
+                        let index_event = Indexed::from(hyperlane_message);
+                        let log_meta = LogMeta {
+                            address: Default::default(),
+                            block_number: 0,
+                            block_hash: Default::default(),
+                            transaction_id: Default::default(),
+                            transaction_index: 0,
+                            log_index: Default::default(),
+                        };
+                        (index_event, log_meta)
+                    })
+            })
+            .collect();
+
+        Ok(events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let response_result = self
+        let response = self
             .mailbox
             .provider
             .get_blocks(
@@ -561,28 +496,25 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                 None,
                 None,
             )
-            .await;
-
-        match response_result {
-            Ok(response) => {
-                if let Some(block) = response.blocks.first() {
-                    info!("Latest block found: {:?}", block);
-                    Ok(block.seqno as u32)
-                } else {
-                    warn!("No blocks found in the response: {:?}", response);
-                    Err(ChainCommunicationError::CustomError(
-                        "No blocks found".to_string(),
-                    ))
-                }
-            }
-            Err(e) => {
-                log::error!("Error fetching latest block: {:?}", e);
-                Err(ChainCommunicationError::CustomError(format!(
-                    "Failed to get latest block: {:?}",
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to fetch latest block: {:?}",
                     e
-                )))
-            }
-        }
+                ))
+            })?;
+
+        response
+            .blocks
+            .first()
+            .map(|block| {
+                info!("Latest block found: {:?}", block);
+                block.seqno as u32
+            })
+            .ok_or_else(|| {
+                warn!("No blocks found in the response: {:?}", response);
+                ChainCommunicationError::CustomError("No blocks found".to_string())
+            })
     }
 }
 
