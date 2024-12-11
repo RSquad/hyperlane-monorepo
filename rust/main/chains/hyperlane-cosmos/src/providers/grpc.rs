@@ -399,8 +399,8 @@ impl WasmGrpcProvider {
                         .map_err(Into::<HyperlaneCosmosError>::into)?;
 
                     let codec = tonic::codec::ProstCodec::default();
-                    // let path:PathAndQuery =
-                    //     http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
+                    let path =
+                        http::uri::PathAndQuery::from_static("/cosmos.auth.v1beta1.Query/Account");
                     let path: tonic::codegen::http::uri::PathAndQuery =
                         tonic::codegen::http::uri::PathAndQuery::from_static(
                             "/cosmos.auth.v1beta1.Query/Account",
