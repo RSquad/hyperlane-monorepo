@@ -92,12 +92,15 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 "Stack does not contain enough elements".to_string(),
             ));
         }
-        let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
-        })?;
-        let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1).map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
-        })?;
+
+        let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0)
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
+            })?;
+        let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1)
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
+            })?;
 
         Ok(Checkpoint {
             merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(&self.address.clone()),
@@ -106,6 +109,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             index,
         })
     }
+
 }
 
 #[derive(Debug, Clone)]
