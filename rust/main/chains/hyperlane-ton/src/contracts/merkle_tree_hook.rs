@@ -92,7 +92,6 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 "Stack does not contain enough elements".to_string(),
             ));
         }
-
         let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
             ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
         })?;

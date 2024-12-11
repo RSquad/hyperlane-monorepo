@@ -14,6 +14,7 @@ use serde_json::{json, Value};
 use tokio::time::sleep;
 
 use crate::error::{CustomHyperlaneError, TonProviderError};
+
 use crate::run_get_method::StackItem;
 use crate::{
     trait_builder::TonConnectionConf,
@@ -833,6 +834,7 @@ impl TonProvider {
             TonProviderError::NoBlocksFound
         })
     }
+
     pub async fn fetch_blocks_timestamps(&self, blocks: Vec<u32>) -> ChainResult<Vec<i64>> {
         let mut timestamps = Vec::new();
 
