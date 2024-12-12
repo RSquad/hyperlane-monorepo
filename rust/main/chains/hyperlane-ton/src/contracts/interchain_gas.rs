@@ -9,13 +9,13 @@ use hyperlane_core::{
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
     SequenceAwareIndexer, H256, U256,
 };
-use std::cmp::max;
 use std::{
+    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     string::ToString,
 };
-use tonlib_core::TonAddress;
+use tonlib_core::{cell::TonCellError, TonAddress};
 use tracing::warn;
 
 #[derive(Clone)]
@@ -152,11 +152,21 @@ fn parse_igp_events(boc: &str) -> Result<InterchainGasPayment, ChainCommunicatio
     })?;
     let message_id = H256::from_slice(message_id.to_bytes_be().as_slice());
 
-    let parser = parser.next_reference().expect("");
-    let mut parser = parser.references().first().expect("").parser();
+    let reference = parser
+        .next_reference()
+        .map_err(|e| {
+            TonCellError::BagOfCellsDeserializationError(format!(
+                "Failed to load next reference: {:?}",
+                e
+            ))
+        })
+        .unwrap();
+
+    let mut parser = reference.parser();
     let dest_domain = parser.load_uint(32).map_err(|e| {
         ChainCommunicationError::CustomError(format!("Failed to load dest_domain: {:?}", e))
     })?;
+
     let destination = u32::try_from(dest_domain).map_err(|_| {
         ChainCommunicationError::CustomError("Failed to convert dest_domain to u32".to_string())
     })?;
@@ -164,11 +174,13 @@ fn parse_igp_events(boc: &str) -> Result<InterchainGasPayment, ChainCommunicatio
     let gas_limit = parser.load_uint(256).map_err(|e| {
         ChainCommunicationError::CustomError(format!("Failed to load gas_limit: {:?}", e))
     })?;
+
     let payment = U256::from_big_endian(gas_limit.to_bytes_be().as_slice());
 
     let required_payment = parser.load_uint(256).map_err(|e| {
         ChainCommunicationError::CustomError(format!("Failed to load required_payment: {:?}", e))
     })?;
+
     let gas_amount = U256::from_big_endian(required_payment.to_bytes_be().as_slice());
 
     Ok(InterchainGasPayment {
