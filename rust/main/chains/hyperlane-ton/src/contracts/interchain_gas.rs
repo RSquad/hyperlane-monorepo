@@ -16,7 +16,9 @@ use std::{
     string::ToString,
 };
 use tonlib_core::{cell::TonCellError, TonAddress};
-use tracing::{info, warn};
+
+
+use tracing::warn;
 
 #[derive(Clone)]
 pub struct TonInterchainGasPaymaster {
@@ -65,7 +67,6 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        info!("fetch_logs_in_range in GasPaymster start");
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
 
