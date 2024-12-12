@@ -5,8 +5,7 @@ use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome, ValidatorAnnounce, H256,
-    U256,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
 use crate::run_get_method::StackItem;
@@ -189,17 +188,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        info!("announce call!");
-        info!(
-            "announcement value:{:?} signature:{:?}",
-            announcement.value, announcement.signature
-        );
-
-        info!(
-            "eth_signed_message_hash:{:x}",
-            announcement.value.eth_signed_message_hash()
-        );
-        info!("signing_hash:{:x}", announcement.value.signing_hash());
         let cell = self
             .build_announcement_cell(announcement)
             .map_err(|_e| ChainCommunicationError::CustomError(_e))?;
@@ -221,7 +209,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             data: Some(ArcCell::new(cell.clone())),
         }
         .build()
-        .expect("Failed create transfer message");
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to create transfer message in announce: {:?}",
+                e
+            ))
+        })?;
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Failed to build duration_since")
@@ -231,8 +224,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .provider
             .get_wallet_states(self.signer.address.to_hex())
             .await
-            .expect("Failed to get wallet state")
-            .wallets[0]
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to get wallet state:{:?}", e))
+            })?
+            .wallets
+            .get(0)
+            .ok_or_else(|| ChainCommunicationError::CustomError("No wallet found".to_string()))?
             .seqno as u32;
 
         let message = self
@@ -261,11 +258,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         let boc_str = general_purpose::STANDARD.encode(boc.clone());
         tracing::info!("create_external_message:{:?}", boc_str);
 
-        let tx = self
-            .provider
-            .send_message(boc_str)
-            .await
-            .expect("Failed to get tx");
+        let tx = self.provider.send_message(boc_str).await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to send message in provider{:?}",
+                e
+            ))
+        })?;
         tracing::info!("Tx hash:{:?}", tx.message_hash);
 
         self.provider.wait_for_transaction(tx.message_hash).await

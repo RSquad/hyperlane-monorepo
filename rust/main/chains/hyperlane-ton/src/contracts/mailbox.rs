@@ -461,7 +461,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
 impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        info!("Tip:{:?}", tip);
+
         let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }
