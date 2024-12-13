@@ -382,16 +382,18 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         let start_block = *range.start();
         let end_block = *range.end();
 
-        let start_utime = self
+        let timestamps = self
             .mailbox
             .provider
-            .fetch_block_timestamp(start_block)
+            .fetch_blocks_timestamps(vec![start_block, end_block])
             .await?;
-        let end_utime = self
-            .mailbox
-            .provider
-            .fetch_block_timestamp(end_block)
-            .await?;
+
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get start_utime".to_string())
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get end_utime".to_string())
+        })?;
 
         let messages = self
             .mailbox
@@ -428,7 +430,9 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                     .map(|hyperlane_message| {
                         let index_event = Indexed::from(hyperlane_message);
                         let log_meta = LogMeta {
-                            address: Default::default(),
+                            address: ConversionUtils::ton_address_to_h256(
+                                &self.mailbox.mailbox_address,
+                            ),
                             block_number: 0,
                             block_hash: Default::default(),
                             transaction_id: Default::default(),

@@ -7,7 +7,7 @@ use derive_new::new;
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256, U256,
+    SequenceAwareIndexer, H256, H512, U256,
 };
 use std::{
     cmp::max,
@@ -16,7 +16,7 @@ use std::{
     string::ToString,
 };
 use tonlib_core::{cell::TonCellError, TonAddress};
-use tracing::warn;
+use tracing::{info, warn};
 
 #[derive(Clone)]
 pub struct TonInterchainGasPaymaster {
@@ -65,11 +65,21 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
+        info!("fetch_logs_in_range in GasPaymster start");
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
 
-        let start_utime = self.provider.fetch_block_timestamp(start_block).await?;
-        let end_utime = self.provider.fetch_block_timestamp(end_block).await?;
+        let timestamps = self
+            .provider
+            .fetch_blocks_timestamps(vec![start_block, end_block])
+            .await?;
+
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get start_utime".to_string())
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get end_utime".to_string())
+        })?;
 
         let message_response = self
             .provider
@@ -101,12 +111,12 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                     Ok(event) => Some((
                         Indexed::new(event),
                         LogMeta {
-                            address: Default::default(),
+                            address: ConversionUtils::ton_address_to_h256(&self.igp_address),
                             block_number: 0,
-                            block_hash: Default::default(),
-                            transaction_id: Default::default(),
+                            block_hash: H256::zero(),
+                            transaction_id: H512::zero(),
                             transaction_index: 0,
-                            log_index: Default::default(),
+                            log_index: U256::zero(),
                         },
                     )),
                     Err(e) => {

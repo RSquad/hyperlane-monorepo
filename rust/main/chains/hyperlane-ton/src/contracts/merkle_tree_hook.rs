@@ -134,8 +134,17 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         let start_block = *_range.start();
         let end_block = *_range.end();
 
-        let start_utime = self.provider.fetch_block_timestamp(start_block).await?;
-        let end_utime = self.provider.fetch_block_timestamp(end_block).await?;
+        let timestamps = self
+            .provider
+            .fetch_blocks_timestamps(vec![start_block, end_block])
+            .await?;
+
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get start_utime".to_string())
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get end_utime".to_string())
+        })?;
 
         let messages = self
             .provider
