@@ -1,5 +1,3 @@
-#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
-
 use crate::logging::log;
 use crate::program::Program;
 use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
