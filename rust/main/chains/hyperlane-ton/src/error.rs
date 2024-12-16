@@ -48,6 +48,8 @@ pub enum HyperlaneTonError {
     UnknownError(String),
     #[error("Timeout request")]
     Timeout,
+    #[error("Ton message error")]
+    TonMessageError(String),
 }
 
 impl From<HyperlaneTonError> for ChainCommunicationError {

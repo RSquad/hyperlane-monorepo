@@ -126,7 +126,12 @@ impl HyperlaneProvider for TonProvider {
             )))
         })?;
 
-        let hash = ConversionUtils::base64_to_h256(block.root_hash.as_str())?;
+        let hash = ConversionUtils::base64_to_h256(block.root_hash.as_str()).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse hash timestamp: {:?}",
+                e
+            )))
+        })?;
 
         Ok(BlockInfo {
             hash,
