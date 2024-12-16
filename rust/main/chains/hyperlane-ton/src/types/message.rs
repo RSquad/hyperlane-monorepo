@@ -25,18 +25,11 @@ pub struct Message {
     pub ihr_disabled: Option<bool>,
     pub ihr_fee: Option<String>,
     pub import_fee: Option<String>,
-    pub init_state: Option<MessageState>,
+    pub init_state: Option<MessageContent>,
     pub message_content: MessageContent,
     pub opcode: Option<String>,
     pub source: Option<String>,
     pub value: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct MessageState {
-    pub body: String,
-    pub decoded: Option<DecodedMessage>,
-    pub hash: String,
 }
 
 #[derive(Debug, Deserialize)]
