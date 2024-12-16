@@ -7,6 +7,7 @@ use crate::types::{
     wallet_state::WalletStatesResponse,
 };
 use async_trait::async_trait;
+use hyperlane_core::ChainResult;
 
 #[async_trait]
 pub trait TonApiCenter {
@@ -25,7 +26,7 @@ pub trait TonApiCenter {
         limit: Option<u32>,
         offset: Option<u32>,
         sort: Option<String>,
-    ) -> Result<MessageResponse, Box<dyn std::error::Error>>;
+    ) -> ChainResult<MessageResponse>;
 
     async fn get_transactions(
         &self,
@@ -44,37 +45,34 @@ pub trait TonApiCenter {
         limit: Option<u32>,
         offset: Option<u32>,
         sort: Option<String>,
-    ) -> Result<TransactionResponse, Box<dyn std::error::Error>>;
+    ) -> ChainResult<TransactionResponse>;
 
     async fn get_account_state(
         &self,
         address: String,
         include_boc: bool,
-    ) -> Result<AccountStateResponse, Box<dyn std::error::Error>>;
+    ) -> ChainResult<AccountStateResponse>;
 
     async fn run_get_method(
         &self,
         address: String,
         method: String,
         stack: Option<Vec<StackItem>>,
-    ) -> Result<RunGetMethodResponse, Box<dyn std::error::Error + Send + Sync>>;
+    ) -> ChainResult<RunGetMethodResponse>;
 
     async fn send_message(
         &self,
         boc: String, // base64-encoded boc
-    ) -> Result<SendMessageResponse, Box<dyn std::error::Error>>;
+    ) -> ChainResult<SendMessageResponse>;
 
-    async fn get_wallet_states(
-        &self,
-        account: String,
-    ) -> Result<WalletStatesResponse, Box<dyn std::error::Error>>;
+    async fn get_wallet_states(&self, account: String) -> ChainResult<WalletStatesResponse>;
 
     async fn get_transaction_by_message(
         &self,
         msg_hash: String,
         body_hash: Option<String>,
         opcode: Option<String>,
-    ) -> Result<TransactionResponse, Box<dyn std::error::Error>>;
+    ) -> ChainResult<TransactionResponse>;
 
     async fn get_blocks(
         &self,
@@ -89,5 +87,5 @@ pub trait TonApiCenter {
         limit: Option<u32>,
         offset: Option<u32>,
         sort: Option<String>,
-    ) -> Result<BlockResponse, Box<dyn std::error::Error>>;
+    ) -> ChainResult<BlockResponse>;
 }

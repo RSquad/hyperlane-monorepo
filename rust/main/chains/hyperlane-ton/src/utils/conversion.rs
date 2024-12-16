@@ -22,6 +22,20 @@ impl ConversionUtils {
 
         Ok(H512::from_slice(&padded))
     }
+    pub fn base64_to_h256(hash: &str) -> Result<H256, Error> {
+        let decoded_bytes = general_purpose::STANDARD
+            .decode(hash)
+            .map_err(|e| Error::msg(format!("Failed to decode base64: {}", e)))?;
+
+        if decoded_bytes.len() != 32 {
+            return Err(Error::msg(format!(
+                "Decoded bytes length is {}. Expected 32 bytes.",
+                decoded_bytes.len()
+            )));
+        }
+
+        Ok(H256::from_slice(&decoded_bytes))
+    }
 
     pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, TonCellError> {
         let mut writer = CellBuilder::new();

@@ -1,26 +1,5 @@
 use hyperlane_core::ChainCommunicationError;
-use std::error::Error as StdError;
-use std::fmt::{self, Display, Formatter};
 use thiserror::Error;
-
-#[derive(Debug)]
-pub struct CustomHyperlaneError(pub String);
-
-impl Display for CustomHyperlaneError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl StdError for CustomHyperlaneError {}
-
-#[derive(Debug, Error)]
-pub enum TonProviderError {
-    #[error("Failed to fetch latest block: {0}")]
-    FetchError(String),
-    #[error("No blocks found in the response")]
-    NoBlocksFound,
-}
 
 /// Errors specific to the Hyperlane-TON implementation.
 #[derive(Debug, Error)]
@@ -41,6 +20,8 @@ pub enum HyperlaneTonError {
     ApiRateLimitExceeded,
     #[error("API request failed")]
     ApiRequestFailed(String),
+    #[error("Reqwest error: {0}")]
+    ReqwestError(#[from] reqwest::Error),
     /// Error while making a call to a smart contract
     #[error("Contract call failed: {0}")]
     ContractCallError(String),
@@ -49,10 +30,7 @@ pub enum HyperlaneTonError {
     InsufficientGas,
     /// Insufficient funds
     #[error("Insufficient funds. Required: {required:?}, available: {available:?}")]
-    InsufficientFunds {
-        required: u64,
-        available: u64,
-    },
+    InsufficientFunds { required: u64, available: u64 },
     /// Data parsing error
     #[error("Data parsing error: {0}")]
     ParsingError(String),
@@ -68,6 +46,7 @@ pub enum HyperlaneTonError {
     /// Unknown error
     #[error("Unknown error: {0}")]
     UnknownError(String),
+    #[error("Timeout request")]
     Timeout,
 }
 
