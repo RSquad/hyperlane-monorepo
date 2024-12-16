@@ -1,19 +1,21 @@
-use crate::client::provider::TonProvider;
-use crate::error::HyperlaneTonError;
-use crate::ton_api_center::TonApiCenter;
-use crate::utils::conversion::ConversionUtils;
+use std::ops::RangeInclusive;
+
 use async_trait::async_trait;
-use hyperlane_core::accumulator::incremental::IncrementalMerkle;
-use hyperlane_core::accumulator::{TREE_DEPTH, ZERO_HASHES};
+use num_traits::ToPrimitive;
+use tonlib_core::TonAddress;
+use tracing::warn;
+
 use hyperlane_core::{
+    accumulator::{incremental::IncrementalMerkle, TREE_DEPTH, ZERO_HASHES},
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
-use num_traits::ToPrimitive;
-use std::ops::RangeInclusive;
-use tonlib_core::TonAddress;
-use tracing::warn;
+
+use crate::{
+    client::provider::TonProvider, error::HyperlaneTonError, ton_api_center::TonApiCenter,
+    utils::conversion::ConversionUtils,
+};
 
 #[derive(Debug, Clone)]
 /// A reference to a MerkleTreeHook contract on some TON chain

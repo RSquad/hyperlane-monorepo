@@ -1,25 +1,27 @@
-use crate::client::provider::TonProvider;
-use crate::signer::signer::TonSigner;
-use crate::traits::ton_api_center::TonApiCenter;
-use crate::utils::conversion::ConversionUtils;
+use std::{
+    fmt::{Debug, Formatter},
+    time::SystemTime,
+};
+
 use async_trait::async_trait;
+use base64::{engine::general_purpose, Engine};
+use log::info;
+use num_bigint::BigUint;
+use tonlib_core::{
+    cell::{ArcCell, BagOfCells, Cell, CellBuilder},
+    message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
+    TonAddress,
+};
+
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
-use crate::error::HyperlaneTonError;
-use crate::run_get_method::StackItem;
-use base64::engine::general_purpose;
-use base64::Engine;
-use log::info;
-use num_bigint::BigUint;
-use std::fmt::{Debug, Formatter};
-use std::time::SystemTime;
-use tonlib_core::{
-    cell::{ArcCell, BagOfCells, Cell, CellBuilder},
-    message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
-    TonAddress,
+use crate::{
+    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackItem,
+    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
+    utils::conversion::ConversionUtils,
 };
 
 pub struct TonValidatorAnnounce {
