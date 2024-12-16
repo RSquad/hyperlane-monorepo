@@ -12,7 +12,7 @@ use crate::error::HyperlaneTonError;
 use crate::run_get_method::StackItem;
 use base64::engine::general_purpose;
 use base64::Engine;
-use log::{info, warn};
+use log::info;
 use num_bigint::BigUint;
 use std::fmt::{Debug, Formatter};
 use std::time::SystemTime;

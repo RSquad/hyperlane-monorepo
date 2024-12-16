@@ -15,7 +15,7 @@ use std::{
     ops::RangeInclusive,
     string::ToString,
 };
-use tonlib_core::{cell::TonCellError, TonAddress};
+use tonlib_core::TonAddress;
 
 use crate::error::HyperlaneTonError;
 use tracing::{info, warn};

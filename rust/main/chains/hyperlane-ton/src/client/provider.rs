@@ -14,6 +14,7 @@ use tokio::time::sleep;
 
 use crate::error::HyperlaneTonError;
 
+use crate::constants::WORKCHAIN_MASTERCHAIN;
 use crate::run_get_method::StackItem;
 use crate::{
     trait_builder::TonConnectionConf,
@@ -93,7 +94,7 @@ impl HyperlaneProvider for TonProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let response = self
             .get_blocks(
-                -1, // Masterchain
+                WORKCHAIN_MASTERCHAIN, // Masterchain
                 None,
                 Some(height),
                 None,
@@ -852,7 +853,7 @@ impl TonProvider {
     pub async fn fetch_block_timestamp(&self, block_seqno: u32) -> ChainResult<i64> {
         let response = self
             .get_blocks(
-                -1, // masterchain
+                WORKCHAIN_MASTERCHAIN, // masterchain
                 None,
                 None,
                 Some(block_seqno), // Masterchain block seqno
@@ -887,10 +888,10 @@ impl TonProvider {
     pub async fn get_finalized_block(&self) -> ChainResult<u32> {
         let response = self
             .get_blocks(
-                -1,   // masterchain
-                None, // shard
-                None, // Block block seqno
-                None, // Masterchain block seqno
+                WORKCHAIN_MASTERCHAIN, // masterchain
+                None,                  // shard
+                None,                  // Block block seqno
+                None,                  // Masterchain block seqno
                 None,
                 None,
                 None,
@@ -922,10 +923,10 @@ impl TonProvider {
         for block in blocks {
             let response = self
                 .get_blocks(
-                    -1,          // masterchain
-                    None,        // shard
-                    None,        // block seqno
-                    Some(block), // masterchain seqno
+                    WORKCHAIN_MASTERCHAIN, // masterchain
+                    None,                  // shard
+                    None,                  // block seqno
+                    Some(block),           // masterchain seqno
                     None,
                     None,
                     None,
