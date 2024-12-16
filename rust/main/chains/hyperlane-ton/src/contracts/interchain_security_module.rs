@@ -80,35 +80,30 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         let response = self
             .provider
             .run_get_method(self.ism_address.to_hex(), function_name, None)
-            .await;
-
-        if let Ok(response) = response {
-            info!("Response runGetMethod:{:?}", response);
-            if let Some(stack_item) = response.stack.get(0) {
-                if let Ok(module_type_value) = u32::from_str_radix(&stack_item.value[2..], 16) {
-                    info!("Module type value:{:?}", module_type_value);
-                    if let Some(module_type) = ModuleType::from_u32(module_type_value) {
-                        info!("Module Type:{:?}", module_type);
-                        Ok(module_type)
-                    } else {
-                        warn!("Unknown module type:{:?}", module_type_value);
-                        Ok(ModuleType::Unused)
-                    }
-                } else {
-                    Err(ChainCommunicationError::CustomError(
-                        "Failed to parse module type value".to_string(),
-                    ))
-                }
-            } else {
-                Err(ChainCommunicationError::CustomError(
-                    "Empty stack in response".to_string(),
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to run get_module_type method: {:?}",
+                    e
                 ))
-            }
-        } else {
-            Err(ChainCommunicationError::CustomError(
-                "Failed to get response".to_string(),
+            })?;
+
+        let stack_item = response.stack.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Empty stack in response".to_string())
+        })?;
+        let module_type_value = u32::from_str_radix(&stack_item.value[2..], 16).map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse module type value: {:?}",
+                e
             ))
-        }
+        })?;
+        let module_type = ModuleType::from_u32(module_type_value).ok_or_else(|| {
+            ChainCommunicationError::CustomError(format!(
+                "Unknown module type value: {:?}",
+                module_type_value
+            ))
+        })?;
+        Ok(module_type)
     }
 
     async fn dry_run_verify(
@@ -142,7 +137,6 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             ChainCommunicationError::CustomError(format!("Failed to build message: {}", e))
         })?;
 
-        info!("Msg cell:{:?}", msg);
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
             bounce: false,
@@ -214,7 +208,6 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
                 ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
             })?;
         let boc_str = base64::engine::general_purpose::STANDARD.encode(boc.clone());
-        info!("external_message:{:?}", boc_str);
 
         let tx = self.provider.send_message(boc_str).await.map_err(|e| {
             ChainCommunicationError::CustomError(format!("Failed to send message: {}", e))

@@ -5,8 +5,7 @@ use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
 use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Signable, SignedType, TxOutcome, ValidatorAnnounce, H256,
-    U256,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
 use crate::run_get_method::StackItem;
@@ -120,10 +119,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        info!(
-            "get_announced_storage_locations call! validators:{:?}",
-            validators
-        );
         let function_name = "get_announced_storage_locations".to_string();
         let validators_cell =
             ConversionUtils::create_address_linked_cells(&validators).map_err(|_| {
@@ -158,52 +153,41 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             )));
         }
 
-        if let Some(stack_item) = response.stack.get(0) {
-            let cell_boc_decoded = general_purpose::STANDARD
-                .decode(&stack_item.value)
-                .map_err(|_| {
-                    ChainCommunicationError::CustomError(
-                        "Failed to decode cell BOC from response".to_string(),
-                    )
-                })?;
+        let stack_item = response.stack.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError(
+                "Response stack is empty or missing required item".to_string(),
+            )
+        })?;
 
-            let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
-                ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
+        let cell_boc_decoded = general_purpose::STANDARD
+            .decode(&stack_item.value)
+            .map_err(|_| {
+                ChainCommunicationError::CustomError(
+                    "Failed to decode cell BOC from response".to_string(),
+                )
             })?;
 
-            let cell = boc.single_root().map_err(|_e| {
-                ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", _e))
+        let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|_e| {
+            ChainCommunicationError::CustomError(format!("Failed to parse BOC: {}", _e))
+        })?;
+
+        let cell = boc.single_root().map_err(|_e| {
+            ChainCommunicationError::CustomError(format!("Failed to get root cell: {}", _e))
+        })?;
+
+        let storage_locations =
+            ConversionUtils::parse_address_storage_locations(&cell).map_err(|_e| {
+                ChainCommunicationError::CustomError(format!(
+                    "Failed to parse address storage locations: {}",
+                    _e
+                ))
             })?;
 
-            let storage_locations = ConversionUtils::parse_address_storage_locations(&cell)
-                .map_err(|_e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to parse address storage locations: {}",
-                        _e
-                    ))
-                })?;
-            info!("storage_locations:{:?}", storage_locations);
-
-            let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
-            info!("locations_vec:{:?}", locations_vec);
-            Ok(locations_vec)
-        } else {
-            Ok(vec![vec![]])
-        }
+        let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
+        Ok(locations_vec)
     }
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
-        info!("announce call!");
-        info!(
-            "announcement value:{:?} signature:{:?}",
-            announcement.value, announcement.signature
-        );
-
-        info!(
-            "eth_signed_message_hash:{:x}",
-            announcement.value.eth_signed_message_hash()
-        );
-        info!("signing_hash:{:x}", announcement.value.signing_hash());
         let cell = self
             .build_announcement_cell(announcement)
             .map_err(|_e| ChainCommunicationError::CustomError(_e))?;
@@ -225,7 +209,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             data: Some(ArcCell::new(cell.clone())),
         }
         .build()
-        .expect("Failed create transfer message");
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to create transfer message in announce: {:?}",
+                e
+            ))
+        })?;
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("Failed to build duration_since")
@@ -235,8 +224,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             .provider
             .get_wallet_states(self.signer.address.to_hex())
             .await
-            .expect("Failed to get wallet state")
-            .wallets[0]
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("Failed to get wallet state:{:?}", e))
+            })?
+            .wallets
+            .get(0)
+            .ok_or_else(|| ChainCommunicationError::CustomError("No wallet found".to_string()))?
             .seqno as u32;
 
         let message = self
@@ -265,11 +258,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         let boc_str = general_purpose::STANDARD.encode(boc.clone());
         tracing::info!("create_external_message:{:?}", boc_str);
 
-        let tx = self
-            .provider
-            .send_message(boc_str)
-            .await
-            .expect("Failed to get tx");
+        let tx = self.provider.send_message(boc_str).await.map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to send message in provider{:?}",
+                e
+            ))
+        })?;
         tracing::info!("Tx hash:{:?}", tx.message_hash);
 
         self.provider.wait_for_transaction(tx.message_hash).await

@@ -10,7 +10,7 @@ use std::{
     ops::RangeInclusive,
     time::SystemTime,
 };
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use tonlib_core::cell::TonCellError;
 use tonlib_core::message::{InternalMessage, TonMessage};
@@ -382,48 +382,18 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         let start_block = *range.start();
         let end_block = *range.end();
 
-        let fetch_block_info = |block: u32| async move {
-            self.mailbox
-                .provider
-                .get_blocks(
-                    -1,          // masterchain (workchain = -1)
-                    None,        // shard
-                    None,        // Block block seqno
-                    Some(block), // Masterchain block seqno
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                    None,
-                )
-                .await
-                .map_err(|e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to fetch block info for block {}: {:?}",
-                        block, e
-                    ))
-                })?
-                .blocks
-                .get(0)
-                .ok_or_else(|| {
-                    ChainCommunicationError::CustomError(
-                        "No blocks found in the response".to_string(),
-                    )
-                })?
-                .gen_utime
-                .parse::<i64>()
-                .map_err(|e| {
-                    ChainCommunicationError::CustomError(format!(
-                        "Failed to parse block timestamp: {:?}",
-                        e
-                    ))
-                })
-        };
+        let timestamps = self
+            .mailbox
+            .provider
+            .fetch_blocks_timestamps(vec![start_block, end_block])
+            .await?;
 
-        let start_utime = fetch_block_info(start_block).await?;
-        let end_utime = fetch_block_info(end_block).await?;
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get start_utime".to_string())
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::CustomError("Failed to get end_utime".to_string())
+        })?;
 
         let messages = self
             .mailbox
@@ -460,7 +430,9 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                     .map(|hyperlane_message| {
                         let index_event = Indexed::from(hyperlane_message);
                         let log_meta = LogMeta {
-                            address: Default::default(),
+                            address: ConversionUtils::ton_address_to_h256(
+                                &self.mailbox.mailbox_address,
+                            ),
                             block_number: 0,
                             block_hash: Default::default(),
                             transaction_id: Default::default(),
@@ -476,40 +448,15 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
-        let response = self
-            .mailbox
+        self.mailbox
             .provider
-            .get_blocks(
-                -1,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some(1),
-                None,
-                None,
-            )
+            .get_finalized_block()
             .await
             .map_err(|e| {
                 ChainCommunicationError::CustomError(format!(
-                    "Failed to fetch latest block: {:?}",
+                    "Failed to fetch finalized block number for TonMailboxIndexer: {:?}",
                     e
                 ))
-            })?;
-
-        response
-            .blocks
-            .first()
-            .map(|block| {
-                info!("Latest block found: {:?}", block);
-                block.seqno as u32
-            })
-            .ok_or_else(|| {
-                warn!("No blocks found in the response: {:?}", response);
-                ChainCommunicationError::CustomError("No blocks found".to_string())
             })
     }
 }
@@ -518,7 +465,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
 impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
         let tip = Indexer::<HyperlaneMessage>::get_finalized_block_number(self).await?;
-        info!("Tip:{:?}", tip);
+
         let count = Mailbox::count(&self.mailbox, &ReorgPeriod::None).await?;
         Ok((Some(count), tip))
     }

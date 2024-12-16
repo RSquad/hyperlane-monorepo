@@ -40,16 +40,12 @@ impl MultisigIsm for TonMultisigIsm {
         &self,
         message: &HyperlaneMessage,
     ) -> ChainResult<(Vec<H256>, u8)> {
-        info!("validators_and_threshold call");
         let domain = message.origin;
-
-        info!("Domain:{:?}", domain);
 
         let stack = Some(vec![StackItem {
             r#type: "num".to_string(),
             value: domain.to_string(),
         }]);
-        info!("Stack:{:?}", stack);
 
         let function_name = "get_validators_and_threshhold".to_string();
         let response = self
@@ -73,7 +69,6 @@ impl MultisigIsm for TonMultisigIsm {
                 e
             ))
         })?;
-        info!("threshold:{:?}", threshold);
 
         let cell_stack_item = response.stack.get(1).ok_or_else(|| {
             ChainCommunicationError::CustomError("No cell stack item in response".to_string())

@@ -13,7 +13,7 @@ use reqwest::{Client, Response};
 use serde_json::{json, Value};
 use tokio::time::sleep;
 
-use crate::client::error::CustomHyperlaneError;
+use crate::error::{CustomHyperlaneError, TonProviderError};
 use crate::run_get_method::StackItem;
 use crate::{
     trait_builder::TonConnectionConf,
@@ -642,8 +642,6 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> Result<BlockResponse, Box<dyn Error>> {
-        info!("Fetching blocks by parameters");
-
         let url = self.connection_conf.url.join("v3/blocks").map_err(|e| {
             warn!("Failed to construct transactions URL: {:?}", e);
             ChainCommunicationError::Other(HyperlaneCustomErrorWrapper::new(Box::new(e)))
@@ -769,5 +767,115 @@ impl TonProvider {
         }
 
         Err(ChainCommunicationError::CustomError("Timeout".to_string()))
+    }
+
+    pub async fn fetch_block_timestamp(&self, block_seqno: u32) -> ChainResult<i64> {
+        self.get_blocks(
+            -1,                // masterchain (workchain = -1)
+            None,              // shard
+            None,              // Block block seqno
+            Some(block_seqno), // Masterchain block seqno
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to fetch block info for block {}: {:?}",
+                block_seqno, e
+            ))
+        })?
+        .blocks
+        .get(0)
+        .ok_or_else(|| {
+            ChainCommunicationError::CustomError("No blocks found in the response".to_string())
+        })?
+        .gen_utime
+        .parse::<i64>()
+        .map_err(|e| {
+            ChainCommunicationError::CustomError(format!(
+                "Failed to parse block timestamp: {:?}",
+                e
+            ))
+        })
+    }
+    pub async fn get_finalized_block(&self) -> Result<u32, TonProviderError> {
+        self.get_blocks(
+            -1,   // masterchain
+            None, // shard
+            None, // Block block seqno
+            None, // Masterchain block seqno
+            None,
+            None,
+            None,
+            None,
+            Some(1), // Limit: 1
+            None,
+            None,
+        )
+        .await
+        .map_err(|e| {
+            TonProviderError::FetchError(format!("Failed to fetch latest block: {:?}", e))
+        })?
+        .blocks
+        .first()
+        .map(|block| {
+            tracing::info!("Latest block found: {:?}", block);
+            block.seqno as u32
+        })
+        .ok_or_else(|| {
+            tracing::warn!("No blocks found in the response");
+            TonProviderError::NoBlocksFound
+        })
+    }
+    pub async fn fetch_blocks_timestamps(&self, blocks: Vec<u32>) -> ChainResult<Vec<i64>> {
+        let mut timestamps = Vec::new();
+
+        for block in blocks {
+            let response = self
+                .get_blocks(
+                    -1,          // masterchain
+                    None,        // shard
+                    None,        // block seqno
+                    Some(block), // masterchain seqno
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to get information for the block {}: {:?}",
+                        block, e
+                    ))
+                })?;
+
+            let block_info = response.blocks.get(0).ok_or_else(|| {
+                ChainCommunicationError::CustomError(format!(
+                    "The block with seqno {} was not found in the response",
+                    block
+                ))
+            })?;
+
+            let timestamp = block_info.gen_utime.parse::<i64>().map_err(|e| {
+                ChainCommunicationError::CustomError(format!(
+                    "The timestamp for the block could not be parsed {}: {:?}",
+                    block, e
+                ))
+            })?;
+
+            timestamps.push(timestamp);
+        }
+
+        Ok(timestamps)
     }
 }

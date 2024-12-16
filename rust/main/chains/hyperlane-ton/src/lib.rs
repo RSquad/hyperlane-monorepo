@@ -1,7 +1,7 @@
 //! Implementation of hyperlane for Ton.
-
 mod client;
 mod contracts;
+mod error;
 pub mod signer;
 mod trait_builder;
 mod traits;
