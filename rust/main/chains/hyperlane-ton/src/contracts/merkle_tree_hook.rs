@@ -1,4 +1,5 @@
 use crate::client::provider::TonProvider;
+use crate::error::HyperlaneTonError;
 use crate::ton_api_center::TonApiCenter;
 use crate::utils::conversion::ConversionUtils;
 use async_trait::async_trait;
@@ -140,10 +141,14 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             .await?;
 
         let start_utime = *timestamps.get(0).ok_or_else(|| {
-            ChainCommunicationError::CustomError("Failed to get start_utime".to_string())
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get start_utime".to_string(),
+            ))
         })?;
         let end_utime = *timestamps.get(1).ok_or_else(|| {
-            ChainCommunicationError::CustomError("Failed to get end_utime".to_string())
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get end_utime".to_string(),
+            ))
         })?;
 
         let messages = self
@@ -165,10 +170,10 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             )
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
                     "Failed to fetch messages in range: {:?}",
                     e
-                ))
+                )))
             })?;
 
         let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = messages
@@ -229,10 +234,11 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
         self.provider.get_finalized_block().await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
-                "Failed to fetch finalized block number for TonMerkleTreeHookIndexer: {:?}",
+            HyperlaneTonError::ApiRequestFailed(format!(
+                "Failed to fetch finalized block number for TonMailboxIndexer: {:?}",
                 e
             ))
+            .into()
         })
     }
 }

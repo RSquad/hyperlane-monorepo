@@ -21,6 +21,7 @@ use tonlib_core::{
 use tracing::info;
 
 use crate::client::provider::TonProvider;
+use crate::error::HyperlaneTonError;
 use crate::signer::signer::TonSigner;
 use crate::traits::ton_api_center::TonApiCenter;
 use crate::utils::conversion::ConversionUtils;
@@ -82,27 +83,32 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             .run_get_method(self.ism_address.to_hex(), function_name, None)
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
                     "Failed to run get_module_type method: {:?}",
                     e
-                ))
+                )))
             })?;
 
         let stack_item = response.stack.get(0).ok_or_else(|| {
-            ChainCommunicationError::CustomError("Empty stack in response".to_string())
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Empty stack in response".to_string(),
+            ))
         })?;
+
         let module_type_value = u32::from_str_radix(&stack_item.value[2..], 16).map_err(|e| {
-            ChainCommunicationError::CustomError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse module type value: {:?}",
                 e
-            ))
+            )))
         })?;
+
         let module_type = ModuleType::from_u32(module_type_value).ok_or_else(|| {
-            ChainCommunicationError::CustomError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Unknown module type value: {:?}",
                 module_type_value
-            ))
+            )))
         })?;
+
         Ok(module_type)
     }
 
@@ -112,15 +118,17 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
         let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
-            ChainCommunicationError::ParseError {
-                msg: format!("Failed to parse HyperlaneMessage to Ton Cell:{:?}", e),
-            }
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse HyperlaneMessage to Ton Cell: {:?}",
+                e
+            )))
         })?;
 
         let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
-            ChainCommunicationError::ParseError {
-                msg: format!("Failed to parse metadata to Ton Cell:{:?}", e),
-            }
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse metadata to Ton Cell: {:?}",
+                e
+            )))
         })?;
 
         let query_id = 1;
@@ -134,7 +142,10 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             block_number,
         )
         .map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to build message: {}", e))
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to build message: {}",
+                e
+            )))
         })?;
 
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
@@ -157,16 +168,19 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         }
         .build()
         .map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to create transferMessage: {}", e))
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to create transferMessage: {}",
+                e
+            )))
         })?;
 
         let now = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Failed to build duration_since: {:?}",
                     e
-                ))
+                )))
             })?
             .as_secs() as u32;
 
@@ -175,14 +189,19 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
             .get_wallet_states(self.signer.address.to_hex())
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get wallet state: {:?}", e))
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to get wallet state: {:?}",
+                    e
+                )))
             })?;
 
         let seqno = wallet_state_response
             .wallets
             .get(0)
             .ok_or_else(|| {
-                ChainCommunicationError::CustomError("Wallet state is empty".to_string())
+                ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                    "Wallet state is empty".to_string(),
+                ))
             })?
             .seqno as u32;
 
@@ -196,21 +215,27 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
                 false,
             )
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
                     "Failed to create external message: {}",
                     e
-                ))
+                )))
             })?;
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to serialize BOC: {}",
+                    e
+                )))
             })?;
         let boc_str = base64::engine::general_purpose::STANDARD.encode(boc.clone());
 
         let tx = self.provider.send_message(boc_str).await.map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to send message: {}", e))
+            ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                "Failed to send message: {}",
+                e
+            )))
         })?;
         info!("Tx hash:{:?}", tx.message_hash);
 
