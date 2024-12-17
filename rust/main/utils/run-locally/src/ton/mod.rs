@@ -17,22 +17,6 @@ use crate::{
 };
 mod types;
 
-const KEY_VALIDATOR1: (&str, &str) = (
-    "validator1",
-    "trend inflict kit vehicle gown route never damage spawn moon host tissue \
-                     section drink creek erupt comic future link neutral seek nerve sugar degree",
-);
-const KEY_VALIDATOR2: (&str, &str) = (
-    "validator2",
-    "tell february meat pulp present shuffle round stove ginger kit like crack ill \
-                     fence village gain answer route discover egg quiz dignity ocean water",
-);
-const KEY_RELAYER: (&str, &str) = ("relayer", "coffee foster dentist begin spirit pioneer someone peace bleak story door wasp clerk invest safe negative junk bacon hollow banana nation impact crowd kitchen");
-
-fn default_keys<'a>() -> [(&'a str, &'a str); 3] {
-    [KEY_VALIDATOR1, KEY_VALIDATOR2, KEY_RELAYER]
-}
-
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
@@ -51,6 +35,7 @@ impl Drop for TonHyperlaneStack {
     }
 }
 
+#[allow(dead_code)]
 fn run_locally() {
     info!("Start run_locally() for Ton");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
