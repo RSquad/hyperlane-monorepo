@@ -1,17 +1,20 @@
-#![allow(dead_code)] // TODO: `rustc` 1.80.1 clippy issue
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    thread::sleep,
+    time::Duration,
+};
 
-use crate::logging::log;
-use crate::program::Program;
-use crate::utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle};
-
-use crate::ton::types::{generate_ton_config, TonAgentConfig};
 use log::info;
 use macro_rules_attribute::apply;
-use std::path::{Path, PathBuf};
-use std::thread::sleep;
-use std::time::Duration;
-use std::{env, fs};
 use tempfile::tempdir;
+
+use crate::{
+    logging::log,
+    program::Program,
+    ton::types::{generate_ton_config, TonAgentConfig},
+    utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
+};
 mod deploy;
 mod types;
 

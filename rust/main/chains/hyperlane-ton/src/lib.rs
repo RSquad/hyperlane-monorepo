@@ -18,5 +18,5 @@ pub use self::{
     trait_builder::*,
     traits::*,
     types::*,
-    utils::conversion::*,
+    utils::{constants, conversion::*},
 };
