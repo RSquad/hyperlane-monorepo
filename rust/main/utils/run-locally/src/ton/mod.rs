@@ -15,7 +15,6 @@ use crate::{
     ton::types::{generate_ton_config, TonAgentConfig},
     utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
 };
-mod deploy;
 mod types;
 
 const KEY_VALIDATOR1: (&str, &str) = (
