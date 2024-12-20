@@ -2,17 +2,18 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use derive_new::new;
-use hyperlane_core::{
-    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256,
-    H512, U256,
-};
 use log::{debug, info, warn};
 use reqwest::{Client, Response};
 use serde_json::{json, Value};
 use tokio::time::sleep;
 use tonlib_core::TonAddress;
 use url::Url;
+
+use hyperlane_core::{
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
+    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256,
+    H512, U256,
+};
 
 use crate::{
     constants::WORKCHAIN_MASTERCHAIN,
@@ -527,7 +528,7 @@ impl TonApiCenter for TonProvider {
             .await
             .map_err(|e| {
                 HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse AccountStateResponse: {:?}",
+                    "Failed to parse WalletInformation: {:?}",
                     e
                 ))
             })?;
