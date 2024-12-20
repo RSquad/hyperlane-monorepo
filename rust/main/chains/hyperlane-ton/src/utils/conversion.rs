@@ -2,6 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Error;
 use base64::{engine::general_purpose, Engine};
+use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneMessage, H256, H512, U256};
 use log::info;
 use num_bigint::BigUint;
 use tonlib_core::{
@@ -11,8 +12,6 @@ use tonlib_core::{
     },
     TonAddress, TonHash,
 };
-
-use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneMessage, H256, H512, U256};
 
 use crate::run_get_method::StackItem;
 
@@ -234,7 +233,7 @@ impl ConversionUtils {
                 TonCellError::CellBuilderError(format!("Failed to store sender: {:?}", e))
             })?;
         writer
-            .store_uint(8, &BigUint::from(message.destination))
+            .store_uint(32, &BigUint::from(message.destination))
             .map_err(|e| {
                 TonCellError::CellBuilderError(format!("Failed to store destination: {:?}", e))
             })?;
