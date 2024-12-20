@@ -2,18 +2,17 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use derive_new::new;
+use hyperlane_core::{
+    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
+    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256,
+    H512, U256,
+};
 use log::{debug, info, warn};
 use reqwest::{Client, Response};
 use serde_json::{json, Value};
 use tokio::time::sleep;
 use tonlib_core::TonAddress;
 use url::Url;
-
-use hyperlane_core::{
-    h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256,
-    H512, U256,
-};
 
 use crate::{
     constants::WORKCHAIN_MASTERCHAIN,
@@ -27,7 +26,7 @@ use crate::{
         message::{MessageResponse, SendMessageResponse},
         run_get_method::RunGetMethodResponse,
         transaction::TransactionResponse,
-        wallet_state::WalletStatesResponse,
+        wallet_state::{WalletInformation, WalletStatesResponse},
     },
     utils::conversion::ConversionUtils,
 };
@@ -493,6 +492,46 @@ impl TonApiCenter for TonProvider {
             })?;
 
         info!("Successfully retrieved account state response");
+        Ok(response)
+    }
+
+    async fn get_wallet_information(
+        &self,
+        address: &str,
+        use_v2: bool,
+    ) -> ChainResult<WalletInformation> {
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/walletInformation")
+            .map_err(|e| {
+                warn!("Failed to construct account state URL: {:?}", e);
+                HyperlaneTonError::UrlConstructionError(e.to_string())
+            })?;
+
+        let query_params: Vec<(&str, String)> = vec![
+            ("address", address.to_string()),
+            ("use_v2", use_v2.to_string()),
+        ];
+
+        let response = self
+            .query_request(url, &query_params)
+            .await
+            .map_err(|e| {
+                HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to send query request: {:?}",
+                    e
+                ))
+            })?
+            .json::<WalletInformation>()
+            .await
+            .map_err(|e| {
+                HyperlaneTonError::ParsingError(format!(
+                    "Failed to parse AccountStateResponse: {:?}",
+                    e
+                ))
+            })?;
+
         Ok(response)
     }
 

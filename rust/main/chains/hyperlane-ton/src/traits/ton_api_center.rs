@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-
 use hyperlane_core::ChainResult;
 
 use crate::{
@@ -10,7 +9,7 @@ use crate::{
         message::{MessageResponse, SendMessageResponse},
         run_get_method::RunGetMethodResponse,
         transaction::TransactionResponse,
-        wallet_state::WalletStatesResponse,
+        wallet_state::{WalletInformation, WalletStatesResponse},
     },
 };
 
@@ -57,6 +56,11 @@ pub trait TonApiCenter {
         address: String,
         include_boc: bool,
     ) -> ChainResult<AccountStateResponse>;
+    async fn get_wallet_information(
+        &self,
+        address: &str,
+        include_boc: bool,
+    ) -> ChainResult<WalletInformation>;
 
     async fn run_get_method(
         &self,
