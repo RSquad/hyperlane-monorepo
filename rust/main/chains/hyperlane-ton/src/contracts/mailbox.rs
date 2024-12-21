@@ -297,7 +297,7 @@ impl Mailbox for TonMailbox {
             bounced: false,
             src: self.signer.address.clone(),
             dest: self.mailbox_address.clone(),
-            value: BigUint::from(100000000u32),
+            value: BigUint::from(30000000u32),
             ihr_fee: Default::default(),
             fwd_fee: Default::default(),
             created_lt: 0,
@@ -328,20 +328,13 @@ impl Mailbox for TonMailbox {
 
         let seqno = self
             .provider
-            .get_wallet_states(self.signer.address.to_hex())
+            .get_wallet_information(self.signer.address.to_hex().as_str(), false)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
                     "Failed to get wallet state: {:?}",
                     e
                 )))
-            })?
-            .wallets
-            .get(0)
-            .ok_or_else(|| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                    "No wallet found".to_string(),
-                ))
             })?
             .seqno as u32;
 

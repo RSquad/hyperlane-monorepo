@@ -27,7 +27,7 @@ use crate::{
         message::{MessageResponse, SendMessageResponse},
         run_get_method::RunGetMethodResponse,
         transaction::TransactionResponse,
-        wallet_state::WalletStatesResponse,
+        wallet_state::{WalletInformation, WalletStatesResponse},
     },
     utils::conversion::ConversionUtils,
 };
@@ -493,6 +493,46 @@ impl TonApiCenter for TonProvider {
             })?;
 
         info!("Successfully retrieved account state response");
+        Ok(response)
+    }
+
+    async fn get_wallet_information(
+        &self,
+        address: &str,
+        use_v2: bool,
+    ) -> ChainResult<WalletInformation> {
+        let url = self
+            .connection_conf
+            .url
+            .join("v3/walletInformation")
+            .map_err(|e| {
+                warn!("Failed to construct account state URL: {:?}", e);
+                HyperlaneTonError::UrlConstructionError(e.to_string())
+            })?;
+
+        let query_params: Vec<(&str, String)> = vec![
+            ("address", address.to_string()),
+            ("use_v2", use_v2.to_string()),
+        ];
+
+        let response = self
+            .query_request(url, &query_params)
+            .await
+            .map_err(|e| {
+                HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to send query request: {:?}",
+                    e
+                ))
+            })?
+            .json::<WalletInformation>()
+            .await
+            .map_err(|e| {
+                HyperlaneTonError::ParsingError(format!(
+                    "Failed to parse WalletInformation: {:?}",
+                    e
+                ))
+            })?;
+
         Ok(response)
     }
 
