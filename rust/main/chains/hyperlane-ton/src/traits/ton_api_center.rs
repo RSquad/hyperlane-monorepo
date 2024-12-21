@@ -59,7 +59,7 @@ pub trait TonApiCenter {
     async fn get_wallet_information(
         &self,
         address: &str,
-        include_boc: bool,
+        use_v2: bool,
     ) -> ChainResult<WalletInformation>;
 
     async fn run_get_method(
