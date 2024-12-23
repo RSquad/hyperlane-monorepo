@@ -40,6 +40,7 @@ fn run_locally() {
     info!("Start run_locally() for Ton");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
     let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
+    let api_key = env::var("API_KEY").expect("API_KEY env is missing");
 
     log!("Building rust...");
     Program::new("cargo")
@@ -56,7 +57,8 @@ fn run_locally() {
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
-    let agent_config = generate_ton_config(file_name, &mnemonic, &wallet_version).unwrap();
+    let agent_config =
+        generate_ton_config(file_name, &mnemonic, &wallet_version, &api_key).unwrap();
 
     let agent_config_path = format!("../../config/{file_name}.json");
 

@@ -119,6 +119,7 @@ pub fn generate_ton_config(
     output_name: &str,
     mnemonic: &str,
     wallet_version: &str,
+    api_key: &str,
 ) -> Result<Vec<TonAgentConfig>, Error> {
     let output_path = format!("../../config/{output_name}.json");
 
@@ -147,7 +148,7 @@ pub fn generate_ton_config(
                 name,
                 *domain_id,
                 "https://testnet.toncenter.com/api/",
-                "",
+                api_key,
                 mnemonic.as_str(),
                 wallet_version,
                 mailbox,
