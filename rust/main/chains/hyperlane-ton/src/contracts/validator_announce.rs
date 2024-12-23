@@ -5,17 +5,16 @@ use std::{
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
+use hyperlane_core::{
+    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+};
 use log::info;
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
-};
-
-use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
 
 use crate::{
@@ -243,20 +242,13 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
 
         let seqno = self
             .provider
-            .get_wallet_states(self.signer.address.to_hex())
+            .get_wallet_information(self.signer.address.to_hex().as_str(), true)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to get wallet state: {:?}",
+                    "Failed to get wallet state for seqno in announce: {:?}",
                     e
                 )))
-            })?
-            .wallets
-            .get(0)
-            .ok_or_else(|| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                    "No wallet found".to_string(),
-                ))
             })?
             .seqno as u32;
 

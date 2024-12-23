@@ -6,6 +6,11 @@ use std::{
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
+    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
+};
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{
@@ -16,12 +21,6 @@ use tonlib_core::{
     TonAddress,
 };
 use tracing::{error, info};
-
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
-    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
-};
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
@@ -328,7 +327,7 @@ impl Mailbox for TonMailbox {
 
         let seqno = self
             .provider
-            .get_wallet_information(self.signer.address.to_hex().as_str(), false)
+            .get_wallet_information(self.signer.address.to_hex().as_str(), true)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
