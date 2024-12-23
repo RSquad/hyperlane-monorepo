@@ -3,7 +3,6 @@ use std::{collections::HashMap, sync::Arc};
 use anyhow::Error;
 use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneMessage, H256, H512, U256};
-use log::info;
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{
@@ -12,6 +11,7 @@ use tonlib_core::{
     },
     TonAddress, TonHash,
 };
+use tracing::info;
 
 use crate::run_get_method::StackItem;
 
@@ -67,9 +67,6 @@ impl ConversionUtils {
                 "Creating a new cell segment with {} addresses.",
                 addresses_in_cell
             );
-
-            // Write down the number of addresses in the current cell
-            current_cell.store_u8(8, addresses_in_cell as u8)?;
 
             // We write down the addresses ourselves
             for address in &remaining_addresses[..addresses_in_cell] {
