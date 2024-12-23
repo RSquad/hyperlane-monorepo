@@ -1,19 +1,21 @@
 use async_trait::async_trait;
 use derive_new::new;
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
+};
 use tonlib_core::{
     cell::dict::predefined_readers::{key_reader_u32, val_reader_cell},
     TonAddress,
 };
 use tracing::info;
 
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
-};
-
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackItem,
-    traits::ton_api_center::TonApiCenter, ConversionUtils,
+    client::provider::TonProvider,
+    error::HyperlaneTonError,
+    run_get_method::{StackItem, StackValue},
+    traits::ton_api_center::TonApiCenter,
+    ConversionUtils,
 };
 
 #[derive(Clone, Debug, new)]
@@ -48,7 +50,7 @@ impl MultisigIsm for TonMultisigIsm {
 
         let stack = Some(vec![StackItem {
             r#type: "num".to_string(),
-            value: domain.to_string(),
+            value: StackValue::String(domain.to_string()),
         }]);
 
         let function_name = "get_validators_and_threshhold".to_string();
@@ -68,8 +70,17 @@ impl MultisigIsm for TonMultisigIsm {
                 "No threshold stack item in response".to_string(),
             ))
         })?;
-        let threshold = u8::from_str_radix(threshold_stack_item.value.get(2..).unwrap_or(""), 16)
-            .map_err(|e| {
+        let str = match &threshold_stack_item.value {
+            StackValue::String(boc) => boc,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
+        let threshold = u8::from_str_radix(str.get(2..).unwrap_or(""), 16).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse threshold value: {:?}",
                 e
@@ -81,8 +92,17 @@ impl MultisigIsm for TonMultisigIsm {
                 "No cell stack item in response".to_string(),
             ))
         })?;
-        let root_cell = ConversionUtils::parse_root_cell_from_boc(cell_stack_item.value.as_str())
-            .map_err(|e| {
+        let boc = match &cell_stack_item.value {
+            StackValue::String(value) => value,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
+        let root_cell = ConversionUtils::parse_root_cell_from_boc(boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse_root_cell_from_boc: {:?}",
                 e

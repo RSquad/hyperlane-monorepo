@@ -13,7 +13,10 @@ use tonlib_core::{
 };
 use tracing::info;
 
-use crate::run_get_method::StackItem;
+use crate::{
+    error::HyperlaneTonError,
+    run_get_method::{StackItem, StackValue},
+};
 
 pub struct ConversionUtils;
 
@@ -187,8 +190,18 @@ impl ConversionUtils {
         let stack_item = stack.get(index).ok_or_else(|| {
             ChainCommunicationError::CustomError(format!("No stack item at index {index}"))
         })?;
+        let str = match &stack_item.value {
+            StackValue::String(value) => value,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
 
-        u32::from_str_radix(&stack_item.value[2..], 16).map_err(|_| {
+        u32::from_str_radix(&str[2..], 16).map_err(|_| {
             ChainCommunicationError::CustomError(format!(
                 "Failed to parse value at index {}: {:?}",
                 index, stack_item.value

@@ -5,6 +5,11 @@ use std::{
 
 use async_trait::async_trait;
 use base64::Engine;
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
+    H256, U256,
+};
 use log::warn;
 use num_bigint::BigUint;
 use num_traits::cast::FromPrimitive;
@@ -15,15 +20,10 @@ use tonlib_core::{
 };
 use tracing::info;
 
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    H256, U256,
-};
-
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, utils::conversion::ConversionUtils, TonConnectionConf,
+    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
+    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
+    utils::conversion::ConversionUtils, TonConnectionConf,
 };
 
 pub struct TonInterchainSecurityModule {
@@ -93,8 +93,17 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
                 "Empty stack in response".to_string(),
             ))
         })?;
-
-        let module_type_value = u32::from_str_radix(&stack_item.value[2..], 16).map_err(|e| {
+        let str = match &stack_item.value {
+            StackValue::String(boc) => boc,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
+        let module_type_value = u32::from_str_radix(&str[2..], 16).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse module type value: {:?}",
                 e

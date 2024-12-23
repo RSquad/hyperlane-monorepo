@@ -23,8 +23,9 @@ use tonlib_core::{
 use tracing::{error, info};
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
+    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
+    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
+    utils::conversion::ConversionUtils,
 };
 
 pub struct TonMailbox {
@@ -135,13 +136,24 @@ impl Mailbox for TonMailbox {
                 )),
             ));
         };
-        let root_cell =
-            ConversionUtils::parse_root_cell_from_boc(&stack_item.value).map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse root cell: {:?}",
-                    e
-                )))
-            })?;
+        let boc = match &stack_item.value {
+            StackValue::String(boc) => boc,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
+        println!("boc:{:?}", boc);
+
+        let root_cell = ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse root cell: {:?}",
+                e
+            )))
+        })?;
 
         let parsed_dict = root_cell
             .parser()
@@ -187,8 +199,18 @@ impl Mailbox for TonMailbox {
                 ),
             ));
         }
+        let boc = match &stack.value {
+            StackValue::String(boc) => boc,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
 
-        let ism_address = ConversionUtils::parse_address_from_boc(&stack.value)
+        let ism_address = ConversionUtils::parse_address_from_boc(boc)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
@@ -240,8 +262,17 @@ impl Mailbox for TonMailbox {
                 )),
             ));
         }
-
-        let recipient_ism = ConversionUtils::parse_address_from_boc(&stack.value)
+        let boc = match &stack.value {
+            StackValue::String(boc) => boc,
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError(
+                        "Failed to get boc: unexpected data type".to_string(),
+                    ),
+                ));
+            }
+        };
+        let recipient_ism = ConversionUtils::parse_address_from_boc(boc)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(

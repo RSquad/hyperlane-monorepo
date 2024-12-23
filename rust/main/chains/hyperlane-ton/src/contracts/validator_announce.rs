@@ -16,10 +16,14 @@ use tonlib_core::{
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
 };
+use tracing::warn;
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackItem,
-    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
+    client::provider::TonProvider,
+    error::HyperlaneTonError,
+    run_get_method::{StackItem, StackValue},
+    signer::signer::TonSigner,
+    traits::ton_api_center::TonApiCenter,
     utils::conversion::ConversionUtils,
 };
 
@@ -121,6 +125,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
+        info!("validators:{:?}", validators);
         let function_name = "get_announced_storage_locations".to_string();
         let validators_cell =
             ConversionUtils::create_address_linked_cells(&validators).map_err(|e| {
@@ -142,7 +147,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
 
         let stack = Some(vec![StackItem {
             r#type: "cell".to_string(),
-            value: boc_str,
+            value: StackValue::String(boc_str),
         }]);
 
         let response = self
@@ -168,14 +173,27 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             ))
         })?;
 
-        let cell_boc_decoded = general_purpose::STANDARD
-            .decode(&stack_item.value)
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to decode cell BOC from response{:?}",
-                    e
-                )))
-            })?;
+        let value = match &stack_item.value {
+            StackValue::String(boc) => boc,
+            StackValue::List(list) if list.is_empty() => {
+                warn!("Response stack contains empty list");
+                return Ok(vec![vec![]]);
+            }
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError("Unexpected stack value type".to_string()),
+                ));
+            }
+        };
+
+        info!("Parsed value from stack: {:?}", value);
+
+        let cell_boc_decoded = general_purpose::STANDARD.decode(value).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to decode cell BOC from response{:?}",
+                e
+            )))
+        })?;
 
         let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
