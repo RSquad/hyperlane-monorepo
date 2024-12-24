@@ -9,18 +9,19 @@
     "test:igp": "jest ./tests/InterchainGasPaymaster.spec.ts",
     "test:msig": "jest ./tests/MultisigIsm.spec.ts",
     "test:va": "jest ./tests/ValidatorAnnounce.spec.ts",
-    "test:mhook": "jest ./tests/MerkleHookMock.spec.ts",
+    "test:mth": "jest ./tests/MerkleTreeHook.spec.ts",
     "deploy:msig": "npx blueprint run deployMultisigIsm --mnemonic --testnet",
     "deploy:rcpnt": "npx blueprint run deployRecipientMock --mnemonic --testnet",
     "deploy:igp": "npx blueprint run deployInterchainGasPaymaster --mnemonic --testnet",
     "deploy:mbox": "npx blueprint run deployMailbox --mnemonic --testnet",
     "deploy:va": "npx blueprint run deployValidatorAnnounce --mnemonic --testnet",
-    "deploy:mhook": "npx blueprint run deployMerkleHookMock --mnemonic --testnet",
-    "deploy:all": "npm run deploy:msig && npm run deploy:igp && npm run deploy:rcpnt && npm run deploy:mbox && npm run deploy:va",
+    "deploy:mth": "npx blueprint run deployMerkleTreeHook --mnemonic --testnet",
+    "deploy:all": "npm run deploy:msig && npm run deploy:igp && npm run deploy:mth && npm run deploy:rcpnt && npm run deploy:mbox && npm run deploy:va",
     "send:process": "npx blueprint run sendProcess --mnemonic --testnet",
     "send:pd": "npx blueprint run sendPostDispatch --mnemonic --testnet",
     "send:setv": "npx blueprint run sendSetValidatorsAndThreshold --mnemonic --testnet",
-    "send:dispatch": "npx blueprint run sendDispatch --mnemonic --testnet"
+    "send:dispatch": "npx blueprint run sendDispatch --mnemonic --testnet",
+    "get:asl": "npx blueprint run getAnnouncedStorageLocations --mnemonic --testnet"
   },
   "type": "module",
   "devDependencies": {

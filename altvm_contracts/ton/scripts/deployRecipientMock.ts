@@ -28,6 +28,7 @@ export async function run(provider: NetworkProvider) {
         recipientAddress: recipientMock.address.toString(),
         multisigIsmAddress: deployedContracts.multisigIsmAddress,
         validatorAnnounceAddress: deployedContracts.validatorAnnounceAddress,
+        merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress
     };
 
     fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));

@@ -85,6 +85,7 @@ export class Mailbox implements Contract {
             recipientAddr: Buffer;
             message: Cell;
             hookMetadata: THookMetadata;
+            requiredValue: bigint;
             queryId?: number;
         },
     ) {
@@ -96,6 +97,7 @@ export class Mailbox implements Contract {
                 .storeUint(opts.queryId ?? 0, 64)
                 .storeUint(opts.destDomain, 32)
                 .storeBuffer(opts.recipientAddr)
+                .storeUint(opts.requiredValue, 128)
                 .storeRef(opts.message)
                 .storeRef(buildHookMetadataCell(opts.hookMetadata))
                 .endCell(),

@@ -17,8 +17,11 @@ export async function run(provider: NetworkProvider) {
     const validatorAnnounce = provider.open(
         ValidatorAnnounce.createFromConfig(
             {
-                localDomain: Number(process.env.DOMAIN!),
-                mailbox: BigInt('0x' + Address.parse(deployedContracts.mailboxAddress).hash.toString('hex')),
+                // localDomain: Number(process.env.DOMAIN!),
+                localDomain: 777002,
+                // mailbox: BigInt('0x' + Address.parse(deployedContracts.mailboxAddress).hash.toString('hex')),
+                // mailbox: BigInt('0x' + Address.parse('EQC5xrynw_llDS7czwH70rIeiblbn0rbtk-zjI8erKyIMTN6').hash.toString('hex')),
+                mailbox: BigInt('0x' + Address.parse('EQCqjMKRcYtuuucN4VirAd-DXrLc9DNTR1IWcaoNs2IMX7h8').hash.toString('hex')),
                 storageLocations: dict,
                 replayProtection: Dictionary.empty(Dictionary.Keys.BigUint(256), Dictionary.Values.Cell()),
             },
@@ -36,6 +39,7 @@ export async function run(provider: NetworkProvider) {
         recipientAddress: deployedContracts.recipientAddress,
         multisigIsmAddress: deployedContracts.multisigIsmAddress,
         validatorAnnounceAddress: validatorAnnounce.address.toString(),
+        merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress
     };
 
     fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));

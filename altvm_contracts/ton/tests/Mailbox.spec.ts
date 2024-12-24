@@ -13,6 +13,7 @@ import { parseHandleLog } from './utils/parsers';
 import { makeRandomBigint } from './utils/generators';
 import { ethers, keccak256, solidityPacked } from 'ethers';
 import { messageId } from './utils/signing';
+import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 
 const buildMessage = (recipient: Buffer, sender: Buffer, version: number = 1, destinationDomain: number = 0) => {
     return {
@@ -38,6 +39,7 @@ const expectHandleLog = (externals: BlockchainTransaction[], message: TMessage, 
 
 describe('Mailbox', () => {
     let code: Cell;
+    let requiredHookCode: Cell;
     let defaultHookCode: Cell;
     let defaultIsmCode: Cell;
     let recipientCode: Cell;
@@ -47,6 +49,7 @@ describe('Mailbox', () => {
     let dispatchBody: {
         destDomain: number;
         recipientAddr: Buffer;
+        requiredValue: bigint;
         message: Cell;
         hookMetadata: THookMetadata;
         queryId?: number | undefined;
@@ -54,7 +57,8 @@ describe('Mailbox', () => {
 
     beforeAll(async () => {
         code = await compile('Mailbox');
-        defaultHookCode = await compile('InterchainGasPaymaster');
+        requiredHookCode = await compile('InterchainGasPaymaster');
+        defaultHookCode = await compile('MerkleHookMock');
         defaultIsmCode = await compile('MockIsm');
         recipientCode = await compile('RecipientMock');
     });
@@ -63,7 +67,8 @@ describe('Mailbox', () => {
     let deployer: SandboxContract<TreasuryContract>;
     let fraud: SandboxContract<TreasuryContract>;
     let mailbox: SandboxContract<Mailbox>;
-    let initialDefaultHook: SandboxContract<InterchainGasPaymaster>;
+    let initialRequiredHook: SandboxContract<InterchainGasPaymaster>;
+    let initialDefaultHook: SandboxContract<MerkleHookMock>;
     let initialDefaultIsm: SandboxContract<MockIsm>;
     let recipient: SandboxContract<RecipientMock>;
 
@@ -75,7 +80,7 @@ describe('Mailbox', () => {
         const intialGasConfig = {
             gasOracle: makeRandomBigint(),
             gasOverhead: 0n,
-            exchangeRate: 1n,
+            exchangeRate: 5n,
             gasPrice: 1000000000n,
         };
 
@@ -85,7 +90,7 @@ describe('Mailbox', () => {
         );
         dictDestGasConfig.set(0, intialGasConfig);
 
-        const hookConfig = {
+        const requiredHookConfig = {
             owner: deployer.address,
             beneficiary: deployer.address,
             hookType: 0,
@@ -93,8 +98,15 @@ describe('Mailbox', () => {
             destGasConfig: dictDestGasConfig,
         };
 
+        const defaultHookConfig = {
+            index: 0
+        };
+
+        initialRequiredHook = blockchain.openContract(
+            InterchainGasPaymaster.createFromConfig(requiredHookConfig, requiredHookCode),
+        );
         initialDefaultHook = blockchain.openContract(
-            InterchainGasPaymaster.createFromConfig(hookConfig, defaultHookCode),
+            MerkleHookMock.createFromConfig(defaultHookConfig, defaultHookCode),
         );
         initialDefaultIsm = blockchain.openContract(MockIsm.createFromConfig({}, defaultIsmCode));
         recipient = blockchain.openContract(
@@ -113,16 +125,17 @@ describe('Mailbox', () => {
             latestDispatchedId: 0n,
             defaultIsm: initialDefaultIsm.address,
             defaultHookAddr: initialDefaultHook.address,
-            requiredHookAddr: initialDefaultHook.address,
+            requiredHookAddr: initialRequiredHook.address,
             owner: deployer.address,
             deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
         };
         mailbox = blockchain.openContract(Mailbox.createFromConfig(initConfig, code));
 
         const deployResult = await mailbox.sendDeploy(deployer.getSender(), toNano('0.05'));
-        await recipient.sendDeploy(deployer.getSender(), toNano('0.05'));
-        await initialDefaultIsm.sendDeploy(deployer.getSender(), toNano('0.05'));
-        await initialDefaultHook.sendDeploy(deployer.getSender(), toNano('0.05'));
+        const deployRecipientRes = await recipient.sendDeploy(deployer.getSender(), toNano('0.05'));
+        const deployIsmRes = await initialDefaultIsm.sendDeploy(deployer.getSender(), toNano('0.05'));
+        const deployIgpRes = await initialRequiredHook.sendDeploy(deployer.getSender(), toNano('0.05'));
+        const deployDefaultHookRes = await initialDefaultHook.sendDeploy(deployer.getSender(), toNano('0.05'));
 
         expect(deployResult.transactions).toHaveTransaction({
             from: deployer.address,
@@ -131,36 +144,79 @@ describe('Mailbox', () => {
             success: true,
         });
 
+        expect(deployIgpRes.transactions).toHaveTransaction({
+            from: deployer.address,
+            to: initialRequiredHook.address,
+            deploy: true,
+            success: true,
+        });
+
+        expect(deployIsmRes.transactions).toHaveTransaction({
+            from: deployer.address,
+            to: initialDefaultIsm.address,
+            deploy: true,
+            success: true,
+        });
+
+        expect(deployDefaultHookRes.transactions).toHaveTransaction({
+            from: deployer.address,
+            to: initialDefaultHook.address,
+            deploy: true,
+            success: true,
+        });
+
+        expect(deployRecipientRes.transactions).toHaveTransaction({
+            from: deployer.address,
+            to: recipient.address,
+            deploy: true,
+            success: true,
+        });
+        
+
         hyperlaneMessage = buildMessage(recipient.address.hash, Buffer.alloc(32));
         hookMetadata = {
             variant: 0,
             msgValue: toNano('1'),
-            gasLimit: 100000n,
+            gasLimit: 100000000n,
             refundAddress: deployer.address,
         };
     });
 
-    it('should dispatch message and send log message', async () => {
+    it.only('should dispatch message and send log message', async () => {
         const ethersWallet = ethers.Wallet.createRandom();
         const addr = Buffer.from(ethersWallet.address.slice(2).padStart(64, '0'), 'hex');
         hyperlaneMessage = buildMessage(addr, deployer.address.hash);
+        const requiredValue = await initialRequiredHook.getQuoteDispatch(0, hookMetadata);
         const id = messageId(hyperlaneMessage);
         dispatchBody = {
             destDomain: 0,
             recipientAddr: addr,
+            requiredValue: requiredValue,
             message: beginCell().storeUint(123, 32).endCell(),
             hookMetadata,
         };
+        console.log("requiredHook", initialRequiredHook.address);
+        console.log("defaultHook", initialDefaultHook.address);
         const res = await mailbox.sendDispatch(deployer.getSender(), toNano('1'), dispatchBody);
+        console.log(res.transactions.length);
+        expect(res.transactions).toHaveTransaction({
+            from: mailbox.address,
+            to: initialRequiredHook.address,
+            success: true,
+            op: OpCodes.POST_DISPATCH,
+        });
+
         expect(res.transactions).toHaveTransaction({
             from: mailbox.address,
             to: initialDefaultHook.address,
             success: true,
             op: OpCodes.POST_DISPATCH,
         });
-        expect(res.externals).toHaveLength(2);
+        
+        expect(res.externals).toHaveLength(3);
         expect(res.externals[0].info.src.toString()).toStrictEqual(mailbox.address.toString());
-        expect(res.externals[1].info.src.toString()).toStrictEqual(initialDefaultHook.address.toString());
+        expect(res.externals[1].info.src.toString()).toStrictEqual(initialRequiredHook.address.toString());
+        expect(res.externals[2].info.src.toString()).toStrictEqual(initialDefaultHook.address.toString());
 
         const logBody = res.externals[0].body;
         expect(logBody.beginParse().loadUintBig(256)).toStrictEqual(BigInt(id));
@@ -359,12 +415,12 @@ describe('Mailbox', () => {
 
     it('should return default hook address', async () => {
         const defaultHookAddr = await mailbox.getDefaultHook();
-        expect(defaultHookAddr.toString()).toStrictEqual(initialDefaultHook.address.toString());
+        expect(defaultHookAddr.toString()).toStrictEqual(initialRequiredHook.address.toString());
     });
 
     it('should return required hook address', async () => {
         const requiredHookAddr = await mailbox.getRequiredHook();
-        expect(requiredHookAddr.toString()).toStrictEqual(initialDefaultHook.address.toString());
+        expect(requiredHookAddr.toString()).toStrictEqual(initialRequiredHook.address.toString());
     });
 
     it('should return local domain', async () => {

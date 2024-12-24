@@ -25,5 +25,6 @@ export async function run(provider: NetworkProvider) {
         recipientAddr: destAddrTon,
         message: beginCell().storeUint(321, 32).endCell(),
         hookMetadata,
+        requiredValue: toNano('0.1'),
     });
 }

@@ -7,6 +7,7 @@ import { ethers, keccak256, solidityPacked, Wallet } from 'ethers';
 import { Errors, OpCodes } from '../wrappers/utils/constants';
 import * as dotenv from 'dotenv';
 import { parseAnnouncementLog } from './utils/parsers';
+import { buildValidators } from '../wrappers/utils/builders';
 
 dotenv.config();
 
@@ -99,26 +100,6 @@ describe('ValidatorAnnounce', () => {
             validators.push(BigInt(ethers.Wallet.createRandom().address));
         }
         return validators;
-    };
-
-    const buildValidators = (opts: {
-        builder: Builder;
-        validators: bigint[];
-    }): { builder: Builder; validators: bigint[] } => {
-        while (opts.builder.availableBits > 256 && opts.validators.length > 0) {
-            opts.builder.storeUint(opts.validators.pop()!, 256);
-        }
-
-        if (opts.validators.length > 0) {
-            opts.builder.storeRef(
-                buildValidators({
-                    builder: beginCell(),
-                    validators: opts.validators,
-                }).builder.endCell(),
-            );
-        }
-
-        return { builder: opts.builder, validators: opts.validators };
     };
 
     beforeEach(async () => {
