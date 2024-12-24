@@ -75,6 +75,10 @@ int root_w_ctx(cell zeroes) impure inline {
     return current;
 }
 
+int root() inline {
+    return root_w_ctx(zero_hashes());
+}
+
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
         return ();
@@ -112,6 +116,10 @@ int root_w_ctx(cell zeroes) impure inline {
     throw(error::unknown_op);
 }
 
+cell get_tree() method_id {
+    load_globals();
+    return g::tree;
+}
 
 int get_count() method_id { 
     load_globals();
@@ -120,10 +128,10 @@ int get_count() method_id {
 
 int get_root() method_id {
     load_globals();
-    return root_w_ctx(zero_hashes());
+    return root();
 }
 
 (int, int) get_latest_checkpoint() method_id {
     load_globals();
-    return (0, g::count);
+    return (root(), g::count);
 }
