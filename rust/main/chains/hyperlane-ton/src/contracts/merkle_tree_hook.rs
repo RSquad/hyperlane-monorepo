@@ -1,20 +1,27 @@
 use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
-use num_traits::ToPrimitive;
-use tonlib_core::TonAddress;
-use tracing::warn;
-
+use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
-    accumulator::{incremental::IncrementalMerkle, TREE_DEPTH, ZERO_HASHES},
+    accumulator::{incremental::IncrementalMerkle, TREE_DEPTH},
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
+use num_bigint::BigUint;
+use num_traits::ToPrimitive;
+use tonlib_core::{
+    cell::{
+        dict::predefined_readers::{key_reader_uint, val_reader_uint},
+        BagOfCells,
+    },
+    TonAddress,
+};
+use tracing::{info, warn};
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, ton_api_center::TonApiCenter,
-    utils::conversion::ConversionUtils,
+    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
+    ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
 };
 
 #[derive(Debug, Clone)]
@@ -51,13 +58,101 @@ impl HyperlaneChain for TonMerkleTreeHook {
 
 #[async_trait]
 impl MerkleTreeHook for TonMerkleTreeHook {
-    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let count = self.count(reorg_period).await?;
-        let mut branch: [H256; TREE_DEPTH] = Default::default();
-        branch
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = ZERO_HASHES[i]);
+    async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let count = self.count(&ReorgPeriod::None).await.unwrap();
+
+        let response = self
+            .provider
+            .run_get_method(self.address.to_string(), "get_tree".to_string(), None)
+            .await
+            .map_err(|e| HyperlaneTonError::ApiInvalidResponse(format!("Error:{:?}", e)))?;
+        if response.exit_code != 0 {
+            return Err(ChainCommunicationError::from(
+                HyperlaneTonError::ApiRequestFailed("Non-zero exit code in response".to_string()),
+            ));
+        }
+
+        let stack_item = response.stack.get(0).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(
+                "Response stack is empty or missing required item".to_string(),
+            ))
+        })?;
+
+        let value = match &stack_item.value {
+            StackValue::String(boc) => boc,
+            StackValue::List(list) if list.is_empty() => {
+                warn!("Response stack contains empty list");
+
+                let branch = [H256::zero(); TREE_DEPTH];
+                return Ok(IncrementalMerkle {
+                    branch,
+                    count: count as usize,
+                });
+            }
+            _ => {
+                return Err(ChainCommunicationError::from(
+                    HyperlaneTonError::ParsingError("Unexpected stack value type".to_string()),
+                ));
+            }
+        };
+
+        info!("Parsed value from stack: {:?}", value);
+
+        let cell_boc_decoded = general_purpose::STANDARD.decode(value).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to decode cell BOC from response{:?}",
+                e
+            )))
+        })?;
+
+        let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse BOC: {}",
+                e
+            )))
+        })?;
+
+        let cell = boc.single_root().map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to get root cell: {}",
+                e
+            )))
+        })?;
+        info!("Cell data before parsing: {:?}", cell);
+
+        let mut parser = cell.parser();
+        let dict = parser
+            .load_dict(256, key_reader_uint, val_reader_uint)
+            .map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to parse dictionary: {}",
+                    e
+                )))
+            })?;
+
+        let mut branch = [H256::zero(); TREE_DEPTH];
+
+        for (depth, value) in dict {
+            if let Some(depth_usize) = depth.to_usize() {
+                if depth_usize >= TREE_DEPTH {
+                    warn!("Unexpected depth: {}, skipping...", depth_usize);
+                    continue;
+                }
+
+                // let mut value_bytes = [0u8; 32];
+                // let value_raw = value.to_bytes_be();
+                // value_bytes[32 - value_raw.len()..].copy_from_slice(&value_raw);
+                // let value_h256: H256 = H256::from_slice(&value_bytes);
+
+                let value_h256: H256 = H256::from_slice(value.to_bytes_be().as_slice());
+                branch[depth_usize] = value_h256;
+                info!("Depth: {}, Value: {:?}", depth_usize, value_h256);
+            } else {
+                warn!("Failed to convert depth to usize: {}", depth);
+                continue;
+            }
+        }
+
         Ok(IncrementalMerkle {
             branch,
             count: count as usize,
@@ -96,18 +191,66 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             ));
         }
 
-        let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
+        // let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
+        //     ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
+        // })?;
+        // let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1).map_err(|e| {
+        //     ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
+        // })?;
+        let root = stack.get(0).ok_or_else(|| {
+            ChainCommunicationError::CustomError(
+                "Stack does not contain value at index 0".to_string(),
+            )
         })?;
-        let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1).map_err(|e| {
-            ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
+        let index = stack.get(1).ok_or_else(|| {
+            ChainCommunicationError::CustomError(
+                "Stack does not contain value at index 1".to_string(),
+            )
         })?;
-
+        let root_value = match &root.value {
+            StackValue::String(val) => {
+                BigUint::parse_bytes(val.trim_start_matches("0x").as_bytes(), 16).ok_or_else(
+                    || {
+                        ChainCommunicationError::CustomError(format!(
+                            "Failed to parse BigUint from string: {}",
+                            val
+                        ))
+                    },
+                )?
+            }
+            _ => {
+                return Err(ChainCommunicationError::CustomError(
+                    "Unexpected stack value type for root".to_string(),
+                ));
+            }
+        };
+        let index_value = match &index.value {
+            StackValue::String(val) => {
+                BigUint::parse_bytes(val.trim_start_matches("0x").as_bytes(), 16)
+                    .ok_or_else(|| {
+                        ChainCommunicationError::CustomError(format!(
+                            "Failed to parse BigUint from string: {}",
+                            val
+                        ))
+                    })?
+                    .try_into()
+                    .map_err(|_| {
+                        ChainCommunicationError::CustomError(
+                            "Value is too large for u32".to_string(),
+                        )
+                    })?
+            }
+            _ => {
+                return Err(ChainCommunicationError::CustomError(
+                    "Unexpected stack value type for index".to_string(),
+                ));
+            }
+        };
         Ok(Checkpoint {
             merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(&self.address.clone()),
             mailbox_domain: self.domain().id(),
-            root: H256::from_low_u64_be(root as u64),
-            index,
+            root: H256::from_slice(root_value.to_bytes_be().as_slice()),
+            index: index_value,
         })
     }
 }
