@@ -38,10 +38,10 @@ global cell g::tree;
     int i = 0;
     repeat(TREE_DEPTH - 1) {
         if ((size & 1) == 1) {
-            g::tree~udict_set(256, i, begin_cell().store_uint(node, 256).end_cell().begin_parse());
+            g::tree~udict_set(KEY_LEN, i, begin_cell().store_uint(node, 256).end_cell().begin_parse());
             return ();
         }
-        (slice s, _) = g::tree.udict_get?(256, i);
+        (slice s, _) = g::tree.udict_get?(KEY_LEN, i);
         node = keccak256_builder(
             begin_cell()
                 .store_slice(s)
@@ -59,13 +59,13 @@ int root_w_ctx(cell zeroes) impure inline {
     int current = 0;
     repeat(TREE_DEPTH - 1) {
         int iht_bit = (index >> i) & 0x01;
-        (slice next, _) = g::tree.udict_get?(256, i);
+        (slice next, _) = g::tree.udict_get?(KEY_LEN, i);
         if (iht_bit == 1) {
             current = keccak256_builder(
                 begin_cell().store_slice(next).store_uint(current, 256)
             );
         } else {
-            (slice zero, _) = zeroes.udict_get?(256, i);
+            (slice zero, _) = zeroes.udict_get?(KEY_LEN, i);
             current = keccak256_builder(
                 begin_cell().store_uint(current, 256).store_slice(zero)
             );
@@ -116,9 +116,9 @@ int root() inline {
     throw(error::unknown_op);
 }
 
-cell get_tree() method_id {
+(cell, int) get_tree() method_id {
     load_globals();
-    return g::tree;
+    return (g::tree, g::count);
 }
 
 int get_count() method_id { 

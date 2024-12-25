@@ -103,12 +103,16 @@ export class MerkleTreeHook implements Contract {
     return { root, index };
   }
 
-  async getTree(provider: ContractProvider) {
+  async getTree(provider: ContractProvider): Promise<{
+    tree: Dictionary<bigint, bigint>;
+    count: number;
+  }> {
     const result = await provider.get('get_tree', []);
-    return Dictionary.loadDirect(
+    const tree = Dictionary.loadDirect(
       Dictionary.Keys.BigUint(256),
       Dictionary.Values.BigUint(256),
       result.stack.readCellOpt(),
     );
+    return { tree, count: result.stack.readNumber() };
   }
 }
