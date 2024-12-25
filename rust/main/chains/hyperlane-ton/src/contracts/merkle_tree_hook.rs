@@ -301,7 +301,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             .get_messages(
                 None,
                 None,
-                Some(self.merkle_tree_hook_address.to_string()),
+                Some(self.merkle_tree_hook_address.to_hex().to_string()),
                 Some("null".to_string()),
                 None,
                 Some(start_utime),
@@ -345,7 +345,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
                 let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
 
                 let index = parser
-                    .load_uint(256)
+                    .load_uint(32)
                     .map_err(|e| {
                         warn!("Failed to load_uint index: {:?}", e);
                         e

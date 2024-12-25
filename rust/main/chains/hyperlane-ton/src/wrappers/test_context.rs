@@ -1,6 +1,8 @@
+use std::ops::RangeInclusive;
+
 use hyperlane_core::{
-    accumulator::TREE_DEPTH, HyperlaneDomain, HyperlaneMessage, KnownHyperlaneDomain, Mailbox,
-    MerkleTreeHook, ReorgPeriod, H256,
+    accumulator::TREE_DEPTH, HyperlaneDomain, HyperlaneMessage, Indexer, KnownHyperlaneDomain,
+    Mailbox, MerkleTreeHook, ReorgPeriod, H256,
 };
 use reqwest::Client;
 use tonlib_core::{wallet::TonWallet, TonAddress};
@@ -9,7 +11,8 @@ use url::Url;
 
 use crate::{
     ConversionUtils, TonConnectionConf, TonInterchainGasPaymaster, TonInterchainSecurityModule,
-    TonMailbox, TonMerkleTreeHook, TonMultisigIsm, TonProvider, TonSigner, TonValidatorAnnounce,
+    TonMailbox, TonMerkleTreeHook, TonMerkleTreeHookIndexer, TonMultisigIsm, TonProvider,
+    TonSigner, TonValidatorAnnounce,
 };
 
 pub struct TestContext {
@@ -21,6 +24,7 @@ pub struct TestContext {
     pub multisig: TonMultisigIsm,
     pub validator_announce: TonValidatorAnnounce,
     pub merkle_hook: TonMerkleTreeHook,
+    pub merkle_hook_indexer: TonMerkleTreeHookIndexer,
 }
 
 impl TestContext {
@@ -84,6 +88,12 @@ impl TestContext {
         )
         .unwrap();
 
+        let merkle_hook_indexer = TonMerkleTreeHookIndexer::new(
+            TonAddress::from_base64_url(merkle_hook_address).unwrap(),
+            provider.clone(),
+        )
+        .unwrap();
+
         Ok(Self {
             provider,
             signer,
@@ -93,6 +103,7 @@ impl TestContext {
             multisig,
             validator_announce,
             merkle_hook,
+            merkle_hook_indexer,
         })
     }
 
@@ -168,6 +179,18 @@ impl TestContext {
             "Checkpoint root should not be zero."
         );
         info!("Checkpoint root is valid.");
+
+        Ok(())
+    }
+
+    pub async fn test_merkle_tree_hook_indexer(&self) -> Result<(), anyhow::Error> {
+        let logs = self
+            .merkle_hook_indexer
+            .fetch_logs_in_range(RangeInclusive::new(10, 26370511))
+            .await
+            .unwrap();
+
+        info!("Events:{:?}", logs);
 
         Ok(())
     }
