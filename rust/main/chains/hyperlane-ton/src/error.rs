@@ -20,6 +20,8 @@ pub enum HyperlaneTonError {
     ApiRateLimitExceeded,
     #[error("API request failed")]
     ApiRequestFailed(String),
+    #[error("Conversion data failed")]
+    ConversionFailed(String),
     #[error("Reqwest error: {0}")]
     ReqwestError(#[from] reqwest::Error),
     /// Error while making a call to a smart contract
