@@ -1,18 +1,20 @@
-use std::ops::RangeInclusive;
+use std::{ops::RangeInclusive, os::macos::raw::ino_t};
 
+use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
-    accumulator::TREE_DEPTH, HyperlaneDomain, HyperlaneMessage, Indexer, KnownHyperlaneDomain,
-    Mailbox, MerkleTreeHook, ReorgPeriod, H256,
+    accumulator::TREE_DEPTH, Announcement, ChainCommunicationError, HyperlaneDomain,
+    HyperlaneMessage, Indexer, KnownHyperlaneDomain, Mailbox, MerkleTreeHook, ReorgPeriod,
+    Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
 };
 use reqwest::Client;
-use tonlib_core::{wallet::TonWallet, TonAddress};
+use tonlib_core::{cell::BagOfCells, wallet::TonWallet, TonAddress};
 use tracing::info;
 use url::Url;
 
 use crate::{
-    ConversionUtils, TonConnectionConf, TonInterchainGasPaymaster, TonInterchainSecurityModule,
-    TonMailbox, TonMerkleTreeHook, TonMerkleTreeHookIndexer, TonMultisigIsm, TonProvider,
-    TonSigner, TonValidatorAnnounce,
+    error::HyperlaneTonError, ConversionUtils, TonConnectionConf, TonInterchainGasPaymaster,
+    TonInterchainSecurityModule, TonMailbox, TonMerkleTreeHook, TonMerkleTreeHookIndexer,
+    TonMultisigIsm, TonProvider, TonSigner, TonValidatorAnnounce,
 };
 
 pub struct TestContext {
@@ -148,7 +150,84 @@ impl TestContext {
         Ok(())
     }
 
+    pub async fn test_validator_announce_get_locations(&self) -> Result<(), anyhow::Error> {
+        let validators = vec![H256::from(H160::from_slice(
+            &hex::decode("15d34aaf54267db7d7c367839aaf71a00a2c6a65").unwrap(),
+        ))];
+
+        let locations = self
+            .validator_announce
+            .get_announced_storage_locations(&validators)
+            .await?;
+
+        info!("Retrieved storage locations: {:?}", locations);
+
+        assert!(!locations.is_empty(), "Locations should not be empty");
+        for (i, location_set) in locations.iter().enumerate() {
+            info!("Validator {} has locations: {:?}", i, location_set);
+            assert!(
+                !location_set.is_empty(),
+                "Validator {} should have at least one location",
+                i
+            );
+        }
+
+        Ok(())
+    }
+    pub async fn test_validator_announce_get_storage_locations(&self) -> Result<(), anyhow::Error> {
+        let boc = "te6cckEBAwEAbwABQ6AAAAAAAAAAAAAAAAACumlV6oTPtvr4bPBzVe40AUWNTLABAUOgDrViCHwsJlBivdpOn+cAsU1R7j8qhoxHPC7ZNnmBvWWQAgBGZmlsZTovLy4vcGVyc2lzdGVudF9kYXRhL2NoZWNrcG9pbnRYdWdj";
+
+        let cell_boc_decoded = general_purpose::STANDARD.decode(boc).unwrap();
+
+        let boc = BagOfCells::parse(&cell_boc_decoded).unwrap();
+
+        let cell = boc.single_root().unwrap();
+
+        let storage_locations =
+            ConversionUtils::parse_address_storage_locations(&cell).map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to parse address storage locations: {}",
+                    e
+                )))
+            })?;
+        info!("storage_locations:{:?}", storage_locations);
+        let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
+        info!("locations_vec:{:?}", locations_vec);
+        Ok(())
+    }
+
     pub async fn test_validator_announce_announce(&self) -> Result<(), anyhow::Error> {
+        let announcement = Announcement {
+            validator: ConversionUtils::parse_eth_address_to_h160(
+                "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+            )
+            .unwrap(),
+            mailbox_address: ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address),
+            mailbox_domain: 777001,
+            storage_location: "file://./persistent_data/checkpoint".to_string(),
+        };
+
+        let signature = Signature {
+            r: U256::from_str_radix(
+                "0x6ba624ff0c89fb239dd570a8b9d40be9758ea113cb7a690f54ca579ad5cf3db0",
+                16,
+            )
+            .unwrap(),
+            s: U256::from_str_radix(
+                "0x39ff136a5844c7222612c32b1e5e441b7dc8baa50a93dc9d4335e9bd5ac38a80",
+                16,
+            )
+            .unwrap(),
+            v: 27,
+        };
+        let data = SignedType {
+            value: announcement,
+            signature,
+        };
+        info!("announce data:{:?}", data);
+
+        let announce = self.validator_announce.announce(data).await.unwrap();
+        info!("TxOutcome:{:?}", announce);
         Ok(())
     }
 

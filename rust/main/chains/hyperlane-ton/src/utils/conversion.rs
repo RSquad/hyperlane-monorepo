@@ -2,7 +2,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Error;
 use base64::{engine::general_purpose, Engine};
-use hyperlane_core::{ChainCommunicationError, ChainResult, HyperlaneMessage, H256, H512, U256};
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
+};
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{
@@ -102,44 +104,31 @@ impl ConversionUtils {
     ) -> Result<HashMap<BigUint, Vec<String>>, TonCellError> {
         let mut storage_locations: HashMap<BigUint, Vec<String>> = HashMap::new();
 
-        //let dict_cell = root_cell.clone();
         let parsed = root_cell
             .parser()
             .load_dict(256, key_reader_uint, val_reader_cell)?;
 
         for (key, value_cell) in &parsed {
             let mut storage_list = Vec::new();
-
+            info!("key:{:?} value_cell:{:?}", key, value_cell);
             if let Some(inner_cell) = value_cell.references().first() {
-                let dict_locations = inner_cell
-                    .parser()
-                    .load_dict(256, key_reader_uint, val_reader_cell)
-                    .map_err(|e| {
-                        TonCellError::CellParserError(format!(
-                            "Failed to load_dict for storage_locations:{:?}",
-                            e
-                        ))
-                    })?;
+                info!("inner cell:{:?}", inner_cell);
 
-                for (_, in_cell_value) in dict_locations {
-                    if let Some(in_cell_value) = in_cell_value.references().first() {
-                        let mut parser = in_cell_value.parser();
-                        let bits_remaining = parser.remaining_bits();
-                        let bytes_needed = (bits_remaining + 7) / 8;
-                        let mut string_bytes = vec![0u8; bytes_needed];
+                let bits_remaining = inner_cell.bit_len();
+                let bytes_needed = (bits_remaining + 7) / 8;
+                let mut string_bytes = vec![0u8; bytes_needed];
+                let mut parser = inner_cell.parser();
 
-                        parser.load_slice(&mut string_bytes)?;
+                parser.load_slice(&mut string_bytes)?;
 
-                        let storage_string = String::from_utf8(string_bytes).map_err(|_| {
-                            TonCellError::BagOfCellsDeserializationError(
-                                "Invalid UTF-8 string in storage location".to_string(),
-                            )
-                        })?;
+                let storage_string = String::from_utf8(string_bytes).map_err(|_| {
+                    TonCellError::BagOfCellsDeserializationError(
+                        "Invalid UTF-8 string in storage location".to_string(),
+                    )
+                })?;
 
-                        info!("Storage_string:{:?} key:{:?}", storage_string, key);
-                        storage_list.push(storage_string);
-                    }
-                }
+                info!("Storage_string:{:?} key:{:?}", storage_string, key);
+                storage_list.push(storage_string);
             } else {
                 return Err(TonCellError::BagOfCellsDeserializationError(
                     "Expected reference in cell but found none".to_string(),
@@ -184,6 +173,26 @@ impl ConversionUtils {
     }
     pub fn h256_to_ton_address(h256: &H256, workchain: i32) -> TonAddress {
         TonAddress::new(workchain, &TonHash::from(&h256.0))
+    }
+    pub fn parse_eth_address_to_h160(address: &str) -> Result<H160, HyperlaneTonError> {
+        let trimmed_address = address.trim_start_matches("0x");
+        if trimmed_address.len() != 40 {
+            return Err(HyperlaneTonError::ConversionFailed(
+                "Invalid Ethereum address length".to_string(),
+            ));
+        }
+
+        let bytes = hex::decode(trimmed_address).map_err(|e| {
+            HyperlaneTonError::ConversionFailed(format!("Failed to decode address: {}", e))
+        })?;
+
+        if bytes.len() != 20 {
+            return Err(HyperlaneTonError::ConversionFailed(
+                "Decoded address does not have 20 bytes (expected for H160)".to_string(),
+            ));
+        }
+
+        Ok(H160::from_slice(&bytes))
     }
 
     pub fn parse_stack_item_to_u32(stack: &[StackItem], index: usize) -> ChainResult<u32> {
