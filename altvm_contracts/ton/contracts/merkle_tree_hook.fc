@@ -101,7 +101,7 @@ int root() inline {
         slice refund_addr = in_msg_body~load_msg_addr();
         cell hook_metadata = in_msg_body~load_ref();
 
-        insert_into_tree(g::tree, message_id);
+        insert_into_tree(message_id);
 
         builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count, 32);
         send_event(
