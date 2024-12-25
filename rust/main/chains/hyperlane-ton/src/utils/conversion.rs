@@ -260,6 +260,47 @@ impl ConversionUtils {
             .build()
             .map_err(|e| TonCellError::CellBuilderError(format!("Failed to build cell: {:?}", e)))
     }
+    pub fn parse_stack_item_biguint(
+        stack: &[StackItem],
+        index: usize,
+        item_name: &str,
+    ) -> ChainResult<BigUint> {
+        let item = stack.get(index).ok_or_else(|| {
+            ChainCommunicationError::CustomError(format!(
+                "Stack does not contain value at index {} ({})",
+                index, item_name
+            ))
+        })?;
+
+        match &item.value {
+            StackValue::String(val) => {
+                BigUint::parse_bytes(val.trim_start_matches("0x").as_bytes(), 16).ok_or_else(|| {
+                    ChainCommunicationError::CustomError(format!(
+                        "Failed to parse BigUint from string '{}' for {}",
+                        val, item_name
+                    ))
+                })
+            }
+            _ => Err(ChainCommunicationError::CustomError(format!(
+                "Unexpected stack value type for {}",
+                item_name
+            ))),
+        }
+    }
+
+    pub fn parse_stack_item_u32(
+        stack: &[StackItem],
+        index: usize,
+        item_name: &str,
+    ) -> ChainResult<u32> {
+        let biguint = Self::parse_stack_item_biguint(stack, index, item_name)?;
+        biguint.clone().try_into().map_err(|_| {
+            ChainCommunicationError::CustomError(format!(
+                "Value at index {} ({}) is too large for u32: {:?}",
+                index, item_name, biguint
+            ))
+        })
+    }
 }
 
 #[cfg(test)]

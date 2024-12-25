@@ -8,11 +8,10 @@ use hyperlane_core::{
     HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
     MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
-use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 use tonlib_core::{
     cell::{
-        dict::predefined_readers::{key_reader_uint, val_reader_uint},
+        dict::predefined_readers::{key_reader_u8, val_reader_uint},
         BagOfCells,
     },
     TonAddress,
@@ -59,8 +58,6 @@ impl HyperlaneChain for TonMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for TonMerkleTreeHook {
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
-        let count = self.count(&ReorgPeriod::None).await.unwrap();
-
         let response = self
             .provider
             .run_get_method(self.address.to_string(), "get_tree".to_string(), None)
@@ -72,16 +69,38 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             ));
         }
 
-        let stack_item = response.stack.get(0).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(
-                "Response stack is empty or missing required item".to_string(),
-            ))
+        let tree_stack_item = response.stack.get(0).ok_or_else(|| {
+            HyperlaneTonError::ParsingError(
+                "Response stack is empty or missing tree item".to_string(),
+            )
+        })?;
+        let count_stack_item = response.stack.get(1).ok_or_else(|| {
+            HyperlaneTonError::ParsingError(
+                "Response stack is empty or missing count item".to_string(),
+            )
         })?;
 
-        let value = match &stack_item.value {
+        let count = match &count_stack_item.value {
+            StackValue::String(num) => u8::from_str_radix(num.trim_start_matches("0x"), 16)
+                .map_err(|e| {
+                    HyperlaneTonError::ParsingError(format!(
+                        "Failed to parse String '{}' to u8: {:?}",
+                        num, e
+                    ))
+                })?,
+            _ => {
+                return Err(HyperlaneTonError::ParsingError(
+                    "Unexpected stack value type for count".to_string(),
+                )
+                .into());
+            }
+        };
+        info!("count:{:?}", count);
+
+        let tree_boc = match &tree_stack_item.value {
             StackValue::String(boc) => boc,
             StackValue::List(list) if list.is_empty() => {
-                warn!("Response stack contains empty list");
+                warn!("Response stack contains empty tree list");
 
                 let branch = [H256::zero(); TREE_DEPTH];
                 return Ok(IncrementalMerkle {
@@ -90,68 +109,56 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 });
             }
             _ => {
-                return Err(ChainCommunicationError::from(
-                    HyperlaneTonError::ParsingError("Unexpected stack value type".to_string()),
-                ));
+                return Err(HyperlaneTonError::ParsingError(
+                    "Unexpected stack value type for tree".to_string(),
+                )
+                .into());
             }
         };
 
-        info!("Parsed value from stack: {:?}", value);
-
-        let cell_boc_decoded = general_purpose::STANDARD.decode(value).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to decode cell BOC from response{:?}",
-                e
-            )))
+        let cell_boc_decoded = general_purpose::STANDARD.decode(tree_boc).map_err(|e| {
+            HyperlaneTonError::ParsingError(format!("Failed to decode tree BOC: {:?}", e))
         })?;
 
         let boc = BagOfCells::parse(&cell_boc_decoded).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to parse BOC: {}",
-                e
-            )))
+            HyperlaneTonError::ParsingError(format!("Failed to parse BOC: {:?}", e))
         })?;
-
         let cell = boc.single_root().map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to get root cell: {}",
-                e
-            )))
+            HyperlaneTonError::ParsingError(format!("Failed to get root cell: {:?}", e))
         })?;
-        info!("Cell data before parsing: {:?}", cell);
 
-        let mut parser = cell.parser();
-        let dict = parser
-            .load_dict(256, key_reader_uint, val_reader_uint)
+        let dict = cell
+            .parser()
+            .load_dict_data(8, key_reader_u8, val_reader_uint)
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Failed to parse dictionary: {}",
                     e
                 )))
             })?;
+        info!("Dict:{:?} dict len:{:?}", dict, dict.len());
 
         let mut branch = [H256::zero(); TREE_DEPTH];
-
-        for (depth, value) in dict {
-            if let Some(depth_usize) = depth.to_usize() {
-                if depth_usize >= TREE_DEPTH {
-                    warn!("Unexpected depth: {}, skipping...", depth_usize);
-                    continue;
-                }
-
-                // let mut value_bytes = [0u8; 32];
-                // let value_raw = value.to_bytes_be();
-                // value_bytes[32 - value_raw.len()..].copy_from_slice(&value_raw);
-                // let value_h256: H256 = H256::from_slice(&value_bytes);
-
-                let value_h256: H256 = H256::from_slice(value.to_bytes_be().as_slice());
-                branch[depth_usize] = value_h256;
-                info!("Depth: {}, Value: {:?}", depth_usize, value_h256);
+        assert_eq!(
+            dict.len(),
+            TREE_DEPTH,
+            "The length of the dictionary is {}, but it should be {}",
+            dict.len(),
+            TREE_DEPTH
+        );
+        dict.iter().for_each(|(key, hash)| {
+            let size = *key as usize;
+            info!("size:{:?}", size);
+            if size <= TREE_DEPTH {
+                let mut padded_hash = [0u8; 32];
+                let hash_bytes = hash.to_bytes_be();
+                padded_hash[32 - hash_bytes.len()..].copy_from_slice(&hash_bytes);
+                branch[size] = H256::from_slice(&padded_hash);
+                info!("Branch updated at depth {}: {:?}", key, padded_hash);
             } else {
-                warn!("Failed to convert depth to usize: {}", depth);
-                continue;
+                warn!("Unexpected depth: {}, skipping...", size)
             }
-        }
+        });
 
         Ok(IncrementalMerkle {
             branch,
@@ -183,7 +190,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 ChainCommunicationError::CustomError(format!("Failed to get response: {:?}", e))
             })?;
 
-        let stack = response.stack;
+        let stack = &response.stack;
 
         if stack.len() < 2 {
             return Err(ChainCommunicationError::CustomError(
@@ -191,66 +198,14 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             ));
         }
 
-        // let root = ConversionUtils::parse_stack_item_to_u32(&stack, 0).map_err(|e| {
-        //     ChainCommunicationError::CustomError(format!("Failed to parse root: {:?}", e))
-        // })?;
-        // let index = ConversionUtils::parse_stack_item_to_u32(&stack, 1).map_err(|e| {
-        //     ChainCommunicationError::CustomError(format!("Failed to parse index: {:?}", e))
-        // })?;
-        let root = stack.get(0).ok_or_else(|| {
-            ChainCommunicationError::CustomError(
-                "Stack does not contain value at index 0".to_string(),
-            )
-        })?;
-        let index = stack.get(1).ok_or_else(|| {
-            ChainCommunicationError::CustomError(
-                "Stack does not contain value at index 1".to_string(),
-            )
-        })?;
-        let root_value = match &root.value {
-            StackValue::String(val) => {
-                BigUint::parse_bytes(val.trim_start_matches("0x").as_bytes(), 16).ok_or_else(
-                    || {
-                        ChainCommunicationError::CustomError(format!(
-                            "Failed to parse BigUint from string: {}",
-                            val
-                        ))
-                    },
-                )?
-            }
-            _ => {
-                return Err(ChainCommunicationError::CustomError(
-                    "Unexpected stack value type for root".to_string(),
-                ));
-            }
-        };
-        let index_value = match &index.value {
-            StackValue::String(val) => {
-                BigUint::parse_bytes(val.trim_start_matches("0x").as_bytes(), 16)
-                    .ok_or_else(|| {
-                        ChainCommunicationError::CustomError(format!(
-                            "Failed to parse BigUint from string: {}",
-                            val
-                        ))
-                    })?
-                    .try_into()
-                    .map_err(|_| {
-                        ChainCommunicationError::CustomError(
-                            "Value is too large for u32".to_string(),
-                        )
-                    })?
-            }
-            _ => {
-                return Err(ChainCommunicationError::CustomError(
-                    "Unexpected stack value type for index".to_string(),
-                ));
-            }
-        };
+        let root = ConversionUtils::parse_stack_item_biguint(stack, 0, "root")?;
+        let index = ConversionUtils::parse_stack_item_to_u32(stack, 1)?;
+
         Ok(Checkpoint {
             merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(&self.address.clone()),
             mailbox_domain: self.domain().id(),
-            root: H256::from_slice(root_value.to_bytes_be().as_slice()),
-            index: index_value,
+            root: H256::from_slice(root.to_bytes_be().as_slice()),
+            index,
         })
     }
 }
@@ -325,8 +280,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             .messages
             .iter()
             .filter_map(|message| {
-                let boc = &message.message_content.body;
-                let cell = ConversionUtils::parse_root_cell_from_boc(boc)
+                let cell = ConversionUtils::parse_root_cell_from_boc(&message.message_content.body)
                     .map_err(|e| {
                         warn!("Failed to parse root cell from BOC: {:?}", e);
                         e

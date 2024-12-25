@@ -148,6 +148,10 @@ impl TestContext {
         Ok(())
     }
 
+    pub async fn test_validator_announce_announce(&self) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+
     pub async fn test_merkle_tree_hook_tree(&self) -> Result<(), anyhow::Error> {
         let tree = self.merkle_hook.tree(&ReorgPeriod::None).await?;
         println!("Incremental Merkle Tree: {:?}", tree);
@@ -160,9 +164,6 @@ impl TestContext {
     pub async fn test_merkle_tree_hook_count(&self) -> Result<(), anyhow::Error> {
         let count = self.merkle_hook.count(&ReorgPeriod::None).await?;
         info!("Merkle Tree Count: {}", count);
-
-        assert!(count >= 0, "Merkle Tree count should be non-negative.");
-        info!("Merkle Tree count is valid.");
 
         Ok(())
     }
