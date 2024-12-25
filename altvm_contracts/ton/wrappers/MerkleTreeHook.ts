@@ -16,7 +16,7 @@ import { THookMetadata } from './utils/types';
 
 export type MerkleTreeHookConfig = {
   index: number;
-  tree?: Dictionary<bigint, bigint>;
+  tree?: Dictionary<number, bigint>;
 };
 
 export function merkleTreeHookConfigToCell(config: MerkleTreeHookConfig): Cell {
@@ -25,7 +25,7 @@ export function merkleTreeHookConfigToCell(config: MerkleTreeHookConfig): Cell {
     .storeDict(
       config.tree ??
         Dictionary.empty(
-          Dictionary.Keys.BigUint(8),
+          Dictionary.Keys.Uint(8),
           Dictionary.Values.BigUint(256),
         ),
     )
