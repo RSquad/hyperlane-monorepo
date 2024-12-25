@@ -29,7 +29,7 @@ export async function run(provider: NetworkProvider) {
   await mailbox.sendDispatch(provider.sender(), toNano('0.2'), {
     destDomain: 777001,
     recipientAddr: destAddrTon,
-    message: beginCell().storeUint(123, 32).endCell(),
+    message: beginCell().storeUint(321, 32).endCell(),
     hookMetadata,
     requiredValue: toNano('0.1'),
   });

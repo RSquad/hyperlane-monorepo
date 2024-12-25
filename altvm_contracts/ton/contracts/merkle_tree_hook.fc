@@ -28,7 +28,7 @@ global cell g::tree;
 }
 
 
-() insert_into_tree(cell tree, int node) impure inline {
+() insert_into_tree(int node) impure inline {
     throw_unless(
         error::merkle_tree_full,
         g::count < MAX_LEAVES
@@ -38,10 +38,10 @@ global cell g::tree;
     int i = 0;
     repeat(TREE_DEPTH - 1) {
         if ((size & 1) == 1) {
-            tree~udict_set(256, i, begin_cell().store_uint(node, 256).end_cell().begin_parse());
+            g::tree~udict_set(256, i, begin_cell().store_uint(node, 256).end_cell().begin_parse());
             return ();
         }
-        (slice s, _) = tree.udict_get?(256, i);
+        (slice s, _) = g::tree.udict_get?(256, i);
         node = keccak256_builder(
             begin_cell()
                 .store_slice(s)
