@@ -79,7 +79,6 @@ describe('MerkleTreeHook', () => {
 
   it('should return root and count', async () => {
     const res = await merkleTreeHook.getTree();
-    console.log(res.tree);
     expect(res.tree).toBeTruthy();
     expect(res.count).toStrictEqual(0);
   });

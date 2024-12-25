@@ -25,7 +25,7 @@ export function merkleTreeHookConfigToCell(config: MerkleTreeHookConfig): Cell {
     .storeDict(
       config.tree ??
         Dictionary.empty(
-          Dictionary.Keys.BigUint(256),
+          Dictionary.Keys.BigUint(8),
           Dictionary.Values.BigUint(256),
         ),
     )
