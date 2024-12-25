@@ -1,4 +1,4 @@
-use std::ops::RangeInclusive;
+use std::{cmp::max, ops::RangeInclusive};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
@@ -230,10 +230,11 @@ impl TonMerkleTreeHookIndexer {
 impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
     async fn fetch_logs_in_range(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        let start_block = *_range.start();
-        let end_block = *_range.end();
+        info!("fetch_logs_in_range in MerkleTreeHook start!");
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
 
         let timestamps = self
             .provider
@@ -328,6 +329,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             })
             .collect();
 
+        info!("events in merkleTreeHook:{:?}", events);
         Ok(events)
     }
 
