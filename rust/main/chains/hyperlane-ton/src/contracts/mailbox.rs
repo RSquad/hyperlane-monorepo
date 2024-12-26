@@ -1,4 +1,5 @@
 use std::{
+    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     time::SystemTime,
@@ -20,7 +21,7 @@ use tonlib_core::{
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
 };
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
@@ -436,8 +437,12 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let start_block = *range.start();
-        let end_block = *range.end();
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
+        info!(
+            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
+            start_block, end_block
+        );
 
         let timestamps = self
             .mailbox
@@ -504,7 +509,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                     })
             })
             .collect();
-
+        info!("events in mailbox:{:?}", events);
         Ok(events)
     }
 
@@ -537,13 +542,90 @@ impl SequenceAwareIndexer<HyperlaneMessage> for TonMailboxIndexer {
 impl Indexer<H256> for TonMailboxIndexer {
     async fn fetch_logs_in_range(
         &self,
-        _range: RangeInclusive<u32>,
+        range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
+
         info!(
-            "fetch_logs_in_range in TonMailboxIndexer with range:{:?}",
-            _range
+            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
+            start_block, end_block
         );
-        todo!()
+
+        let timestamps = self
+            .mailbox
+            .provider
+            .fetch_blocks_timestamps(vec![start_block, end_block])
+            .await?;
+
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get start_utime".to_string(),
+            ))
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get end_utime".to_string(),
+            ))
+        })?;
+
+        let messages = self
+            .mailbox
+            .provider
+            .get_messages(
+                None,
+                None,
+                Some(self.mailbox.mailbox_address.to_string()),
+                Some("null".to_string()),
+                None,
+                Some(start_utime),
+                Some(end_utime),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some("desc".to_string()),
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to fetch messages in range: {:?} for Indexer<H256>",
+                    e
+                )))
+            })?;
+        let events = messages
+            .messages
+            .into_iter()
+            .filter_map(|message| {
+                let hash = &message.hash;
+
+                let decoded = match general_purpose::STANDARD.decode(hash) {
+                    Ok(decoded) => decoded,
+                    Err(err) => {
+                        warn!("error decode:{:?}", err);
+                        return None;
+                    }
+                };
+
+                if decoded.len() != 32 {
+                    return None;
+                }
+
+                let log_meta = LogMeta {
+                    address: ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address),
+                    block_number: 0,
+                    block_hash: Default::default(),
+                    transaction_id: Default::default(),
+                    transaction_index: 0,
+                    log_index: Default::default(),
+                };
+
+                Some((Indexed::new(H256::from_slice(&decoded)), log_meta))
+            })
+            .collect();
+
+        Ok(events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -556,7 +638,7 @@ impl SequenceAwareIndexer<H256> for TonMailboxIndexer {
         // TODO: implement when ton scraper support is implemented
         info!("Message delivery indexing not implemented");
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
-        Ok((Some(1), tip))
+        Ok((None, tip))
     }
 }
 
