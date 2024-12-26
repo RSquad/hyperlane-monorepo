@@ -5,8 +5,8 @@ use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, TREE_DEPTH},
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
 use num_traits::ToPrimitive;
 use tonlib_core::{
@@ -232,10 +232,13 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        info!("fetch_logs_in_range in MerkleTreeHook start!");
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
 
+        info!(
+            "fetch_logs_in_range in MerkleTreeHook start:{:?} end:{:?}",
+            start_block, end_block
+        );
         let timestamps = self
             .provider
             .fetch_blocks_timestamps(vec![start_block, end_block])
@@ -347,7 +350,27 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        println!("Merkle tree hook");
-        Ok((Some(1), 1))
+        let tip = self.get_finalized_block_number().await?;
+        let response = self
+            .provider
+            .run_get_method(
+                self.merkle_tree_hook_address.to_string(),
+                "get_count".to_string(),
+                None,
+            )
+            .await
+            .map_err(|e| {
+                ChainCommunicationError::CustomError(format!("run_get_method failed: {e}"))
+            })?;
+
+        let sequence =
+            ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
+                HyperlaneTonError::ParsingError(format!(
+                    "Fauled to parse stack item to u32 for sequence:{:?}",
+                    e
+                ))
+            })?;
+
+        Ok((Some(sequence), tip))
     }
 }

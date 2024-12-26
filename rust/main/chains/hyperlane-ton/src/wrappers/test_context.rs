@@ -1,14 +1,14 @@
-use std::{ops::RangeInclusive, os::macos::raw::ino_t};
+use std::ops::RangeInclusive;
 
 use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     accumulator::TREE_DEPTH, Announcement, ChainCommunicationError, HyperlaneDomain,
     HyperlaneMessage, Indexer, KnownHyperlaneDomain, Mailbox, MerkleTreeHook, ReorgPeriod,
-    Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
+    SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
 };
 use reqwest::Client;
 use tonlib_core::{cell::BagOfCells, wallet::TonWallet, TonAddress};
-use tracing::info;
+use tracing::{info, warn};
 use url::Url;
 
 use crate::{
@@ -174,6 +174,24 @@ impl TestContext {
 
         Ok(())
     }
+
+    pub async fn test_mailbox_indexer(&self) -> Result<(), anyhow::Error> {
+        let hash = "+wybmbTcVrfQRXN31E4wclfrj9MhE+MkDx8hA+hkQwY=";
+        let decoded = match general_purpose::STANDARD.decode(hash) {
+            Ok(decoded) => decoded,
+            Err(err) => {
+                warn!("error decode:{:?}", err);
+                return Ok(());
+            }
+        };
+
+        if decoded.len() != 32 {
+            return Ok(());
+        }
+        let result = H256::from_slice(decoded.as_slice());
+        info!("indexer H256:{:?}", result);
+        Ok(())
+    }
     pub async fn test_validator_announce_get_storage_locations(&self) -> Result<(), anyhow::Error> {
         let boc = "te6cckEBAwEAbwABQ6AAAAAAAAAAAAAAAAACumlV6oTPtvr4bPBzVe40AUWNTLABAUOgDrViCHwsJlBivdpOn+cAsU1R7j8qhoxHPC7ZNnmBvWWQAgBGZmlsZTovLy4vcGVyc2lzdGVudF9kYXRhL2NoZWNrcG9pbnRYdWdj";
 
@@ -264,14 +282,42 @@ impl TestContext {
     }
 
     pub async fn test_merkle_tree_hook_indexer(&self) -> Result<(), anyhow::Error> {
+        let end_block = self
+            .merkle_hook_indexer
+            .get_finalized_block_number()
+            .await
+            .unwrap();
         let logs = self
             .merkle_hook_indexer
-            .fetch_logs_in_range(RangeInclusive::new(10, 26370511))
+            .fetch_logs_in_range(RangeInclusive::new(10, end_block))
             .await
             .unwrap();
 
         info!("Events:{:?}", logs);
 
+        Ok(())
+    }
+
+    pub async fn test_merkle_tree_hook_get_finalized_block_number(
+        &self,
+    ) -> Result<(), anyhow::Error> {
+        let res = self
+            .merkle_hook_indexer
+            .get_finalized_block_number()
+            .await
+            .unwrap();
+        info!("get_finalized_block_number:{:?}", res);
+        Ok(())
+    }
+    pub async fn test_merkle_tree_hook_latest_sequence_count_and_tip(
+        &self,
+    ) -> Result<(), anyhow::Error> {
+        let cursor = self
+            .merkle_hook_indexer
+            .latest_sequence_count_and_tip()
+            .await
+            .unwrap();
+        info!("latest_sequence_count_and_tip:{:?}", cursor);
         Ok(())
     }
 }
