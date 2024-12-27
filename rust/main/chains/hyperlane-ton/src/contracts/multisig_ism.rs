@@ -80,18 +80,21 @@ impl MultisigIsm for TonMultisigIsm {
                 ));
             }
         };
+        info!("threshold str:{:?}", str);
         let threshold = u8::from_str_radix(str.get(2..).unwrap_or(""), 16).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse threshold value: {:?}",
                 e
             )))
         })?;
+        info!(" threshold:{:?}", threshold);
 
         let cell_stack_item = response.stack.get(1).ok_or_else(|| {
             ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
                 "No cell stack item in response".to_string(),
             ))
         })?;
+
         let boc = match &cell_stack_item.value {
             StackValue::String(value) => value,
             _ => {
@@ -102,6 +105,7 @@ impl MultisigIsm for TonMultisigIsm {
                 ));
             }
         };
+        info!("cell_stack_item in validators:{:?}", cell_stack_item);
         let root_cell = ConversionUtils::parse_root_cell_from_boc(boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse_root_cell_from_boc: {:?}",
@@ -111,7 +115,7 @@ impl MultisigIsm for TonMultisigIsm {
 
         let mut parser = root_cell.parser();
         let dict = parser
-            .load_dict(32, key_reader_u32, val_reader_cell)
+            .load_dict_data(32, key_reader_u32, val_reader_cell)
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Failed to load dictionary from cell: {:?}",
