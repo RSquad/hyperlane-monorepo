@@ -53,7 +53,7 @@ impl MultisigIsm for TonMultisigIsm {
             value: StackValue::String(domain.to_string()),
         }]);
 
-        let function_name = "get_validators_and_threshhold".to_string();
+        let function_name = "get_validators_and_threshold".to_string();
         let response = self
             .provider
             .run_get_method(self.multisig_address.to_hex(), function_name, stack)
