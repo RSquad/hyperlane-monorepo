@@ -3,8 +3,8 @@ use std::ops::RangeInclusive;
 use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     accumulator::TREE_DEPTH, Announcement, ChainCommunicationError, HyperlaneDomain,
-    HyperlaneMessage, Indexer, KnownHyperlaneDomain, Mailbox, MerkleTreeHook, ReorgPeriod,
-    SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
+    HyperlaneMessage, HyperlaneProvider, Indexer, KnownHyperlaneDomain, Mailbox, MerkleTreeHook,
+    ReorgPeriod, SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
 };
 use reqwest::Client;
 use tonlib_core::{cell::BagOfCells, wallet::TonWallet, TonAddress};
@@ -12,9 +12,9 @@ use tracing::{info, warn};
 use url::Url;
 
 use crate::{
-    error::HyperlaneTonError, ConversionUtils, TonConnectionConf, TonInterchainGasPaymaster,
-    TonInterchainSecurityModule, TonMailbox, TonMerkleTreeHook, TonMerkleTreeHookIndexer,
-    TonMultisigIsm, TonProvider, TonSigner, TonValidatorAnnounce,
+    error::HyperlaneTonError, ton_api_center::TonApiCenter, ConversionUtils, TonConnectionConf,
+    TonInterchainGasPaymaster, TonInterchainSecurityModule, TonMailbox, TonMerkleTreeHook,
+    TonMerkleTreeHookIndexer, TonMultisigIsm, TonProvider, TonSigner, TonValidatorAnnounce,
 };
 
 pub struct TestContext {
@@ -109,6 +109,26 @@ impl TestContext {
         })
     }
 
+    pub async fn test_wallet_information(&self) -> Result<(), anyhow::Error> {
+        let s = self
+            .provider
+            .get_wallet_information(self.signer.address.to_hex().as_str(), true)
+            .await
+            .unwrap();
+        println!("wallet information:{:?}", s);
+        Ok(())
+    }
+
+    pub async fn test_is_contract(&self) -> Result<(), anyhow::Error> {
+        let ton_address =
+            TonAddress::from_base64_url("EQBxuFfnP5UVFIeWBiZJ9UStEGEVW_DqIgETU36GSkrhWuzD")
+                .unwrap();
+        let h256_address = ConversionUtils::ton_address_to_h256(&ton_address);
+        let is_contract = self.provider.is_contract(&h256_address).await.unwrap();
+
+        println!("is_contract:{:?}", is_contract);
+        Ok(())
+    }
     pub async fn test_mailbox_default_ism(&self) -> Result<(), anyhow::Error> {
         let default_ism = self.mailbox.default_ism().await.map_err(|e| {
             anyhow::Error::msg(format!("Failed to fetch Mailbox Default ISM: {:?}", e))
@@ -126,6 +146,13 @@ impl TestContext {
             anyhow::Error::msg(format!("Failed to fetch Mailbox recipient ISM: {:?}", e))
         })?;
         println!("recipient ISM: {:?}", default_ism);
+        Ok(())
+    }
+    pub async fn test_mailbox_delievered(&self) -> Result<(), anyhow::Error> {
+        let delievered = self.mailbox.delivered(H256::zero()).await.unwrap();
+
+        println!("delievered:{:?}", delievered);
+
         Ok(())
     }
 
