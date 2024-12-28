@@ -19,5 +19,6 @@ export async function run(provider: NetworkProvider) {
   console.log('hook address:', hook.address);
 
   const res = await hook.getTree();
-  console.log(res);
+  console.log(res.tree.get(0n)?.toString(16));
+  console.log(res.tree.get(1n)?.toString(16));
 }

@@ -36,7 +36,7 @@ global cell g::tree;
     g::count += 1;
     int size = g::count;
     int i = 0;
-    repeat(TREE_DEPTH - 1) {
+    repeat(TREE_DEPTH) {
         if ((size & 1) == 1) {
             g::tree~udict_set(KEY_LEN, i, begin_cell().store_uint(node, 256).end_cell().begin_parse());
             return ();
@@ -57,8 +57,8 @@ int root_w_ctx(cell zeroes) impure inline {
     int index = g::count;
     int i = 0;
     int current = 0;
-    repeat(TREE_DEPTH - 1) {
-        int iht_bit = (index >> i) & 0x01;
+    repeat(TREE_DEPTH) {
+        int iht_bit = (index >> i) & 1;
         (slice next, _) = g::tree.udict_get?(KEY_LEN, i);
         if (iht_bit == 1) {
             current = keccak256_builder(
@@ -97,9 +97,6 @@ int root() inline {
 
     if(op == op::post_dispatch) {
         int message_id = in_msg_body~load_uint(256);
-        int dest_domain = in_msg_body~load_uint(32);
-        slice refund_addr = in_msg_body~load_msg_addr();
-        cell hook_metadata = in_msg_body~load_ref();
 
         insert_into_tree(message_id);
 
@@ -108,7 +105,7 @@ int root() inline {
             event::inserted_into_tree,
             data
         );
-        
+
         return store_globals();
     }
 
