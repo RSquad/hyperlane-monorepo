@@ -96,7 +96,7 @@ fn run_locally() {
         agent_config[0].clone(),
         metrics_port + 1,
         debug,
-        Some(persistent_path.to_string()),
+        Some(format!("{}1", persistent_path)),
     );
 
     let validator2 = launch_ton_validator(
@@ -104,7 +104,7 @@ fn run_locally() {
         agent_config[1].clone(),
         metrics_port + 2,
         debug,
-        Some(persistent_path.to_string()),
+        Some(format!("{}2", persistent_path)),
     );
 
     let validators = vec![validator1, validator2];
