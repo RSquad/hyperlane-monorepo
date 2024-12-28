@@ -108,8 +108,7 @@ int root() inline {
             event::inserted_into_tree,
             data
         );
-
-        g::count += 1;
+        
         return store_globals();
     }
 

@@ -109,7 +109,7 @@ export class MerkleTreeHook implements Contract {
   }> {
     const result = await provider.get('get_tree', []);
     const tree = Dictionary.loadDirect(
-      Dictionary.Keys.BigUint(256),
+      Dictionary.Keys.BigUint(8),
       Dictionary.Values.BigUint(256),
       result.stack.readCellOpt(),
     );
