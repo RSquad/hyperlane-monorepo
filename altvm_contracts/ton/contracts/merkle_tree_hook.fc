@@ -100,7 +100,7 @@ int root() inline {
 
         insert_into_tree(message_id);
 
-        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count, 32);
+        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
         send_event(
             event::inserted_into_tree,
             data
@@ -119,7 +119,7 @@ int root() inline {
 
 int get_count() method_id { 
     load_globals();
-    return g::count + 1;
+    return g::count;
 }
 
 int get_root() method_id {
@@ -129,5 +129,5 @@ int get_root() method_id {
 
 (int, int) get_latest_checkpoint() method_id {
     load_globals();
-    return (root(), g::count);
+    return (root(), g::count - 1);
 }
