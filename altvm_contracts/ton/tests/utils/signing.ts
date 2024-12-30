@@ -16,7 +16,7 @@ export const toEthSignedMessageHash = (hash: bigint) => {
     utils.solidityPack(
       ['string', 'bytes32'],
       [
-        '\\x19Ethereum Signed Message:\\n32',
+        '\x19Ethereum Signed Message:\n32',
         Buffer.from(hash.toString(16), 'hex'),
       ],
     ),
