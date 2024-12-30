@@ -6,6 +6,7 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
 };
 use num_bigint::BigUint;
+use num_traits::FromPrimitive;
 use tonlib_core::{
     cell::{
         dict::predefined_readers::{key_reader_uint, val_reader_cell},
@@ -18,6 +19,7 @@ use tracing::info;
 use crate::{
     error::HyperlaneTonError,
     run_get_method::{StackItem, StackValue},
+    t_metadata::TMetadata,
 };
 
 pub struct ConversionUtils;
@@ -47,11 +49,38 @@ impl ConversionUtils {
     }
 
     pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, TonCellError> {
+        let tmetadata = TMetadata::from_bytes(metadata).unwrap();
         let mut writer = CellBuilder::new();
 
-        writer.store_slice(metadata).map_err(|e| {
-            TonCellError::CellBuilderError(format!("Failed to store metadata slice: {:?}", e))
+        writer
+            .store_slice(&tmetadata.origin_merkle_hook)
+            .map_err(|e| {
+                TonCellError::CellBuilderError(format!("Failed to store metadata slice: {:?}", e))
+            })?;
+        writer.store_slice(&tmetadata.root).map_err(|e| {
+            TonCellError::CellBuilderError(format!("Failed to store root slice: {:?}", e))
         })?;
+        writer
+            .store_uint(32, &BigUint::from_u32(tmetadata.index).unwrap())
+            .map_err(|e| {
+                TonCellError::CellBuilderError(format!("Failed to store index: {:?}", e))
+            })?;
+
+        let mut signature_dict = HashMap::new();
+        for (key, signature) in &tmetadata.signatures {
+            signature_dict.insert(BigUint::from_u32(*key).unwrap(), signature.to_vec());
+        }
+        let value_writer =
+            |builder: &mut CellBuilder, value: Vec<u8>| -> Result<(), TonCellError> {
+                builder.store_slice(&value).map(|_| ()).map_err(|_| {
+                    TonCellError::CellBuilderError(format!("Failed to store value in dict"))
+                })
+            };
+        writer
+            .store_dict(32, value_writer, signature_dict)
+            .map_err(|e| {
+                TonCellError::CellBuilderError(format!("Failed to store dictionary: {:?}", e))
+            })?;
 
         let cell = writer.build().map_err(|e| {
             TonCellError::CellBuilderError(format!("Failed to build cell: {:?}", e))

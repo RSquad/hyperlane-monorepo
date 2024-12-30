@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, fmt::Error, fs};
 
-use hyperlane_core::H256;
 use hyperlane_ton::ConversionUtils;
 use tonlib_core::TonAddress;
 
@@ -98,7 +97,7 @@ impl TonAgentConfig {
             contract_address_bytes: 32,
             index: AgentConfigIndex {
                 from: 1,
-                chunk: 26475135,
+                chunk: 26543528,
             },
         }
     }
@@ -129,18 +128,18 @@ pub fn generate_ton_config(
         (
             "tontest1",
             777001,
-            "EQDwBXPobxQ2AtcmDnIAsjkPjIdqZjr2NBrK8IKTQEJDG_2W", // Mailbox
+            "EQCyAx6WlFz344IgGCf9XtLawsvEniHXcFqlCxhWGc0UtNmv", // Mailbox
             "EQD-lhO00d-pZDYRP6tzDvuqSIUcCUukZFScP9zOQ1aNHKBh", // IGP
-            "EQCPOAxYR5c6auBhk2O64e2pE-0ONrh0kgFMdAlpRMkopa44", // Validator Announce
-            "EQCilnHVoXP8ALds8QdenwXan5H7xCt04zkFARHVNDgjyciB", // merkle tree hook
+            "EQB6-6wh6JQlZ_vG_Ep6BF10rcZlojzQ2g38Lci7MCnVdk9s", // Validator Announce
+            "EQDIcqH1ubCL8eirRGDe3ztAtKgaDoGFw5HU2HO7tvFX4AMZ", // merkle tree hook
         ),
         (
             "tontest2",
             777002,
-            "EQBSgYJGgJTO5V2okuGhqZ3_WCppHfT7_BaHM2-h9HdtyRbU", // Mailbox
+            "EQDWmnFOuZAjE-H1FbTitj0EoKeakr-wIzQdQGKy-uLXcZBI", // Mailbox
             "EQD-lhO00d-pZDYRP6tzDvuqSIUcCUukZFScP9zOQ1aNHKBh", // IGP
-            "EQAMUFDjwoIWZPnYGfFahqw82Ab_nHCGV44VC8qWwOW4T0ov", // Validator Announce
-            "EQCilnHVoXP8ALds8QdenwXan5H7xCt04zkFARHVNDgjyciB", // merkle tree hook
+            "EQBpL_niCuX7Yi1QAnTVjqSfXE3NHHXn8Ef6NkxjvYz135c1", // Validator Announce
+            "EQDIcqH1ubCL8eirRGDe3ztAtKgaDoGFw5HU2HO7tvFX4AMZ", // merkle tree hook
         ),
     ];
 

@@ -4,7 +4,8 @@ use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     accumulator::TREE_DEPTH, Announcement, ChainCommunicationError, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, KnownHyperlaneDomain, Mailbox, MerkleTreeHook,
-    ReorgPeriod, SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
+    MultisigIsm, ReorgPeriod, SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160,
+    H256, U256,
 };
 use reqwest::Client;
 use tonlib_core::{cell::BagOfCells, wallet::TonWallet, TonAddress};
@@ -346,5 +347,75 @@ impl TestContext {
             .unwrap();
         info!("latest_sequence_count_and_tip:{:?}", cursor);
         Ok(())
+    }
+
+    pub async fn test_multisig_validators_and_threshold(&self) -> Result<(), anyhow::Error> {
+        Ok(())
+    }
+    pub fn parse_metadata(&self, metadata: &[u8]) {
+        if metadata.len() < 100 {
+            println!("Metadata is too short to parse. Length: {}", metadata.len());
+            return;
+        }
+
+        let mut offset = 0;
+
+        // Extract origin_merkle_hook (32 bytes)
+        let origin_merkle_hook = &metadata[offset..offset + 32];
+        offset += 32;
+
+        // Extract root (32 bytes)
+        let root = &metadata[offset..offset + 32];
+        offset += 32;
+
+        // Extract index (4 bytes)
+        let index = u32::from_be_bytes([
+            metadata[offset],
+            metadata[offset + 1],
+            metadata[offset + 2],
+            metadata[offset + 3],
+        ]);
+        offset += 4;
+
+        println!("origin_merkle_hook: {:x?}", origin_merkle_hook);
+        println!("root: {:x?}", root);
+        println!("index: {}", index);
+
+        // Handle the remaining 65 bytes as a single signature
+        if offset + 65 == metadata.len() {
+            let signature = &metadata[offset..];
+            println!("Signature: {:x?}", signature);
+            println!("Metadata parsed successfully. All bytes processed.");
+            return;
+        }
+
+        // Parse signatures if there are multiple entries (with keys)
+        while offset + 69 <= metadata.len() {
+            // Extract signature key
+            let key = u32::from_be_bytes([
+                metadata[offset],
+                metadata[offset + 1],
+                metadata[offset + 2],
+                metadata[offset + 3],
+            ]);
+            offset += 4;
+
+            // Extract signature
+            let signature = &metadata[offset..offset + 65];
+            offset += 65;
+
+            println!("Signature key: {}", key);
+            println!("Signature: {:x?}", signature);
+        }
+
+        // Check for leftover bytes
+        if offset != metadata.len() {
+            println!(
+                "Unexpected leftover bytes in metadata: {} bytes",
+                metadata.len() - offset
+            );
+        } else {
+            println!("Metadata parsed successfully. All bytes processed.");
+        }
     }
 }

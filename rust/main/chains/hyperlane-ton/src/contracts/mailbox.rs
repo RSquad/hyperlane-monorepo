@@ -307,6 +307,7 @@ impl Mailbox for TonMailbox {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         info!("HyperlaneMessage in process:{:?}", message);
+        info!("metadata in process:{:?}", metadata);
         let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse HyperlaneMessage to Ton Cell: {:?}",
