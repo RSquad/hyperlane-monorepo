@@ -86,18 +86,27 @@ impl ConversionUtils {
                 if value.len() == 65 {
                     let r = BigUint::from_bytes_be(&value[0..32]);
                     let s = BigUint::from_bytes_be(&value[32..64]);
-                    let v = value[64] as u8;
+                    let v = value[64];
 
                     builder.store_uint(256, &r).map_err(|_| {
-                        TonCellError::CellBuilderError(format!("Failed to store 'r' in signature"))
+                        TonCellError::CellBuilderError(format!(
+                            "Failed to store 'r' in signature:{:?}",
+                            r
+                        ))
                     })?;
 
                     builder.store_uint(256, &s).map_err(|_| {
-                        TonCellError::CellBuilderError(format!("Failed to store 's' in signature"))
+                        TonCellError::CellBuilderError(format!(
+                            "Failed to store 's' in signature:{:?}",
+                            s
+                        ))
                     })?;
 
                     builder.store_u8(8, v).map_err(|_| {
-                        TonCellError::CellBuilderError(format!("Failed to store 'v' in signature"))
+                        TonCellError::CellBuilderError(format!(
+                            "Failed to store 'v' in signature:{:?}",
+                            v
+                        ))
                     })?;
 
                     Ok(())
@@ -255,6 +264,19 @@ impl ConversionUtils {
 
         Ok(H160::from_slice(&bytes))
     }
+    pub fn extract_boc_from_stack_item(
+        stack_item: &StackItem,
+    ) -> Result<&String, ChainCommunicationError> {
+        match &stack_item.value {
+            StackValue::String(boc) => Ok(boc),
+            _ => Err(ChainCommunicationError::from(
+                HyperlaneTonError::ParsingError(format!(
+                    "Failed to get boc: unexpected data type: {:?}",
+                    stack_item.value
+                )),
+            )),
+        }
+    }
 
     pub fn parse_stack_item_to_u32(stack: &[StackItem], index: usize) -> ChainResult<u32> {
         let stack_item = stack.get(index).ok_or_else(|| {
@@ -336,25 +358,27 @@ impl ConversionUtils {
         item_name: &str,
     ) -> ChainResult<BigUint> {
         let item = stack.get(index).ok_or_else(|| {
-            ChainCommunicationError::CustomError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Stack does not contain value at index {} ({})",
                 index, item_name
-            ))
+            )))
         })?;
 
         match &item.value {
             StackValue::String(val) => {
                 BigUint::parse_bytes(val.trim_start_matches("0x").as_bytes(), 16).ok_or_else(|| {
-                    ChainCommunicationError::CustomError(format!(
+                    ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                         "Failed to parse BigUint from string '{}' for {}",
                         val, item_name
-                    ))
+                    )))
                 })
             }
-            _ => Err(ChainCommunicationError::CustomError(format!(
-                "Unexpected stack value type for {}",
-                item_name
-            ))),
+            _ => Err(ChainCommunicationError::from(
+                HyperlaneTonError::ParsingError(format!(
+                    "Unexpected stack value type for {}: {:?}",
+                    item_name, item.value
+                )),
+            )),
         }
     }
 
@@ -375,11 +399,13 @@ impl ConversionUtils {
 
 #[cfg(test)]
 mod tests {
-    use hyperlane_core::{H512, U256};
+    use hyperlane_core::{H160, H256, H512, U256};
     use num_bigint::BigUint;
     use num_traits::Zero;
+    use tonlib_core::TonAddress;
 
     use super::ConversionUtils;
+    use crate::run_get_method::{StackItem, StackValue};
 
     #[test]
     fn test_base64_to_h512_valid() {
@@ -414,6 +440,24 @@ mod tests {
         assert!(root_cell.bit_len() > 0);
     }
     #[test]
+    fn test_base64_to_h256_invalid_length() {
+        let base64_hash = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+        let result = ConversionUtils::base64_to_h256(base64_hash);
+        assert!(result.is_err());
+    }
+    #[test]
+    fn test_parse_root_cell_from_boc_valid() {
+        let boc_base64 = "te6cckEBAgEATQABQ6AGvFm965B0z/96EKlW2xGIv+qjfKDHQWY2NlXkdJEINtABAEz3CxqLkN5V+jk24kdOlIIhNfGZYWH0y0ato9U/6pMBogAAAAAAAZnmUE8="; // Example BOC with one root cell
+        let result = ConversionUtils::parse_root_cell_from_boc(boc_base64);
+        assert!(result.is_ok());
+    }
+    #[test]
+    fn test_parse_root_cell_from_boc_invalid_base64() {
+        let boc_base64 = "invalid_base64";
+        let result = ConversionUtils::parse_root_cell_from_boc(boc_base64);
+        assert!(result.is_err());
+    }
+    #[test]
     fn test_u256_to_biguint_zero() {
         // Create a U256 value of 0
         let u256_value = U256::zero();
@@ -435,5 +479,117 @@ mod tests {
         let expected_value =
             BigUint::parse_bytes(b"1234567890123456789012345678901234567890", 10).unwrap();
         assert_eq!(biguint_value, expected_value);
+    }
+    #[test]
+    fn test_ton_address_to_h256() {
+        let address =
+            TonAddress::from_base64_url("UQCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar2F3")
+                .unwrap();
+        let result = ConversionUtils::ton_address_to_h256(&address);
+        let expected = H256::from_slice(&[
+            0xaf, 0xb0, 0x1e, 0xb4, 0x0c, 0x49, 0x41, 0xc0, 0x7a, 0x47, 0x3a, 0x3d, 0xba, 0x2b,
+            0xd3, 0x5f, 0xc4, 0x62, 0x60, 0xcd, 0xeb, 0x3f, 0xe6, 0x9c, 0xf0, 0x57, 0x8f, 0x10,
+            0x1b, 0x11, 0xda, 0xaf,
+        ]);
+
+        assert_eq!(result, expected);
+    }
+    #[test]
+    fn test_h256_to_ton_address() {
+        let h256 = H256::from_slice(&[0x12; 32]);
+        let workchain = 0;
+
+        let address = ConversionUtils::h256_to_ton_address(&h256, workchain);
+
+        assert_eq!(address.workchain, workchain);
+        assert_eq!(address.hash_part.as_slice(), h256.as_bytes());
+    }
+    #[test]
+    fn test_parse_eth_address_to_h160_valid() {
+        let eth_address = "0x1234567890abcdef1234567890abcdef12345678";
+
+        let h160 = ConversionUtils::parse_eth_address_to_h160(eth_address).unwrap();
+
+        assert_eq!(
+            h160,
+            H160::from_slice(&hex::decode(&eth_address[2..]).unwrap())
+        );
+    }
+    #[test]
+    fn test_parse_eth_address_to_h160_invalid_length() {
+        let eth_address = "0x123456";
+
+        let result = ConversionUtils::parse_eth_address_to_h160(eth_address);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Conversion data failed");
+    }
+    #[test]
+    fn test_extract_boc_from_stack_item() {
+        let stack_item = StackItem {
+            r#type: "cell".to_string(),
+            value: StackValue::String("te6cckEBAgEATQABQ6AGvFm965B0z/96EKlW2xGIv+qjfKDHQWY2NlXkdJEINtABAEz3CxqLkN5V+jk24kdOlIIhNfGZYWH0y0ato9U/6pMBogAAAAAAAZnmUE8=".to_string()),
+        };
+
+        let boc = ConversionUtils::extract_boc_from_stack_item(&stack_item).unwrap();
+
+        assert_eq!(boc, "te6cckEBAgEATQABQ6AGvFm965B0z/96EKlW2xGIv+qjfKDHQWY2NlXkdJEINtABAEz3CxqLkN5V+jk24kdOlIIhNfGZYWH0y0ato9U/6pMBogAAAAAAAZnmUE8=");
+    }
+    #[test]
+    fn test_extract_boc_from_stack_item_invalid_type() {
+        let stack_item = StackItem {
+            r#type: "list".to_string(),
+            value: StackValue::List(vec![]),
+        };
+
+        let result = ConversionUtils::extract_boc_from_stack_item(&stack_item);
+
+        assert!(result.is_err());
+        assert_eq!(
+            result.unwrap_err().to_string(),
+            "Data parsing error: Failed to get boc: unexpected data type: List([])"
+        );
+    }
+    #[test]
+    fn test_parse_stack_item_to_u32_valid() {
+        let stack = vec![StackItem {
+            r#type: "cell".to_string(),
+            value: StackValue::String("0x0000002a".to_string()),
+        }];
+
+        let value = ConversionUtils::parse_stack_item_to_u32(&stack, 0).unwrap();
+
+        assert_eq!(value, 42);
+    }
+
+    #[test]
+    fn test_parse_stack_item_to_u32_invalid_index() {
+        let stack = vec![StackItem {
+            r#type: "cell".to_string(),
+            value: StackValue::String("0x0000002a".to_string()),
+        }];
+
+        let result = ConversionUtils::parse_stack_item_to_u32(&stack, 1);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "No stack item at index 1");
+    }
+    #[test]
+    fn test_parse_stack_item_biguint_valid() {
+        let stack = vec![StackItem {
+            r#type: "string".to_string(),
+            value: StackValue::String("0x123abc".to_string()),
+        }];
+
+        let result = ConversionUtils::parse_stack_item_biguint(&stack, 0, "test_item");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), BigUint::from(0x123abc_u32));
+    }
+    #[test]
+    fn test_parse_stack_item_biguint_invalid_index() {
+        let stack: Vec<StackItem> = vec![];
+        let result = ConversionUtils::parse_stack_item_biguint(&stack, 0, "test_item");
+
+        assert!(result.is_err());
     }
 }
