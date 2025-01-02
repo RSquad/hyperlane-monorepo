@@ -108,7 +108,6 @@ impl Mailbox for TonMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        info!("id:{:?} self:{:?}", id, &self);
         let response = self
             .provider
             .run_get_method(
@@ -124,7 +123,6 @@ impl Mailbox for TonMailbox {
                     e
                 )))
             })?;
-        info!("delivered response:{:?}", response);
 
         let stack_item = response.stack.first().ok_or_else(|| {
             ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
@@ -154,7 +152,6 @@ impl Mailbox for TonMailbox {
                 ));
             }
         };
-        println!("boc:{:?}", boc);
 
         let root_cell = ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
@@ -165,7 +162,7 @@ impl Mailbox for TonMailbox {
 
         let parsed_dict = root_cell
             .parser()
-            .load_dict(256, key_reader_uint, val_reader_cell)
+            .load_dict_data(256, key_reader_uint, val_reader_cell)
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Failed to load dictionary from root cell: {:?}",
@@ -176,6 +173,7 @@ impl Mailbox for TonMailbox {
         let del = parsed_dict
             .iter()
             .any(|(key, _)| BigUint::from_bytes_be(id.as_bytes()) == *key);
+
         info!("delivered {:?} for Id:{:?}", del, id);
         Ok(del)
     }
