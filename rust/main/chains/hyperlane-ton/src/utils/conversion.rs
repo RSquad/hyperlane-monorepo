@@ -51,7 +51,6 @@ impl ConversionUtils {
     pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, TonCellError> {
         let tmetadata = TMetadata::from_bytes(metadata).unwrap();
         let mut writer = CellBuilder::new();
-        info!("tmetadata:{:?}", tmetadata);
         writer
             .store_slice(&tmetadata.origin_merkle_hook)
             .map_err(|e| {
@@ -71,8 +70,6 @@ impl ConversionUtils {
         let mut signature_dict = HashMap::new();
 
         for (key, signature) in &tmetadata.signatures {
-            info!("metadata_to_cell key:{:?} value:{:?}", key, signature);
-
             let mut signature_builder = CellBuilder::new();
             if signature.len() != 65 {
                 return Err(TonCellError::CellBuilderError(format!(
@@ -106,10 +103,6 @@ impl ConversionUtils {
         }
         let value_writer =
             |builder: &mut CellBuilder, value: Vec<u8>| -> Result<(), TonCellError> {
-                // let arc_cell = ArcCell::new(value);
-                // builder.store_reference(&arc_cell).map_err(|_| {
-                //     TonCellError::CellBuilderError(format!("Failed to store signature cell"))
-                // })?;
                 builder.store_slice(&value).map_err(|_| {
                     TonCellError::CellBuilderError(format!("Failed to store signature cell"))
                 })?;
