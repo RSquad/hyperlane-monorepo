@@ -9,14 +9,13 @@ use hyperlane_core::{
     Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
     HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
 };
-use log::info;
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
 };
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::{
     client::provider::TonProvider,
@@ -125,11 +124,14 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         &self,
         validators: &[H256],
     ) -> ChainResult<Vec<Vec<String>>> {
-        info!("validators:{:?}", validators);
+        info!(
+            "get_announced_storage_locations for validators:{:?}",
+            validators
+        );
         let function_name = "get_announced_storage_locations".to_string();
         let validators_cell =
             ConversionUtils::create_address_linked_cells(&validators).map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                     "Failed to create address linked cells {:?}",
                     e
                 )))
@@ -186,8 +188,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             }
         };
 
-        info!("Parsed value from stack: {:?}", value);
-
         let cell_boc_decoded = general_purpose::STANDARD.decode(value).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to decode cell BOC from response{:?}",
@@ -223,7 +223,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
 
     async fn announce(&self, announcement: SignedType<Announcement>) -> ChainResult<TxOutcome> {
         let cell = self.build_announcement_cell(announcement).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to build announcement cell {:?}",
                 e
             )))
@@ -248,7 +248,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         }
         .build()
         .map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::TonMessageError(format!(
+            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to create transfer message in announce: {:?}",
                 e
             )))
@@ -280,12 +280,11 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                 false,
             )
             .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::TonMessageError(format!(
+                ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                     "Failed to create external message:{:?}",
                     e
                 )))
             })?;
-        info!("Message cell in announce:{:?}", message);
 
         let boc = BagOfCells::from_root(message.clone())
             .serialize(true)
@@ -297,7 +296,6 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             })?;
 
         let boc_str = general_purpose::STANDARD.encode(boc.clone());
-        tracing::info!("create_external_message:{:?}", boc_str);
 
         let tx = self.provider.send_message(boc_str).await.map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -305,7 +303,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
                 e
             )))
         })?;
-        tracing::info!("Tx hash:{:?}", tx.message_hash);
+        info!("Tx hash:{:?}", tx.message_hash);
 
         self.provider.wait_for_transaction(tx.message_hash).await
     }

@@ -70,12 +70,12 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         }
 
         let tree_stack_item = response.stack.get(0).ok_or_else(|| {
-            HyperlaneTonError::ParsingError(
+            HyperlaneTonError::FailedToParseStackItem(
                 "Response stack is empty or missing tree item".to_string(),
             )
         })?;
         let count_stack_item = response.stack.get(1).ok_or_else(|| {
-            HyperlaneTonError::ParsingError(
+            HyperlaneTonError::FailedToParseStackItem(
                 "Response stack is empty or missing count item".to_string(),
             )
         })?;
@@ -148,13 +148,12 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         );
         dict.iter().for_each(|(key, hash)| {
             let size = *key as usize;
-            info!("size:{:?}", size);
+
             if size <= TREE_DEPTH {
                 let mut padded_hash = [0u8; 32];
                 let hash_bytes = hash.to_bytes_be();
                 padded_hash[32 - hash_bytes.len()..].copy_from_slice(&hash_bytes);
                 branch[size] = H256::from_slice(&padded_hash);
-                info!("Branch updated at depth {}: {:?}", key, padded_hash);
             } else {
                 warn!("Unexpected depth: {}, skipping...", size)
             }
@@ -172,10 +171,18 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             .run_get_method(self.address.to_string(), "get_count".to_string(), None)
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("run_get_method failed: {e}"))
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "run_get_method failed: {:?}",
+                    e
+                )))
             })?;
 
-        ConversionUtils::parse_stack_item_to_u32(&response.stack, 0)
+        ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse count from stack: {:?}",
+                e
+            )))
+        })
     }
     async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
         let response = self
@@ -187,14 +194,19 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             )
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to get response: {:?}", e))
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to get response: {:?}",
+                    e
+                )))
             })?;
 
         let stack = &response.stack;
 
         if stack.len() < 2 {
-            return Err(ChainCommunicationError::CustomError(
-                "Stack does not contain enough elements".to_string(),
+            return Err(ChainCommunicationError::from(
+                HyperlaneTonError::ApiInvalidResponse(
+                    "Stack does not contain enough elements".to_string(),
+                ),
             ));
         }
 
@@ -360,13 +372,16 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             )
             .await
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("run_get_method failed: {e}"))
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "run_get_method failed for 'get_count': {:?}",
+                    e
+                )))
             })?;
 
         let sequence =
             ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
                 HyperlaneTonError::ParsingError(format!(
-                    "Fauled to parse stack item to u32 for sequence:{:?}",
+                    "Failed to parse stack item to u32 for sequence:{:?}",
                     e
                 ))
             })?;

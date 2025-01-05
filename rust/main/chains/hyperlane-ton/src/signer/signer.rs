@@ -1,5 +1,6 @@
 use anyhow::Error;
 use base64::{engine::general_purpose, Engine};
+use hyperlane_core::ChainCommunicationError;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell},
     mnemonic::{KeyPair, Mnemonic},
@@ -7,7 +8,7 @@ use tonlib_core::{
     TonAddress,
 };
 
-use hyperlane_core::ChainCommunicationError;
+use crate::error::HyperlaneTonError;
 
 #[derive(Clone)]
 pub struct TonSigner {
@@ -56,13 +57,19 @@ impl TonSigner {
             .wallet
             .create_external_message(now + 60, seqno, vec![ArcCell::new(transfer_message)], false)
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to create message: {}", e))
+                ChainCommunicationError::from(HyperlaneTonError::TonMessageError(format!(
+                    "Failed to create external message: {}",
+                    e
+                )))
             })?;
 
         let boc = BagOfCells::from_root(message)
             .serialize(true)
             .map_err(|e| {
-                ChainCommunicationError::CustomError(format!("Failed to serialize BOC: {}", e))
+                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                    "Failed to serialize BOC: {}",
+                    e
+                )))
             })?;
 
         Ok(general_purpose::STANDARD.encode(boc))
