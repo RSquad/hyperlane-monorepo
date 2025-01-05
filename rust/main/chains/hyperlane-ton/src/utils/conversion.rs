@@ -51,26 +51,16 @@ impl ConversionUtils {
     pub fn metadata_to_cell(metadata: &[u8]) -> Result<Cell, TonCellError> {
         let tmetadata = TMetadata::from_bytes(metadata).unwrap();
         let mut writer = CellBuilder::new();
-
-        // writer
-        //     .store_slice(&tmetadata.origin_merkle_hook)
-        //     .map_err(|e| {
-        //         TonCellError::CellBuilderError(format!("Failed to store metadata slice: {:?}", e))
-        //     })?;
         writer
-            .store_uint(256, &BigUint::from_bytes_be(&tmetadata.origin_merkle_hook))
+            .store_slice(&tmetadata.origin_merkle_hook)
             .map_err(|e| {
                 TonCellError::CellBuilderError(format!("Failed to store metadata slice: {:?}", e))
             })?;
 
-        // writer.store_slice(&tmetadata.root).map_err(|e| {
-        //     TonCellError::CellBuilderError(format!("Failed to store root slice: {:?}", e))
-        // })?;
-        writer
-            .store_uint(256, &BigUint::from_bytes_be(&tmetadata.root))
-            .map_err(|e| {
-                TonCellError::CellBuilderError(format!("Failed to store root slice: {:?}", e))
-            })?;
+        writer.store_slice(&tmetadata.root).map_err(|e| {
+            TonCellError::CellBuilderError(format!("Failed to store root slice: {:?}", e))
+        })?;
+
         writer
             .store_uint(32, &BigUint::from(tmetadata.index))
             .map_err(|e| {
@@ -78,45 +68,49 @@ impl ConversionUtils {
             })?;
 
         let mut signature_dict = HashMap::new();
+
         for (key, signature) in &tmetadata.signatures {
-            signature_dict.insert(BigUint::from(*key), signature.to_vec());
+            let mut signature_builder = CellBuilder::new();
+            if signature.len() != 65 {
+                return Err(TonCellError::CellBuilderError(format!(
+                    "Invalid signature length: expected 65 bytes, got {}",
+                    signature.len()
+                )));
+            }
+
+            let r = BigUint::from_bytes_be(&signature[0..32]);
+            let s = BigUint::from_bytes_be(&signature[32..64]);
+            let v = signature[64];
+
+            signature_builder.store_u8(8, v).map_err(|_| {
+                TonCellError::CellBuilderError("Failed to store 'v' in signature".to_string())
+            })?;
+
+            signature_builder.store_uint(256, &r).map_err(|_| {
+                TonCellError::CellBuilderError("Failed to store 'r' in signature".to_string())
+            })?;
+
+            signature_builder.store_uint(256, &s).map_err(|_| {
+                TonCellError::CellBuilderError("Failed to store 's' in signature".to_string())
+            })?;
+
+            let signature_cell = signature_builder.build().map_err(|e| {
+                TonCellError::CellBuilderError(format!("Failed to build signature cell: {:?}", e))
+            })?;
+            let data = signature_cell.data().to_vec();
+
+            signature_dict.insert(BigUint::from(*key), data);
         }
         let value_writer =
             |builder: &mut CellBuilder, value: Vec<u8>| -> Result<(), TonCellError> {
-                if value.len() == 65 {
-                    let r = BigUint::from_bytes_be(&value[0..32]);
-                    let s = BigUint::from_bytes_be(&value[32..64]);
-                    let v = value[64];
+                builder.store_slice(&value).map_err(|_| {
+                    TonCellError::CellBuilderError(format!("Failed to store signature cell"))
+                })?;
 
-                    builder.store_uint(256, &r).map_err(|_| {
-                        TonCellError::CellBuilderError(format!(
-                            "Failed to store 'r' in signature:{:?}",
-                            r
-                        ))
-                    })?;
+                Ok(())
 
-                    builder.store_uint(256, &s).map_err(|_| {
-                        TonCellError::CellBuilderError(format!(
-                            "Failed to store 's' in signature:{:?}",
-                            s
-                        ))
-                    })?;
-
-                    builder.store_u8(8, v).map_err(|_| {
-                        TonCellError::CellBuilderError(format!(
-                            "Failed to store 'v' in signature:{:?}",
-                            v
-                        ))
-                    })?;
-
-                    Ok(())
-                } else {
-                    Err(TonCellError::CellBuilderError(format!(
-                        "Invalid signature length: expected 65 bytes, got {}",
-                        value.len()
-                    )))
-                }
             };
+
         writer
             .store_dict(32, value_writer, signature_dict)
             .map_err(|e| {
@@ -126,6 +120,7 @@ impl ConversionUtils {
         let cell = writer.build().map_err(|e| {
             TonCellError::CellBuilderError(format!("Failed to build cell: {:?}", e))
         })?;
+        info!("metadata cell:{:?}", cell);
 
         Ok(cell)
     }
@@ -217,6 +212,8 @@ impl ConversionUtils {
                 "Failed to decode BOC from Base64".to_string(),
             )
         })?;
+        println!("boc_bytes:{:?}", boc_bytes);
+        info!("boc_bytes:{:?}", boc_bytes);
 
         let boc = BagOfCells::parse(&boc_bytes)?;
         let root_cell = boc.single_root()?.clone();
