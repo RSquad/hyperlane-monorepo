@@ -108,7 +108,6 @@ impl ConversionUtils {
                 })?;
 
                 Ok(())
-
             };
 
         writer

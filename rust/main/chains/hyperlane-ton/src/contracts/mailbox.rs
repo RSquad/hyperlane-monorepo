@@ -144,7 +144,6 @@ impl Mailbox for TonMailbox {
 
         let boc = ConversionUtils::extract_boc_from_stack_item(stack_item)?;
 
-
         let root_cell = ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse root cell: {:?}",
@@ -162,14 +161,12 @@ impl Mailbox for TonMailbox {
                 )))
             })?;
 
-        let delivered_flag = parsed_dict
+        let del = parsed_dict
             .iter()
             .any(|(key, _)| BigUint::from_bytes_be(id.as_bytes()) == *key);
 
-
         info!("delivered {:?} for Id:{:?}", del, id);
         Ok(del)
-
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
