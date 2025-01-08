@@ -256,11 +256,28 @@ fn launch_ton_scraper(
     scraper
 }
 
+#[apply(as_task)]
+pub fn send_dispatch() {
+    info!("Launching sendDispatch script...");
+
+    let output = Program::new("yarn")
+        .cmd("run")
+        .cmd("send:dispatch")
+        .working_dir("../../../../altvm_contracts/ton")
+        .env("RUST_LOG", "debug")
+        .run_with_output()
+        .join();
+
+    info!("sendDispatch join success!");
+}
+
 #[cfg(feature = "ton")]
 mod test {
     #[test]
     fn test_run() {
         use crate::ton::run_locally;
+        use crate::ton::send_dispatch;
+
         env_logger::init();
 
         run_locally()
