@@ -2,18 +2,17 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use derive_new::new;
-use log::{debug, info, warn};
-use reqwest::{Client, Response};
-use serde_json::{json, Value};
-use tokio::time::sleep;
-use tonlib_core::TonAddress;
-use url::Url;
-
 use hyperlane_core::{
     h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
     HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256,
     H512, U256,
 };
+use reqwest::{Client, Response};
+use serde_json::{json, Value};
+use tokio::time::sleep;
+use tonlib_core::TonAddress;
+use tracing::{debug, error, info, warn};
+use url::Url;
 
 use crate::{
     constants::WORKCHAIN_MASTERCHAIN,
@@ -45,7 +44,8 @@ impl TonProvider {
         url: Url,
         params: &Value,
     ) -> Result<Response, ChainCommunicationError> {
-        self.http_client
+        let result = self
+            .http_client
             .post(url)
             .header("accept", "application/json")
             .header("Content-Type", "application/json")
@@ -54,9 +54,10 @@ impl TonProvider {
             .send()
             .await
             .map_err(|e| {
-                warn!("Error sending request: {:?}", e);
+                error!("Error sending request: {:?}", e);
                 HyperlaneTonError::ApiConnectionError(format!("{:?}", e)).into()
-            })
+            });
+        result
     }
 
     async fn query_request<T: serde::Serialize + ?Sized>(
@@ -96,7 +97,7 @@ impl HyperlaneProvider for TonProvider {
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let response = self
             .get_blocks(
-                WORKCHAIN_MASTERCHAIN, // Masterchain
+                WORKCHAIN_MASTERCHAIN,
                 None,
                 Some(height),
                 None,
@@ -110,7 +111,7 @@ impl HyperlaneProvider for TonProvider {
             )
             .await
             .map_err(|e| {
-                log::error!("Error fetching block by height {}: {:?}", height, e);
+                error!("Error fetching block by height {}: {:?}", height, e);
                 ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(format!(
                     "Failed to get block by height {}: {:?}",
                     height, e
@@ -118,7 +119,7 @@ impl HyperlaneProvider for TonProvider {
             })?;
 
         let block = response.blocks.first().ok_or_else(|| {
-            tracing::warn!("No blocks found in the response: {:?}", response);
+            warn!("No blocks found in the response: {:?}", response);
             HyperlaneTonError::NoBlocksFound
         })?;
 
@@ -212,14 +213,13 @@ impl HyperlaneProvider for TonProvider {
             info!("Successfully retrieved transaction: {:?}", txn_info);
             Ok(txn_info)
         } else {
-            warn!("No transaction found for the provided hash");
+            error!("No transaction found for the provided hash");
             return Err(HyperlaneTonError::TransactionNotFound.into());
         }
     }
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         info!("Checking if contract exists at address: {:?}", address);
-
         let ton_address = ConversionUtils::h256_to_ton_address(address, 0).to_string();
 
         let account_state = self
@@ -501,6 +501,7 @@ impl TonApiCenter for TonProvider {
         address: &str,
         use_v2: bool,
     ) -> ChainResult<WalletInformation> {
+        info!("get_wallet_information executed");
         let url = self
             .connection_conf
             .url
@@ -532,7 +533,7 @@ impl TonApiCenter for TonProvider {
                     e
                 ))
             })?;
-
+        info!("response:{:?}", response);
         Ok(response)
     }
 
@@ -556,8 +557,6 @@ impl TonApiCenter for TonProvider {
                 HyperlaneTonError::UrlConstructionError(e.to_string())
             })?;
 
-        info!("Url:{:?}", url);
-
         let stack_data = stack.unwrap_or_else(|| vec![]);
 
         let params = json!({
@@ -570,13 +569,18 @@ impl TonApiCenter for TonProvider {
             params.to_string()
         );
 
-        let response = self.post_request(url, &params).await.map_err(|e| {
-            warn!("Error sending runGetMethod request: {:?}", e);
-            HyperlaneTonError::ApiRequestFailed(format!(
-                "Failed to execute run_get_method: {:?}",
-                e
-            ))
-        })?;
+        let response = self
+            .post_request(url, &params)
+            .await
+            .map_err(|e| {
+                info!("Error sending runGetMethod request: {:?}", e);
+                HyperlaneTonError::ApiRequestFailed(format!(
+                    "Failed to execute run_get_method: {:?}",
+                    e
+                ))
+            })
+            .unwrap();
+
         if !response.status().is_success() {
             let status = response.status();
             let body = response
@@ -598,7 +602,7 @@ impl TonApiCenter for TonProvider {
                 e
             ))
         })?;
-        debug!("Received response text: {:?}", response_text);
+        info!("Received response text: {:?}", response_text);
 
         let parsed_response = serde_json::from_str::<RunGetMethodResponse>(&response_text)
             .map_err(|e| {
@@ -606,7 +610,10 @@ impl TonApiCenter for TonProvider {
                 HyperlaneTonError::ParsingError(format!("Failed to parse response: {:?}", e))
             })?;
 
-        info!("Successfully executed run_get_method request");
+        info!(
+            "Successfully executed run_get_method request:{:?}",
+            parsed_response
+        );
         Ok(parsed_response)
     }
 
@@ -688,8 +695,6 @@ impl TonApiCenter for TonProvider {
                 e
             ))
         })?;
-
-        debug!("Server response: {}", body);
 
         let result: WalletStatesResponse = serde_json::from_str(&body).map_err(|e| {
             HyperlaneTonError::ParsingError(format!(
@@ -833,7 +838,7 @@ impl TonProvider {
         let delay = self.connection_conf.timeout;
 
         for attempt in 1..=max_attempts {
-            tracing::info!("Attempt {}/{}", attempt, max_attempts);
+            info!("Attempt {}/{}", attempt, max_attempts);
 
             match self
                 .get_transaction_by_message(message_hash.clone(), None, None)
@@ -861,7 +866,7 @@ impl TonProvider {
                                 })?;
 
                             let tx_outcome = TxOutcome {
-                                transaction_id, // at least now
+                                transaction_id,
                                 executed: !transaction.description.aborted,
                                 gas_used: U256::from_dec_str(
                                     &transaction.description.compute_ph.gas_used,
@@ -879,7 +884,7 @@ impl TonProvider {
                     }
                 }
                 Err(e) => {
-                    tracing::info!("Transaction not found, retrying... {:?}", e);
+                    info!("Transaction not found, retrying... {:?}", e);
                     if attempt == max_attempts {
                         return Err(HyperlaneTonError::TransactionNotFound.into());
                     }
@@ -895,10 +900,10 @@ impl TonProvider {
     pub async fn fetch_block_timestamp(&self, block_seqno: u32) -> ChainResult<i64> {
         let response = self
             .get_blocks(
-                WORKCHAIN_MASTERCHAIN, // masterchain
+                WORKCHAIN_MASTERCHAIN,
                 None,
                 None,
-                Some(block_seqno), // Masterchain block seqno
+                Some(block_seqno),
                 None,
                 None,
                 None,
@@ -931,9 +936,9 @@ impl TonProvider {
         let response = self
             .get_blocks(
                 WORKCHAIN_MASTERCHAIN, // masterchain
-                None,                  // shard
-                None,                  // Block block seqno
-                None,                  // Masterchain block seqno
+                None,
+                None,
+                None,
                 None,
                 None,
                 None,
@@ -955,7 +960,7 @@ impl TonProvider {
             .first()
             .ok_or(HyperlaneTonError::NoBlocksFound)?;
 
-        info!("Latest block found: {:?}", block);
+        info!("Latest block found: {:?}", block.seqno);
         Ok(block.seqno as u32)
     }
 
@@ -966,9 +971,9 @@ impl TonProvider {
             let response = self
                 .get_blocks(
                     WORKCHAIN_MASTERCHAIN, // masterchain
-                    None,                  // shard
-                    None,                  // block seqno
-                    Some(block),           // masterchain seqno
+                    None,
+                    None,
+                    Some(block), // masterchain seqno
                     None,
                     None,
                     None,

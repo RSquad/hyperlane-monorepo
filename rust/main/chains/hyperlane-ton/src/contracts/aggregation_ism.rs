@@ -1,10 +1,9 @@
 use async_trait::async_trait;
-use tonlib_core::TonAddress;
-
 use hyperlane_core::{
     AggregationIsm, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, H256,
 };
+use tonlib_core::TonAddress;
 
 use crate::{client::provider::TonProvider, utils::conversion::ConversionUtils};
 

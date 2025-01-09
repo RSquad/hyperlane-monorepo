@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, fmt::Error, fs};
 
-use hyperlane_core::H256;
 use hyperlane_ton::ConversionUtils;
 use tonlib_core::TonAddress;
 
@@ -64,6 +63,7 @@ impl TonAgentConfig {
         mailbox: &str,
         igp: &str,
         validator_announce: &str,
+        merkle_tree_hook: &str,
     ) -> Self {
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
@@ -77,7 +77,7 @@ impl TonAgentConfig {
             mailbox: prepare_address(mailbox),
             interchain_gas_paymaster: prepare_address(igp),
             validator_announce: prepare_address(validator_announce),
-            merkle_tree_hook: format!("0x{}", hex::encode(H256::zero())),
+            merkle_tree_hook: prepare_address(merkle_tree_hook),
             protocol: "ton".to_string(),
             chain_id: format!("{}", domain_id),
             rpc_urls: vec![AgentUrl {
@@ -97,7 +97,7 @@ impl TonAgentConfig {
             contract_address_bytes: 32,
             index: AgentConfigIndex {
                 from: 1,
-                chunk: 25624322,
+                chunk: 26543528,
             },
         }
     }
@@ -119,6 +119,7 @@ pub fn generate_ton_config(
     output_name: &str,
     mnemonic: &str,
     wallet_version: &str,
+    api_key: &str,
 ) -> Result<Vec<TonAgentConfig>, Error> {
     let output_path = format!("../../config/{output_name}.json");
 
@@ -127,34 +128,39 @@ pub fn generate_ton_config(
         (
             "tontest1",
             777001,
-            "EQC5xrynw_llDS7czwH70rIeiblbn0rbtk-zjI8erKyIMTN6", // Mailbox
-            "EQBVavno3F5CYcmOzyvyd-F3HIuLn4fppQ7ULC0xlgqEUY6O", // IGP
-            "EQAOErGrEhb5h8GlOP3LXhYVFB3Lp_oBz_QTX26Rk8eWCJ8s", // Validator Announce
+            "EQCyAx6WlFz344IgGCf9XtLawsvEniHXcFqlCxhWGc0UtNmv", // Mailbox
+            "EQD-lhO00d-pZDYRP6tzDvuqSIUcCUukZFScP9zOQ1aNHKBh", // IGP
+            "EQB6-6wh6JQlZ_vG_Ep6BF10rcZlojzQ2g38Lci7MCnVdk9s", // Validator Announce
+            "EQDIcqH1ubCL8eirRGDe3ztAtKgaDoGFw5HU2HO7tvFX4AMZ", // merkle tree hook
         ),
         (
             "tontest2",
             777002,
-            "EQCqjMKRcYtuuucN4VirAd-DXrLc9DNTR1IWcaoNs2IMX7h8", // Mailbox
-            "EQDPSU7WmtRLWqjldIfQTOGij285bbmLQvkrBpUCiPdAfGJ6", // IGP
-            "EQAmsBEgZrzyiSmDYrDsvws1tABT6PP9XQIQhMToP9A1JH5D", // Validator Announce
+            "EQDWmnFOuZAjE-H1FbTitj0EoKeakr-wIzQdQGKy-uLXcZBI", // Mailbox
+            "EQD-lhO00d-pZDYRP6tzDvuqSIUcCUukZFScP9zOQ1aNHKBh", // IGP
+            "EQBpL_niCuX7Yi1QAnTVjqSfXE3NHHXn8Ef6NkxjvYz135c1", // Validator Announce
+            "EQDIcqH1ubCL8eirRGDe3ztAtKgaDoGFw5HU2HO7tvFX4AMZ", // merkle tree hook
         ),
     ];
 
     let ton_chains: Vec<TonAgentConfig> = addresses
         .iter()
-        .map(|(name, domain_id, mailbox, igp, validator_announce)| {
-            TonAgentConfig::new(
-                name,
-                *domain_id,
-                "https://testnet.toncenter.com/api/",
-                "",
-                mnemonic.as_str(),
-                wallet_version,
-                mailbox,
-                igp,
-                validator_announce,
-            )
-        })
+        .map(
+            |(name, domain_id, mailbox, igp, validator_announce, merkle_tree_hook)| {
+                TonAgentConfig::new(
+                    name,
+                    *domain_id,
+                    "https://testnet.toncenter.com/api/",
+                    api_key,
+                    mnemonic.as_str(),
+                    wallet_version,
+                    mailbox,
+                    igp,
+                    validator_announce,
+                    merkle_tree_hook,
+                )
+            },
+        )
         .collect();
 
     let mut chains_map = BTreeMap::new();
