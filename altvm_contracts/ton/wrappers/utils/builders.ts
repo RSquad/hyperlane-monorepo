@@ -1,4 +1,4 @@
-import { beginCell, Cell, Dictionary } from '@ton/core';
+import { beginCell, Builder, Cell, Dictionary } from '@ton/core';
 import { THookMetadata, TMessage, TMultisigMetadata, TSignature } from './types';
 import { writeCellsToBuffer } from './convert';
 
@@ -49,4 +49,24 @@ export const buildMetadataCell = (metadata: TMultisigMetadata) => {
         .storeBuffer(metadata.root, 32)
         .storeUint(metadata.index, 32)
         .storeDict(signatures);
+};
+
+export const buildValidators = (opts: {
+    builder: Builder;
+    validators: bigint[];
+}): { builder: Builder; validators: bigint[] } => {
+    while (opts.builder.availableBits > 256 && opts.validators.length > 0) {
+        opts.builder.storeUint(opts.validators.pop()!, 256);
+    }
+
+    if (opts.validators.length > 0) {
+        opts.builder.storeRef(
+            buildValidators({
+                builder: beginCell(),
+                validators: opts.validators,
+            }).builder.endCell(),
+        );
+    }
+
+    return { builder: opts.builder, validators: opts.validators };
 };

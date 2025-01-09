@@ -6,7 +6,11 @@ import * as deployedContracts from '../deployedContracts.json';
 import * as fs from 'fs';
 
 export async function run(provider: NetworkProvider) {
-    if (deployedContracts.multisigIsmAddress === '' || deployedContracts.interchainGasPaymasterAddress === '') {
+    if (
+        deployedContracts.multisigIsmAddress === '' || 
+        deployedContracts.interchainGasPaymasterAddress === '' || 
+        deployedContracts.merkleTreeHookAddress === ''
+    ) {
         console.error('Aborted: deploy ism and igp contracts at first');
         return;
     }
@@ -20,7 +24,7 @@ export async function run(provider: NetworkProvider) {
         nonce: 0,
         latestDispatchedId: 0n,
         defaultIsm: Address.parse(deployedContracts.multisigIsmAddress),
-        defaultHookAddr: Address.parse(deployedContracts.interchainGasPaymasterAddress),
+        defaultHookAddr: Address.parse(deployedContracts.merkleTreeHookAddress),
         requiredHookAddr: Address.parse(deployedContracts.interchainGasPaymasterAddress),
         deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
         owner: Address.parse(process.env.MAILBOX_OWNER_ADDRESS!),
@@ -38,6 +42,7 @@ export async function run(provider: NetworkProvider) {
         recipientAddress: deployedContracts.recipientAddress,
         multisigIsmAddress: deployedContracts.multisigIsmAddress,
         validatorAnnounceAddress: deployedContracts.validatorAnnounceAddress,
+        merkleTreeHookAddress: deployedContracts.merkleTreeHookAddress
     };
 
     fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));
