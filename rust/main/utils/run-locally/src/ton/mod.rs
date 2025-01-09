@@ -285,11 +285,11 @@ pub fn send_dispatch() -> bool {
     log!("sendDispatch script executed successfully!\n");
 
     if !stderr.trim().is_empty() {
-        log!("⚠️ stderr:\n{}", stderr);
+        log!("stderr:\n{}", stderr);
         return false;
     }
 
-    log!("📜 stdout:\n{}", stdout);
+    log!("stdout:\n{}", stdout);
 
     log!("sendDispatch script completed!");
     return true;
