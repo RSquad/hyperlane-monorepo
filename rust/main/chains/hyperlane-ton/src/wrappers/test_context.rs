@@ -4,8 +4,7 @@ use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     accumulator::TREE_DEPTH, Announcement, ChainCommunicationError, HyperlaneDomain,
     HyperlaneMessage, HyperlaneProvider, Indexer, KnownHyperlaneDomain, Mailbox, MerkleTreeHook,
-    MultisigIsm, ReorgPeriod, SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160,
-    H256, U256,
+    ReorgPeriod, SequenceAwareIndexer, Signature, SignedType, ValidatorAnnounce, H160, H256, U256,
 };
 use reqwest::Client;
 use tonlib_core::{cell::BagOfCells, wallet::TonWallet, TonAddress};

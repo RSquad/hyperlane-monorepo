@@ -5,8 +5,8 @@ use base64::{engine::general_purpose, Engine};
 use hyperlane_core::{
     accumulator::{incremental::IncrementalMerkle, TREE_DEPTH},
     ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
 };
 use num_traits::ToPrimitive;
 use tonlib_core::{

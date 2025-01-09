@@ -6,7 +6,6 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
 };
 use num_bigint::BigUint;
-use num_traits::FromPrimitive;
 use tonlib_core::{
     cell::{
         dict::predefined_readers::{key_reader_uint, val_reader_cell},

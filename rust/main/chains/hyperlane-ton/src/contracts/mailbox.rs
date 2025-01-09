@@ -24,9 +24,8 @@ use tonlib_core::{
 use tracing::{error, info, instrument, warn};
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
-    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
-    utils::conversion::ConversionUtils,
+    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
+    traits::ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
 };
 
 pub struct TonMailbox {
@@ -701,7 +700,7 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
 
     let mut parser = cell.parser();
 
-    let id = parser.load_uint(256).map_err(|e| {
+    let _id = parser.load_uint(256).map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!("Failed to parse ID: {:?}", e))
     })?;
 
