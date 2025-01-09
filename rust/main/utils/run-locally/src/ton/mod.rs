@@ -38,6 +38,10 @@ impl Drop for TonHyperlaneStack {
 #[allow(dead_code)]
 fn run_locally() {
     info!("Start run_locally() for Ton");
+    if !send_dispatch() {
+        log!("Dispatch failed");
+    }
+
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
     let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
@@ -256,19 +260,39 @@ fn launch_ton_scraper(
     scraper
 }
 
-#[apply(as_task)]
-pub fn send_dispatch() {
-    info!("Launching sendDispatch script...");
+pub fn send_dispatch() -> bool {
+    use std::process::Command;
+    use std::str::from_utf8;
+    log!("Launching sendDispatch script...");
 
-    let output = Program::new("yarn")
-        .cmd("run")
-        .cmd("send:dispatch")
-        .working_dir("../../../../altvm_contracts/ton")
+    let working_dir = "../../../../altvm_contracts/ton";
+
+    let output = Command::new("yarn")
+        .arg("run")
+        .arg("send:dispatch")
         .env("RUST_LOG", "debug")
-        .run_with_output()
-        .join();
+        .current_dir(working_dir)
+        .output()
+        .expect("Failed to execute send:dispatch");
 
-    info!("sendDispatch join success!");
+    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
+    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
+
+    if !output.status.success() {
+        log!("sendDispatch failed with status: {}", output.status);
+    }
+
+    log!("sendDispatch script executed successfully!\n");
+
+    if !stderr.trim().is_empty() {
+        log!("⚠️ stderr:\n{}", stderr);
+        return false;
+    }
+
+    log!("📜 stdout:\n{}", stdout);
+
+    log!("sendDispatch script completed!");
+    return true;
 }
 
 #[cfg(feature = "ton")]
@@ -276,7 +300,6 @@ mod test {
     #[test]
     fn test_run() {
         use crate::ton::run_locally;
-        use crate::ton::send_dispatch;
 
         env_logger::init();
 
