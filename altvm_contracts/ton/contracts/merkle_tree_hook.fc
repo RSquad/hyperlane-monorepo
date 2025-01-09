@@ -38,7 +38,7 @@ global cell g::tree;
     int i = 0;
     repeat(TREE_DEPTH) {
         if ((size & 1) == 1) {
-            g::tree~udict_set(KEY_LEN, i, begin_cell().store_uint(node, 256).end_cell().begin_parse());
+            g::tree~udict_set_builder(KEY_LEN, i, begin_cell().store_uint(node, 256));
             return ();
         }
         (slice s, _) = g::tree.udict_get?(KEY_LEN, i);
@@ -75,10 +75,6 @@ int root_w_ctx(cell zeroes) impure inline {
     return current;
 }
 
-int root() inline {
-    return root_w_ctx(zero_hashes());
-}
-
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
         return ();
@@ -110,6 +106,14 @@ int root() inline {
     }
 
     throw(error::unknown_op);
+}
+
+;;
+;; GET-METHODS
+;; 
+
+int root() inline {
+    return root_w_ctx(zero_hashes());
 }
 
 (cell, int) get_tree() method_id {
