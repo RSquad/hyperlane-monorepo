@@ -463,6 +463,7 @@ mod tests {
         // Verify correctness
         assert_eq!(biguint_value, BigUint::zero());
     }
+    #[test]
     fn test_u256_to_biguint_conversion() {
         // Create a U256 value
         let u256_value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
