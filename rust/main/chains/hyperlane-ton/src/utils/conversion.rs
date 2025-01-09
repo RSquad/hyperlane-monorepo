@@ -6,7 +6,6 @@ use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
 };
 use num_bigint::BigUint;
-use num_traits::FromPrimitive;
 use tonlib_core::{
     cell::{
         dict::predefined_readers::{key_reader_uint, val_reader_cell},
@@ -464,6 +463,7 @@ mod tests {
         // Verify correctness
         assert_eq!(biguint_value, BigUint::zero());
     }
+    #[test]
     fn test_u256_to_biguint_conversion() {
         // Create a U256 value
         let u256_value = U256::from_dec_str("1234567890123456789012345678901234567890").unwrap();
