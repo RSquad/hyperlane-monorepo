@@ -226,7 +226,7 @@ describe('Mailbox', () => {
     };
   });
 
-  it.only('should dispatch message and send log message', async () => {
+  it('should dispatch message and send log message', async () => {
     const ethersWallet = ethers.Wallet.createRandom();
     const addr = Buffer.from(
       ethersWallet.address.slice(2).padStart(64, '0'),
@@ -245,14 +245,11 @@ describe('Mailbox', () => {
       message: beginCell().storeUint(123, 32).endCell(),
       hookMetadata,
     };
-    console.log('requiredHook', initialRequiredHook.address);
-    console.log('defaultHook', initialDefaultHook.address);
     const res = await mailbox.sendDispatch(
       deployer.getSender(),
       toNano('1'),
       dispatchBody,
     );
-    console.log(res.transactions.length);
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
       to: initialRequiredHook.address,
@@ -513,7 +510,7 @@ describe('Mailbox', () => {
   it('should return default hook address', async () => {
     const defaultHookAddr = await mailbox.getDefaultHook();
     expect(defaultHookAddr.toString()).toStrictEqual(
-      initialRequiredHook.address.toString(),
+      initialDefaultHook.address.toString(),
     );
   });
 
