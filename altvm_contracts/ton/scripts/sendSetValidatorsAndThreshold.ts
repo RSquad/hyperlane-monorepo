@@ -1,13 +1,24 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { Address, toNano } from '@ton/core';
 import { ethers } from 'ethers';
+import * as fs from 'fs';
+import * as path from 'path';
 
 import * as deployedContracts from '../deployedContracts.json';
 import { MultisigIsm } from '../wrappers/MultisigIsm';
 import { buildValidatorsDict } from '../wrappers/utils/builders';
 
+function loadDeployedContracts(domain: number) {
+  const filePath = path.join(__dirname, `../deployedContracts_${domain}.json`);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Deployed contracts file not found: ${filePath}`);
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+}
+
 export async function run(provider: NetworkProvider) {
   const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const domain = Number(process.env.SET_VALIDATORS_DOMAIN) || 777001;
 
   const multisigIsm = provider.open(
     MultisigIsm.createFromAddress(
@@ -22,7 +33,7 @@ export async function run(provider: NetworkProvider) {
     toNano('0.1'),
     {
       threshold: 1,
-      domain: 777002,
+      domain,
       validators: buildValidatorsDict([BigInt(sampleWallet.address)]),
     },
   );
