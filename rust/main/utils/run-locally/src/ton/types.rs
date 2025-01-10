@@ -100,7 +100,7 @@ impl TonAgentConfig {
             contract_address_bytes: 32,
             index: AgentConfigIndex {
                 from: 1,
-                chunk: 26543528,
+                chunk: 26942839,
             },
         }
     }

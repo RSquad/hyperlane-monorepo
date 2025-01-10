@@ -43,9 +43,13 @@ fn run_locally() {
     let domains: (&str, &str) = ("777001", "777002");
 
     deploy_all_contracts(777001);
-    send_set_validators_and_threshold();
+    sleep(Duration::from_secs(30));
+    send_set_validators_and_threshold(77701);
+
     deploy_all_contracts(777002);
-    send_set_validators_and_threshold();
+    sleep(Duration::from_secs(30));
+    send_set_validators_and_threshold(777002);
+
     send_dispatch(777001);
     send_dispatch(777002);
 
@@ -304,7 +308,7 @@ pub fn send_dispatch(domain: u32) -> bool {
     return true;
 }
 
-pub fn send_set_validators_and_threshold() -> bool {
+pub fn send_set_validators_and_threshold(domain: u32) -> bool {
     log!("Launching sendSetValidatorsAndThreshold script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
@@ -318,6 +322,7 @@ pub fn send_set_validators_and_threshold() -> bool {
             "ETH_PUB_KEY",
             "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
         )
+        .env("SET_VALIDATORS_DOMAIN", &domain.to_string())
         .env("RUST_LOG", "debug")
         .current_dir(working_dir)
         .output()
@@ -401,14 +406,9 @@ pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
 mod test {
     #[test]
     fn test_run() {
-        use crate::ton::{
-            deploy_all_contracts, run_locally, send_dispatch, send_set_validators_and_threshold,
-        };
+        use crate::ton::run_locally;
         env_logger::init();
 
-        // send_set_validators_and_threshold();
-        // // deploy_all_contracts(777001);
-        // // send_dispatch(777001);
         run_locally()
     }
 }
