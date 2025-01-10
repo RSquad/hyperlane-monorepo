@@ -67,6 +67,7 @@ impl TonAgentConfig {
         validator_announce: &str,
         merkle_tree_hook: &str,
     ) -> Self {
+        log!("TonAgentConfig::new() mailbox:{:?} igp:{:?}, validator_announce:{:?} merkle_tree_hook:{:?}", mailbox, igp, validator_announce, merkle_tree_hook);
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
             .map(|s| s.to_string())
@@ -162,13 +163,7 @@ pub fn generate_ton_config(
 
 fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
     use serde_json::Value;
-    use std::env;
     use std::path::Path;
-
-    println!(
-        "read_deployed_contracts current_dir: {}",
-        env::current_dir().unwrap().display()
-    );
 
     let path = format!(
         "../../../../altvm_contracts/ton/deployedContracts_{}.json",

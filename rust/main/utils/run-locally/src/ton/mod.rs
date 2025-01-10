@@ -43,7 +43,9 @@ fn run_locally() {
     let domains: (&str, &str) = ("777001", "777002");
 
     deploy_all_contracts(777001);
+    send_set_validators_and_threshold();
     deploy_all_contracts(777002);
+    send_set_validators_and_threshold();
     send_dispatch(777001);
     send_dispatch(777002);
 
@@ -128,7 +130,7 @@ fn run_locally() {
     );
 
     info!("Waiting for agents to run for 3 minutes...");
-    sleep(Duration::from_secs(180));
+    sleep(Duration::from_secs(300));
 
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join()).collect(),
@@ -302,6 +304,43 @@ pub fn send_dispatch(domain: u32) -> bool {
     return true;
 }
 
+pub fn send_set_validators_and_threshold() -> bool {
+    log!("Launching sendSetValidatorsAndThreshold script...");
+
+    let working_dir = "../../../../altvm_contracts/ton";
+
+    let output = Command::new("yarn")
+        .arg("run")
+        .arg("send:setv")
+        .arg("--mnemonic")
+        .arg("--testnet")
+        .env(
+            "ETH_PUB_KEY",
+            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+        )
+        .env("RUST_LOG", "debug")
+        .current_dir(working_dir)
+        .output()
+        .expect("Failed to execute sendSetValidatorsAndThreshold");
+
+    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
+    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
+
+    if !output.status.success() {
+        log!(
+            "sendSetValidatorsAndThreshold failed with status: {}",
+            output.status
+        );
+        log!("stderr:\n{}", stderr);
+        return false;
+    }
+
+    log!("sendSetValidatorsAndThreshold script executed successfully!");
+    log!("stdout:\n{}", stdout);
+
+    true
+}
+
 pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
     log!("Launching deploy:all script with DOMAIN={}...", domain);
 
@@ -336,7 +375,7 @@ pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
     match fs::read_to_string(&deployed_contracts_path) {
         Ok(content) => match serde_json::from_str::<Value>(&content) {
             Ok(mut json) => {
-                log!("📜 Successfully read deployed contracts:");
+                log!("Successfully read deployed contracts:");
                 log!("{}", json);
 
                 fs::write(&output_file, content)
@@ -362,11 +401,14 @@ pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
 mod test {
     #[test]
     fn test_run() {
-        use crate::ton::{deploy_all_contracts, run_locally, send_dispatch};
+        use crate::ton::{
+            deploy_all_contracts, run_locally, send_dispatch, send_set_validators_and_threshold,
+        };
         env_logger::init();
 
-        // deploy_all_contracts(777001);
-        // send_dispatch(777001);
+        // send_set_validators_and_threshold();
+        // // deploy_all_contracts(777001);
+        // // send_dispatch(777001);
         run_locally()
     }
 }
