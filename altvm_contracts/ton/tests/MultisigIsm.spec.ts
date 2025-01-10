@@ -20,6 +20,7 @@ const buildSignedMessage = (
   wallet: ethers.Wallet,
   origin: number = 0,
   destinationDomain: number = 0,
+  signature?: { v: number; r: string; s: string },
 ) => {
   const messageToSign = {
     version: 1,
@@ -52,7 +53,9 @@ const buildSignedMessage = (
 
   const ethSignedMessage = toEthSignedMessageHash(BigInt(digest));
 
-  const signature = wallet._signingKey().signDigest(ethSignedMessage);
+  if (!signature) {
+    signature = wallet._signingKey().signDigest(ethSignedMessage);
+  }
 
   const metadata: TMultisigMetadata = {
     originMerkleHook,
@@ -220,6 +223,28 @@ describe('MultisigIsm', () => {
     expect(res).toStrictEqual({
       validators: [BigInt(sampleWallet.address), BigInt(validator.address)],
       threshold: 1n,
+    });
+  });
+
+  it('should continue if signature recover fails', async () => {
+    const signature = sampleWallet
+      ._signingKey()
+      .signDigest(
+        ethers.utils.keccak256(
+          ethers.utils.solidityPack(['string'], ['ethSignedMessage']),
+        ),
+      );
+    const res = await multisigIsm.sendVerify(
+      deployer.getSender(),
+      toNano('0.1'),
+      buildSignedMessage(multisigIsm.address, sampleWallet, 0, 0, signature),
+    );
+
+    expect(res.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: multisigIsm.address,
+      success: true,
+      op: OpCodes.VERIFY,
     });
   });
 });
