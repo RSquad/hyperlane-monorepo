@@ -162,10 +162,16 @@ pub fn generate_ton_config(
 
 fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
     use serde_json::Value;
+    use std::env;
     use std::path::Path;
 
+    println!(
+        "read_deployed_contracts current_dir: {}",
+        env::current_dir().unwrap().display()
+    );
+
     let path = format!(
-        "../../altvm_contracts/ton/deployedContracts_{}.json",
+        "../../../../altvm_contracts/ton/deployedContracts_{}.json",
         domain
     );
 

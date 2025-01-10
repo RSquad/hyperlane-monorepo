@@ -42,6 +42,12 @@ fn run_locally() {
     info!("Start run_locally() for Ton");
     let domains: (&str, &str) = ("777001", "777002");
 
+    deploy_all_contracts(777001);
+    deploy_all_contracts(777002);
+    send_dispatch(777001);
+    send_dispatch(777002);
+
+    info!("deploy_all_contracts and send_dispatch finished!");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
     let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
@@ -261,7 +267,7 @@ fn launch_ton_scraper(
     scraper
 }
 
-pub fn send_dispatch() -> bool {
+pub fn send_dispatch(domain: u32) -> bool {
     log!("Launching sendDispatch script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
@@ -270,6 +276,8 @@ pub fn send_dispatch() -> bool {
         .arg("run")
         .arg("send:dispatch")
         .env("RUST_LOG", "debug")
+        .env("DOMAIN", &domain.to_string())
+        .env("WALLET_VERSION", "v4")
         .current_dir(working_dir)
         .output()
         .expect("Failed to execute send:dispatch");
@@ -304,6 +312,7 @@ pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
         .arg("deploy:all")
         .env("RUST_LOG", "debug")
         .env("DOMAIN", domain.to_string())
+        .env("WALLET_VERSION", "v4")
         .current_dir(working_dir)
         .output()
         .expect("Failed to execute deploy:all");
@@ -322,7 +331,7 @@ pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
     log!("stdout:\n{}", stdout);
 
     let deployed_contracts_path = format!("{}/deployedContracts.json", working_dir);
-    let output_file = format!("{}/deployed_contracts_{}.json", working_dir, domain);
+    let output_file = format!("{}/deployedContracts_{}.json", working_dir, domain);
 
     match fs::read_to_string(&deployed_contracts_path) {
         Ok(content) => match serde_json::from_str::<Value>(&content) {
@@ -356,8 +365,8 @@ mod test {
         use crate::ton::{deploy_all_contracts, run_locally, send_dispatch};
         env_logger::init();
 
-        deploy_all_contracts(777001);
-        // send_dispatch();
-        // run_locally()
+        // deploy_all_contracts(777001);
+        // send_dispatch(777001);
+        run_locally()
     }
 }
