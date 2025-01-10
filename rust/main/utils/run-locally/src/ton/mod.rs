@@ -1,12 +1,14 @@
+use log::info;
+use macro_rules_attribute::apply;
+use serde_json::Value;
+use std::process::Command;
+use std::str::from_utf8;
 use std::{
     env, fs,
     path::{Path, PathBuf},
     thread::sleep,
     time::Duration,
 };
-
-use log::info;
-use macro_rules_attribute::apply;
 use tempfile::tempdir;
 
 use crate::{
@@ -38,6 +40,8 @@ impl Drop for TonHyperlaneStack {
 #[allow(dead_code)]
 fn run_locally() {
     info!("Start run_locally() for Ton");
+    let domains: (&str, &str) = ("777001", "777002");
+
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
     let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
@@ -57,8 +61,9 @@ fn run_locally() {
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
+
     let agent_config =
-        generate_ton_config(file_name, &mnemonic, &wallet_version, &api_key).unwrap();
+        generate_ton_config(file_name, &mnemonic, &wallet_version, &api_key, domains).unwrap();
 
     let agent_config_path = format!("../../config/{file_name}.json");
 
@@ -256,13 +261,103 @@ fn launch_ton_scraper(
     scraper
 }
 
+pub fn send_dispatch() -> bool {
+    log!("Launching sendDispatch script...");
+
+    let working_dir = "../../../../altvm_contracts/ton";
+
+    let output = Command::new("yarn")
+        .arg("run")
+        .arg("send:dispatch")
+        .env("RUST_LOG", "debug")
+        .current_dir(working_dir)
+        .output()
+        .expect("Failed to execute send:dispatch");
+
+    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
+    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
+
+    if !output.status.success() {
+        log!("sendDispatch failed with status: {}", output.status);
+    }
+
+    log!("sendDispatch script executed successfully!\n");
+
+    if !stderr.trim().is_empty() {
+        log!("stderr:\n{}", stderr);
+        return false;
+    }
+
+    log!("stdout:\n{}", stdout);
+
+    log!("sendDispatch script completed!");
+    return true;
+}
+
+pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
+    log!("Launching deploy:all script with DOMAIN={}...", domain);
+
+    let working_dir = "../../../../altvm_contracts/ton";
+
+    let output = Command::new("yarn")
+        .arg("run")
+        .arg("deploy:all")
+        .env("RUST_LOG", "debug")
+        .env("DOMAIN", domain.to_string())
+        .current_dir(working_dir)
+        .output()
+        .expect("Failed to execute deploy:all");
+
+    let stdout = from_utf8(&output.stdout).unwrap_or("[Invalid UTF-8]");
+    let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
+
+    if !output.status.success() {
+        log!("deploy:all failed with status: {}", output.status);
+        log!("stderr:\n{}", stderr);
+        return None;
+    }
+
+    log!("deploy:all script executed successfully!");
+
+    log!("stdout:\n{}", stdout);
+
+    let deployed_contracts_path = format!("{}/deployedContracts.json", working_dir);
+    let output_file = format!("{}/deployed_contracts_{}.json", working_dir, domain);
+
+    match fs::read_to_string(&deployed_contracts_path) {
+        Ok(content) => match serde_json::from_str::<Value>(&content) {
+            Ok(mut json) => {
+                log!("📜 Successfully read deployed contracts:");
+                log!("{}", json);
+
+                fs::write(&output_file, content)
+                    .expect("Failed to save deployed contract addresses");
+
+                log!("Saved deployed contracts to {}", output_file);
+                json["saved_file"] = serde_json::Value::String(output_file);
+                Some(json)
+            }
+            Err(err) => {
+                log!("Failed to parse deployedContracts.json: {}", err);
+                None
+            }
+        },
+        Err(err) => {
+            log!("Failed to read deployedContracts.json: {}", err);
+            None
+        }
+    }
+}
+
 #[cfg(feature = "ton")]
 mod test {
     #[test]
     fn test_run() {
-        use crate::ton::run_locally;
+        use crate::ton::{deploy_all_contracts, run_locally, send_dispatch};
         env_logger::init();
 
-        run_locally()
+        deploy_all_contracts(777001);
+        // send_dispatch();
+        // run_locally()
     }
 }

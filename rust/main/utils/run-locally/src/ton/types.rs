@@ -3,6 +3,8 @@ use std::{collections::BTreeMap, fmt::Error, fs};
 use hyperlane_ton::ConversionUtils;
 use tonlib_core::TonAddress;
 
+use crate::log;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct AgentUrl {
     pub http: String,
@@ -120,60 +122,96 @@ pub fn generate_ton_config(
     mnemonic: &str,
     wallet_version: &str,
     api_key: &str,
+    domains: (&str, &str),
 ) -> Result<Vec<TonAgentConfig>, Error> {
     let output_path = format!("../../config/{output_name}.json");
 
-    let mnemonic = mnemonic.to_string();
-    let addresses = [
-        (
+    let deployed_contracts_1 = read_deployed_contracts(domains.0);
+    let deployed_contracts_2 = read_deployed_contracts(domains.1);
+
+    let ton_chains = vec![
+        create_chain_config(
             "tontest1",
-            777001,
-            "EQCyAx6WlFz344IgGCf9XtLawsvEniHXcFqlCxhWGc0UtNmv", // Mailbox
-            "EQD-lhO00d-pZDYRP6tzDvuqSIUcCUukZFScP9zOQ1aNHKBh", // IGP
-            "EQB6-6wh6JQlZ_vG_Ep6BF10rcZlojzQ2g38Lci7MCnVdk9s", // Validator Announce
-            "EQDIcqH1ubCL8eirRGDe3ztAtKgaDoGFw5HU2HO7tvFX4AMZ", // merkle tree hook
+            domains.0,
+            &mnemonic,
+            wallet_version,
+            api_key,
+            &deployed_contracts_1,
         ),
-        (
+        create_chain_config(
             "tontest2",
-            777002,
-            "EQDWmnFOuZAjE-H1FbTitj0EoKeakr-wIzQdQGKy-uLXcZBI", // Mailbox
-            "EQD-lhO00d-pZDYRP6tzDvuqSIUcCUukZFScP9zOQ1aNHKBh", // IGP
-            "EQBpL_niCuX7Yi1QAnTVjqSfXE3NHHXn8Ef6NkxjvYz135c1", // Validator Announce
-            "EQDIcqH1ubCL8eirRGDe3ztAtKgaDoGFw5HU2HO7tvFX4AMZ", // merkle tree hook
+            domains.1,
+            &mnemonic,
+            wallet_version,
+            api_key,
+            &deployed_contracts_2,
         ),
     ];
-
-    let ton_chains: Vec<TonAgentConfig> = addresses
-        .iter()
-        .map(
-            |(name, domain_id, mailbox, igp, validator_announce, merkle_tree_hook)| {
-                TonAgentConfig::new(
-                    name,
-                    *domain_id,
-                    "https://testnet.toncenter.com/api/",
-                    api_key,
-                    mnemonic.as_str(),
-                    wallet_version,
-                    mailbox,
-                    igp,
-                    validator_announce,
-                    merkle_tree_hook,
-                )
-            },
-        )
-        .collect();
-
     let mut chains_map = BTreeMap::new();
-    for chain in ton_chains.clone() {
-        chains_map.insert(chain.name.clone(), chain);
+    for chain in &ton_chains {
+        chains_map.insert(chain.name.clone(), chain.clone());
     }
-
     let ton_config = TonAgentConfigOut { chains: chains_map };
-
     let json_output = serde_json::to_string_pretty(&ton_config).unwrap();
 
-    fs::write(output_path.as_str(), json_output).unwrap();
-    println!("TON configuration written to {}", output_path.as_str());
+    fs::write(&output_path, json_output).unwrap();
+    log!("TON configuration written to {}", output_path);
 
     Ok(ton_chains)
+}
+
+fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
+    use serde_json::Value;
+    use std::path::Path;
+
+    let path = format!(
+        "../../altvm_contracts/ton/deployedContracts_{}.json",
+        domain
+    );
+
+    if Path::new(&path).exists() {
+        if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(json) = serde_json::from_str::<Value>(&content) {
+                if let Some(map) = json.as_object() {
+                    return map
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.as_str().unwrap_or_default().to_string()))
+                        .collect();
+                }
+            }
+        }
+    }
+
+    log!("No deployed contracts found for domain {}", domain);
+    BTreeMap::new()
+}
+fn create_chain_config(
+    name: &str,
+    domain_str: &str,
+    mnemonic: &str,
+    wallet_version: &str,
+    api_key: &str,
+    contracts: &BTreeMap<String, String>,
+) -> TonAgentConfig {
+    use std::str::FromStr;
+    let domain = u32::from_str(domain_str).expect("Invalid domain ID");
+
+    TonAgentConfig::new(
+        name,
+        domain,
+        "https://testnet.toncenter.com/api/",
+        api_key,
+        mnemonic,
+        wallet_version,
+        contracts.get("mailboxAddress").unwrap_or(&"".to_string()),
+        contracts
+            .get("interchainGasPaymasterAddress")
+            .unwrap_or(&"".to_string()),
+        contracts
+            .get("validatorAnnounceAddress")
+            .unwrap_or(&"".to_string()),
+        contracts
+            .get("merkleTreeHookAddress")
+            .unwrap_or(&"".to_string()),
+    )
 }
