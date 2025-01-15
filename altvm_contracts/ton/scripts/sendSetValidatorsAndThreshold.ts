@@ -20,6 +20,7 @@ export async function run(provider: NetworkProvider) {
   const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
   const domain = Number(process.env.SET_VALIDATORS_DOMAIN) || 777001;
 
+  let deployedContracts = loadDeployedContracts(domain);
   const multisigIsm = provider.open(
     MultisigIsm.createFromAddress(
       Address.parse(deployedContracts.multisigIsmAddress),
