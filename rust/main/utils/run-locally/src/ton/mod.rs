@@ -40,18 +40,27 @@ impl Drop for TonHyperlaneStack {
 #[allow(dead_code)]
 fn run_locally() {
     info!("Start run_locally() for Ton");
-    let domains: (&str, &str) = ("777001", "777002");
+    let domains: [u32; 2] = [777001, 777002];
 
-    deploy_all_contracts(777001);
-    sleep(Duration::from_secs(30));
-    send_set_validators_and_threshold(77701);
+    for &domain in &domains {
+        deploy_all_contracts(domain);
+        sleep(Duration::from_secs(30));
 
-    deploy_all_contracts(777002);
-    sleep(Duration::from_secs(30));
-    send_set_validators_and_threshold(777002);
-
-    send_dispatch(777001);
-    send_dispatch(777002);
+        if let Err(err) = send_set_validators_and_threshold(domain) {
+            log!(
+                "Failed to set validators and threshold for domain {}: {}",
+                domain,
+                err
+            );
+            return;
+        }
+    }
+    for &domain in &domains {
+        if let Err(err) = send_dispatch(domain) {
+            log!("send_dispatch failed for domain {}: {}", domain, err);
+            return;
+        }
+    }
 
     info!("deploy_all_contracts and send_dispatch finished!");
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
@@ -74,8 +83,16 @@ fn run_locally() {
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
 
-    let agent_config =
-        generate_ton_config(file_name, &mnemonic, &wallet_version, &api_key, domains).unwrap();
+    let domains_tuple = (domains[0].to_string(), domains[1].to_string());
+
+    let agent_config = generate_ton_config(
+        file_name,
+        &mnemonic,
+        &wallet_version,
+        &api_key,
+        (&domains_tuple.0, &domains_tuple.1),
+    )
+    .unwrap();
 
     let agent_config_path = format!("../../config/{file_name}.json");
 
@@ -273,7 +290,7 @@ fn launch_ton_scraper(
     scraper
 }
 
-pub fn send_dispatch(domain: u32) -> bool {
+pub fn send_dispatch(domain: u32) -> Result<(), String> {
     log!("Launching sendDispatch script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
@@ -284,6 +301,7 @@ pub fn send_dispatch(domain: u32) -> bool {
         .env("RUST_LOG", "debug")
         .env("DOMAIN", &domain.to_string())
         .env("WALLET_VERSION", "v4")
+        .env("DISPATCH_DOMAIN", &domain.to_string())
         .current_dir(working_dir)
         .output()
         .expect("Failed to execute send:dispatch");
@@ -293,22 +311,27 @@ pub fn send_dispatch(domain: u32) -> bool {
 
     if !output.status.success() {
         log!("sendDispatch failed with status: {}", output.status);
+        log!("stderr:\n{}", stderr);
+        return Err(format!(
+            "sendDispatch failed with status: {}\nstderr:\n{}",
+            output.status, stderr
+        ));
     }
 
     log!("sendDispatch script executed successfully!\n");
 
     if !stderr.trim().is_empty() {
         log!("stderr:\n{}", stderr);
-        return false;
+        return Err(format!("stderr:\n{}", stderr));
     }
 
     log!("stdout:\n{}", stdout);
 
     log!("sendDispatch script completed!");
-    return true;
+    Ok(())
 }
 
-pub fn send_set_validators_and_threshold(domain: u32) -> bool {
+pub fn send_set_validators_and_threshold(domain: u32) -> Result<(), String> {
     log!("Launching sendSetValidatorsAndThreshold script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
@@ -318,10 +341,6 @@ pub fn send_set_validators_and_threshold(domain: u32) -> bool {
         .arg("send:setv")
         .arg("--mnemonic")
         .arg("--testnet")
-        .env(
-            "ETH_PUB_KEY",
-            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
-        )
         .env("SET_VALIDATORS_DOMAIN", &domain.to_string())
         .env("RUST_LOG", "debug")
         .current_dir(working_dir)
@@ -337,13 +356,20 @@ pub fn send_set_validators_and_threshold(domain: u32) -> bool {
             output.status
         );
         log!("stderr:\n{}", stderr);
-        return false;
+        return Err(format!(
+            "sendSetValidatorsAndThreshold failed with status: {}\nstderr:\n{}",
+            output.status, stderr
+        ));
+    }
+    if !stderr.trim().is_empty() {
+        log!("stderr:\n{}", stderr);
+        return Err(format!("stderr:\n{}", stderr));
     }
 
     log!("sendSetValidatorsAndThreshold script executed successfully!");
     log!("stdout:\n{}", stdout);
 
-    true
+    Ok(())
 }
 
 pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
