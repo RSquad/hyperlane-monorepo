@@ -264,8 +264,6 @@ impl Mailbox for TonMailbox {
                 )))
             })?;
 
-        info!("recipient_ism:{:?}", recipient_ism);
-
         Ok(ConversionUtils::ton_address_to_h256(&recipient_ism))
     }
 
@@ -692,9 +690,7 @@ pub(crate) fn build_message(
     })
 }
 
-pub(crate) fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
-    info!("parse message:{:?}", boc);
-
+pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
     let cell = ConversionUtils::parse_root_cell_from_boc(boc).map_err(|e| {
         error!("Failed to parse root cell from BOC: {:?}", e);
         TonCellError::BagOfCellsDeserializationError(
@@ -765,6 +761,5 @@ pub(crate) fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError>
         recipient,
         body: data.to_vec(),
     };
-    info!("message:{:?}", message);
     Ok(message)
 }
