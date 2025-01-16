@@ -98,6 +98,7 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<Option<Vec<u8>>> {
+        info!("MultisigIsmMetadataBuilder build!");
         const CTX: &str = "When fetching MultisigIsm metadata";
         let multisig_ism = self
             .as_ref()
@@ -109,6 +110,8 @@ impl<T: MultisigIsmMetadataBuilder> MetadataBuilder for T {
             .validators_and_threshold(message)
             .await
             .context(CTX)?;
+
+        info!("validators_and_threshold call!");
 
         if validators.is_empty() {
             info!("Could not fetch metadata: No validator set found for ISM");

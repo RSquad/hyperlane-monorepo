@@ -276,6 +276,7 @@ impl PendingOperation for PendingMessage {
                 return self.on_reprepare(Some(err), ReprepareReason::ErrorBuildingMetadata);
             }
         };
+        info!("metadata:{:?}", metadata);
         self.metadata = metadata.clone();
 
         let Some(metadata) = metadata else {

@@ -266,6 +266,7 @@ async fn prepare_task(
             sleep(Duration::from_millis(100)).await;
             continue;
         }
+        info!("batch isn't empty!");
         let mut task_prep_futures = vec![];
         let op_refs = batch.iter_mut().map(|op| op.as_mut()).collect::<Vec<_>>();
         for op in op_refs {

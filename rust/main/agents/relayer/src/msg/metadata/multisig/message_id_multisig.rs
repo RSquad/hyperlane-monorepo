@@ -34,7 +34,14 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
         message: &HyperlaneMessage,
         checkpoint_syncer: &MultisigCheckpointSyncer,
     ) -> Result<Option<MultisigMetadata>> {
+        use tracing::info;
+
+        info!(
+            "fetch_metadata in MessageIdMultisigMetadataBuilder call message:{:?}",
+            message
+        );
         let message_id = message.id();
+        info!("message_id in fetch_metadata:{:?}", message_id);
 
         const CTX: &str = "When fetching MessageIdMultisig metadata";
         let leaf_index = unwrap_or_none_result!(
@@ -45,6 +52,10 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 hyp_message=?message,
                 "No merkle leaf found for message id, must have not been enqueued in the tree"
             )
+        );
+        info!(
+            "leaf_index MessageIdMultisigMetadataBuilder:{:?}",
+            leaf_index
         );
 
         // Update the validator latest checkpoint metrics.
@@ -63,14 +74,18 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
                 .context(CTX)?,
             debug!("No quorum checkpoint found")
         );
+        info!(
+            "quorum_checkpoint MessageIdMultisigMetadataBuilder:{:?}",
+            quorum_checkpoint
+        );
 
         if quorum_checkpoint.checkpoint.message_id != message_id {
-            warn!(
+            info!(
                 "Quorum checkpoint message id {} does not match message id {}",
                 quorum_checkpoint.checkpoint.message_id, message_id
             );
             if quorum_checkpoint.checkpoint.index != leaf_index {
-                warn!(
+                info!(
                     "Quorum checkpoint index {} does not match leaf index {}",
                     quorum_checkpoint.checkpoint.index, leaf_index
                 );

@@ -2,12 +2,6 @@ use std::{cmp::max, ops::RangeInclusive};
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
-use hyperlane_core::{
-    accumulator::{incremental::IncrementalMerkle, TREE_DEPTH},
-    ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
-    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
-};
 use num_traits::ToPrimitive;
 use tonlib_core::{
     cell::{
@@ -17,6 +11,13 @@ use tonlib_core::{
     TonAddress,
 };
 use tracing::{info, warn};
+
+use hyperlane_core::{
+    accumulator::{incremental::IncrementalMerkle, TREE_DEPTH},
+    ChainCommunicationError, ChainResult, Checkpoint, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, Indexed, Indexer, LogMeta, MerkleTreeHook,
+    MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256,
+};
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,

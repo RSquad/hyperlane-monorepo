@@ -8,7 +8,11 @@ use tracing_subscriber;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    let phrase = vec!["kitchen"];
+    let phrase = vec![
+        "coffee", "foster", "dentist", "begin", "spirit", "pioneer", "someone", "peace", "bleak",
+        "story", "door", "wasp", "clerk", "invest", "safe", "negative", "junk", "bacon", "hollow",
+        "banana", "nation", "impact", "crowd", "kitchen",
+    ];
     let mnemonic = Mnemonic::new(phrase.clone(), &None)?;
     let key_pair = mnemonic.to_key_pair()?;
     let wallet = TonWallet::derive_default(WalletVersion::V4R2, &key_pair)?;
@@ -25,8 +29,6 @@ async fn main() -> anyhow::Result<()> {
         "EQB5cet7borOx5YT_muDLy7OtfVpENStjvUQKYOGK3p-jWuC",
     )
     .unwrap();
-
-    test_context.test_merkle_tree_hook_tree().await.unwrap();
 
     Ok(())
 }

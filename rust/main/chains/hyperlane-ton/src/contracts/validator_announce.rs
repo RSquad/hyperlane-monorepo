@@ -5,10 +5,6 @@ use std::{
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
-use hyperlane_core::{
-    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
-};
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{ArcCell, BagOfCells, Cell, CellBuilder},
@@ -16,6 +12,11 @@ use tonlib_core::{
     TonAddress,
 };
 use tracing::{info, warn};
+
+use hyperlane_core::{
+    Announcement, ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+};
 
 use crate::{
     client::provider::TonProvider,

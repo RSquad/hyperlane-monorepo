@@ -4910,6 +4910,7 @@ dependencies = [
  "tokio",
  "tonlib-core",
  "tracing",
+ "tracing-subscriber",
  "url",
 ]
 
