@@ -17,7 +17,13 @@ function loadDeployedContracts(domain: number) {
 
 export async function run(provider: NetworkProvider) {
   const dispatchDomain = Number(process.env.DISPATCH_DOMAIN) || 0;
-  const targetDomain = dispatchDomain === 777001 ? 777002 : 777001;
+  const targetDomain = Number(process.env.TARGET_DOMAIN) || 0;
+
+  if (!dispatchDomain || !targetDomain) {
+    throw new Error(
+      'DISPATCH_DOMAIN or TARGET_DOMAIN environment variables are not set or invalid.',
+    );
+  }
 
   const deployedContracts = loadDeployedContracts(dispatchDomain);
   console.log(`Dispatching from domain ${dispatchDomain} to ${targetDomain}`);

@@ -40,25 +40,32 @@ impl Drop for TonHyperlaneStack {
 #[allow(dead_code)]
 fn run_locally() {
     info!("Start run_locally() for Ton");
-    let domains: [u32; 2] = [777001, 777002];
+    let domains: Vec<u32> = env::var("DOMAINS")
+        .expect("DOMAINS env variable is missing")
+        .split(',')
+        .map(|d| d.parse::<u32>().expect("Invalid domain format"))
+        .collect();
+
+    info!("domains:{:?}", domains);
+    // let domains: [u32; 2] = [777001, 777002];
 
     for &domain in &domains {
         deploy_all_contracts(domain);
         sleep(Duration::from_secs(30));
 
-        if let Err(err) = send_set_validators_and_threshold(domain) {
-            log!(
-                "Failed to set validators and threshold for domain {}: {}",
-                domain,
-                err
-            );
-            return;
-        }
+        send_set_validators_and_threshold(domain).expect(&format!(
+            "Failed to set validators and threshold for domain {}",
+            domain
+        ));
     }
-    for &domain in &domains {
-        if let Err(err) = send_dispatch(domain) {
-            log!("send_dispatch failed for domain {}: {}", domain, err);
-            return;
+    for &dispatch_domain in &domains {
+        for &target_domain in &domains {
+            if dispatch_domain != target_domain {
+                send_dispatch(dispatch_domain, target_domain).expect(&format!(
+                    "send_dispatch failed for dispatch_domain={} and target_domain={}",
+                    dispatch_domain, target_domain
+                ));
+            }
         }
     }
 
@@ -290,7 +297,7 @@ fn launch_ton_scraper(
     scraper
 }
 
-pub fn send_dispatch(domain: u32) -> Result<(), String> {
+pub fn send_dispatch(dispatch_domain: u32, target_domain: u32) -> Result<(), String> {
     log!("Launching sendDispatch script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
@@ -299,9 +306,10 @@ pub fn send_dispatch(domain: u32) -> Result<(), String> {
         .arg("run")
         .arg("send:dispatch")
         .env("RUST_LOG", "debug")
-        .env("DOMAIN", &domain.to_string())
+        .env("DOMAIN", &dispatch_domain.to_string())
         .env("WALLET_VERSION", "v4")
-        .env("DISPATCH_DOMAIN", &domain.to_string())
+        .env("DISPATCH_DOMAIN", &dispatch_domain.to_string())
+        .env("TARGET_DOMAIN", &target_domain.to_string())
         .current_dir(working_dir)
         .output()
         .expect("Failed to execute send:dispatch");
@@ -342,6 +350,7 @@ pub fn send_set_validators_and_threshold(domain: u32) -> Result<(), String> {
         .arg("--mnemonic")
         .arg("--testnet")
         .env("SET_VALIDATORS_DOMAIN", &domain.to_string())
+        .env("WALLET_VERSION", "v4")
         .env("RUST_LOG", "debug")
         .current_dir(working_dir)
         .output()
