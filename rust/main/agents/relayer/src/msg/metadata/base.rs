@@ -234,7 +234,6 @@ impl MessageMetadataBuilder {
         ism_address: H256,
         message: &HyperlaneMessage,
     ) -> Result<IsmWithMetadataAndType> {
-        info!("build_ism_and_metadata");
         let ism: Box<dyn InterchainSecurityModule> = self
             .build_ism(ism_address)
             .await
@@ -244,7 +243,6 @@ impl MessageMetadataBuilder {
             .module_type()
             .await
             .context("When fetching module type")?;
-        info!("module_type:{:?}", module_type);
         let cloned = self.clone_with_incremented_depth()?;
 
         let metadata_builder: Box<dyn MetadataBuilder> = match module_type {
@@ -264,7 +262,6 @@ impl MessageMetadataBuilder {
             .build(ism_address, message)
             .await
             .context("When building metadata");
-        info!("meta:{:?}", meta);
         Ok(IsmWithMetadataAndType {
             ism,
             metadata: meta?,
@@ -332,16 +329,11 @@ impl BaseMetadataBuilder {
     }
 
     pub async fn get_merkle_leaf_id_by_message_id(&self, message_id: H256) -> Result<Option<u32>> {
-        info!(
-            "get_merkle_leaf_id_by_message_id call with id:{:?}",
-            message_id
-        );
         // FIXME It's a stub for hyperlane-ton e2e test debugging.
         // Remove when debugging is finished.
         let _merkle_leaf = self
             .db
             .retrieve_merkle_leaf_index_by_message_id(&message_id)?;
-        info!("_merkle_leaf:{:?}", _merkle_leaf);
         Ok(_merkle_leaf)
     }
 

@@ -47,7 +47,6 @@ impl OpQueue {
     /// Pop multiple elements at once from the queue and update metrics
     #[instrument(skip(self), fields(queue_label=%self.queue_metrics_label), level = "debug")]
     pub async fn pop_many(&mut self, limit: usize) -> Vec<QueueOperation> {
-        info!("pop_many call!");
         self.process_retry_requests().await;
         let mut queue = self.queue.lock().await;
         let mut popped = vec![];
