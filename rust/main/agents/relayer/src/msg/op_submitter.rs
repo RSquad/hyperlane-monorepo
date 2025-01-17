@@ -255,7 +255,6 @@ async fn prepare_task(
     max_batch_size: u32,
     metrics: SerialSubmitterMetrics,
 ) {
-    info!("Prepare task start");
     // Prepare at most `max_batch_size` ops at a time to avoid getting rate-limited
     let ops_to_prepare = max_batch_size as usize;
     loop {

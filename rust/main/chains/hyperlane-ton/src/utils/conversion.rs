@@ -2,9 +2,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use anyhow::Error;
 use base64::{engine::general_purpose, Engine};
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
-};
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{
@@ -14,6 +11,10 @@ use tonlib_core::{
     TonAddress, TonHash,
 };
 use tracing::info;
+
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneMessage, H160, H256, H512, U256,
+};
 
 use crate::{
     error::HyperlaneTonError,

@@ -7,11 +7,6 @@ use std::{
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
-    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
-};
 use num_bigint::BigUint;
 use tonlib_core::{
     cell::{
@@ -22,6 +17,12 @@ use tonlib_core::{
     TonAddress,
 };
 use tracing::{error, info, instrument, warn};
+
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, FixedPointNumber, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer, LogMeta, Mailbox,
+    ReorgPeriod, SequenceAwareIndexer, TxCostEstimate, TxOutcome, H256, U256,
+};
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
@@ -742,9 +743,7 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
         ))
     })?;
 
-    let recipient = ConversionUtils::ton_address_to_h256(
-        &TonAddress::from_base64_url("EQDbFWDkI7exynTwl3bviRPAZ0c0_4UdjGs9qUavd4ltoCQw").unwrap(),
-    );
+    let recipient = H256::from_slice(&address_bytes);
 
     let body = parser_ref.next_reference().map_err(|e| {
         TonCellError::BagOfCellsDeserializationError(format!(

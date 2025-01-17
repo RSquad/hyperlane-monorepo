@@ -1,14 +1,15 @@
 use async_trait::async_trait;
 use derive_new::new;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
-};
 use tonlib_core::{
     cell::dict::predefined_readers::{key_reader_u32, val_reader_cell},
     TonAddress,
 };
 use tracing::info;
+
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
+    HyperlaneMessage, HyperlaneProvider, MultisigIsm, H256,
+};
 
 use crate::{
     client::provider::TonProvider,

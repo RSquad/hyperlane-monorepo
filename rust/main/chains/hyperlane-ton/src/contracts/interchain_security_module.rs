@@ -5,11 +5,6 @@ use std::{
 
 use async_trait::async_trait;
 use base64::Engine;
-use hyperlane_core::{
-    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
-    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
-    H256, U256,
-};
 use log::warn;
 use num_bigint::BigUint;
 use num_traits::cast::FromPrimitive;
@@ -19,6 +14,12 @@ use tonlib_core::{
     TonAddress,
 };
 use tracing::info;
+
+use hyperlane_core::{
+    ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, InterchainSecurityModule, ModuleType,
+    H256, U256,
+};
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
