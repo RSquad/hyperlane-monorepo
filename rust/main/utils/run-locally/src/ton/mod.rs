@@ -47,7 +47,6 @@ fn run_locally() {
         .collect();
 
     info!("domains:{:?}", domains);
-    // let domains: [u32; 2] = [777001, 777002];
 
     for &domain in &domains {
         deploy_all_contracts(domain);
