@@ -45,6 +45,7 @@ fn run_locally() {
         .split(',')
         .map(|d| d.parse::<u32>().expect("Invalid domain format"))
         .collect();
+    let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
 
     info!("domains:{:?}", domains);
 
@@ -52,7 +53,7 @@ fn run_locally() {
         deploy_all_contracts(domain);
         sleep(Duration::from_secs(30));
 
-        send_set_validators_and_threshold(domain).expect(&format!(
+        send_set_validators_and_threshold(domain, validator_key).expect(&format!(
             "Failed to set validators and threshold for domain {}",
             domain
         ));
@@ -338,7 +339,7 @@ pub fn send_dispatch(dispatch_domain: u32, target_domain: u32) -> Result<(), Str
     Ok(())
 }
 
-pub fn send_set_validators_and_threshold(domain: u32) -> Result<(), String> {
+pub fn send_set_validators_and_threshold(domain: u32, validator_key: &str) -> Result<(), String> {
     log!("Launching sendSetValidatorsAndThreshold script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
@@ -350,6 +351,7 @@ pub fn send_set_validators_and_threshold(domain: u32) -> Result<(), String> {
         .arg("--testnet")
         .env("SET_VALIDATORS_DOMAIN", &domain.to_string())
         .env("WALLET_VERSION", "v4")
+        .env("VALIDATOR_KEY", validator_key)
         .env("RUST_LOG", "debug")
         .current_dir(working_dir)
         .output()

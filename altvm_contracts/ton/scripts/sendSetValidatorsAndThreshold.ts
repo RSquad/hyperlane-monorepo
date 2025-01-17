@@ -17,7 +17,7 @@ function loadDeployedContracts(domain: number) {
 }
 
 export async function run(provider: NetworkProvider) {
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const sampleWallet = new ethers.Wallet(process.env.VALIDATOR_KEY!);
   const domain = Number(process.env.SET_VALIDATORS_DOMAIN) || 0;
 
   let deployedContracts = loadDeployedContracts(domain);
