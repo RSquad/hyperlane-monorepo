@@ -116,19 +116,21 @@ int digest(
         throw_unless(error::domain_validators_not_found, v_found?);
         int sig_count = 0;
         int key = -1;
-        (key, slice signature, int sig_found?) = signatures.udict_get_next?(32, key);
-        while (sig_found?) {
-            (int h, int x1, int x2, int status) = get_ecdsa_pub_key(digest, signature);
-            if (status) {
-                int address = calc_address(x1, x2);
-                (_, int v_found?) = g::validators_set.udict_get_ref?(256, address);
+        do {
+            (key, slice signature, int sig_found?) = signatures.udict_get_next?(32, key);
+            if (sig_found?) {
+                (int h, int x1, int x2, int status) = get_ecdsa_pub_key(digest, signature);
+                
+                if (status) {
+                    int address = calc_address(x1, x2);
+                    (_, int v_found?) = g::validators_set.udict_get_ref?(256, address);
 
-                if (v_found?) {
-                    sig_count += 1;
+                    if (v_found?) {
+                        sig_count += 1;
+                    }
                 }
             }
-            (key, signature, sig_found?) = signatures.udict_get_next?(32, key);
-        };
+        } until (~ sig_found?);
 
         builder body = begin_cell();
         if (sig_count >= g::threshold) {

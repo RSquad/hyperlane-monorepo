@@ -98,7 +98,7 @@ export class MerkleTreeHook implements Contract {
 
   async getLatestCheckpoint(provider: ContractProvider) {
     const result = await provider.get('get_latest_checkpoint', []);
-    const root = result.stack.readNumber();
+    const root = result.stack.readBigNumber();
     const index = result.stack.readNumber();
     return { root, index };
   }
