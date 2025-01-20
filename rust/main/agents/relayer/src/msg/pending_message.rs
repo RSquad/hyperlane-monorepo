@@ -372,7 +372,6 @@ impl PendingOperation for PendingMessage {
             .await;
         match tx_outcome {
             Ok(outcome) => {
-                info!("process outcome:{:?}", outcome);
                 self.set_operation_outcome(outcome, state.gas_limit);
                 PendingOperationResult::Confirm(ConfirmReason::SubmittedBySelf)
             }
