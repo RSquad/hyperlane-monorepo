@@ -3,22 +3,19 @@ use macro_rules_attribute::apply;
 use serde_json::Value;
 use std::process::Command;
 use std::str::from_utf8;
-use std::{
-    env, fs,
-    path::{Path, PathBuf},
-    thread::sleep,
-    time::Duration,
-};
+use std::{env, fs, path::PathBuf, thread::sleep, time::Duration};
 use tempfile::tempdir;
 
 use crate::{
     logging::log,
     program::Program,
     ton::types::{generate_ton_config, TonAgentConfig},
+    ton::utils::resolve_abs_path,
     utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
 };
-mod types;
 
+mod types;
+mod utils;
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
@@ -38,7 +35,7 @@ impl Drop for TonHyperlaneStack {
 }
 
 #[allow(dead_code)]
-fn run_locally() {
+fn run_ton_to_ton() {
     info!("Start run_locally() for Ton");
     let domains: Vec<u32> = env::var("DOMAINS")
         .expect("DOMAINS env variable is missing")
@@ -168,15 +165,9 @@ fn run_locally() {
     };
 }
 
-fn resolve_abs_path<P: AsRef<Path>>(rel_path: P) -> String {
-    let mut configs_path = env::current_dir().unwrap();
-    configs_path.push(rel_path);
-    configs_path
-        .canonicalize()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_owned()
+#[allow(dead_code)]
+fn run_to_to_evm() {
+    todo!()
 }
 
 #[apply(as_task)]
@@ -442,9 +433,9 @@ pub fn deploy_all_contracts(domain: u32) -> Option<Value> {
 mod test {
     #[test]
     fn test_run() {
-        use crate::ton::run_locally;
+        use crate::ton::run_ton_to_ton;
         env_logger::init();
 
-        run_locally()
+        run_ton_to_ton()
     }
 }
