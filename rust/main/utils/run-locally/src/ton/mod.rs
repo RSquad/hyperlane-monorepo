@@ -9,13 +9,16 @@ use tempfile::tempdir;
 use crate::{
     logging::log,
     program::Program,
+    ton::evm::{launch_evm_to_ton_relayer, launch_evm_ton_scraper, launch_evm_validator},
     ton::types::{generate_ton_config, TonAgentConfig},
     ton::utils::resolve_abs_path,
     utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
 };
 
+mod evm;
 mod types;
-mod utils;
+mod utils; // check
+
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
@@ -166,8 +169,140 @@ fn run_ton_to_ton() {
 }
 
 #[allow(dead_code)]
-fn run_to_to_evm() {
-    todo!()
+fn run_ton_to_evm() {
+    info!("Start run_locally() for Ton");
+    let domains: Vec<u32> = env::var("DOMAINS")
+        .expect("DOMAINS env variable is missing")
+        .split(',')
+        .map(|d| d.parse::<u32>().expect("Invalid domain format"))
+        .collect();
+    let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
+
+    info!("domains:{:?}", domains);
+
+    let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
+    let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
+    let api_key = env::var("API_KEY").expect("API_KEY env is missing");
+
+    // needed add key for evm
+    let private_key = env::var("evm_private_key")
+        .expect("evm_private_key env variable is missing")
+        .to_string();
+
+    let domain_ton = 777002;
+
+    info!("current_dir: {}", env::current_dir().unwrap().display());
+    let file_name = "ton_config";
+
+    // deploy_all_contracts(domain_ton);
+    // sleep(Duration::from_secs(30));
+
+    // send_set_validators_and_threshold(domain_ton, validator_key).expect(&format!(
+    //     "Failed to set validators and threshold for domain {}",
+    //     domain_ton
+    // ));
+
+    let agent_config = generate_ton_config(
+        file_name,
+        &mnemonic,
+        &wallet_version,
+        &api_key,
+        ("777002", "777002"),
+    )
+    .unwrap();
+
+    //let agent_config_path = format!("../../config/{file_name}.json");
+
+    // info!("Agent config path:{}", agent_config_path);
+
+    // sleep(Duration::from_secs(300));
+
+    log!("Building rust...");
+    Program::new("cargo")
+        .cmd("build")
+        .working_dir("../../")
+        .arg("features", "test-utils")
+        .arg("bin", "relayer")
+        .arg("bin", "validator")
+        .arg("bin", "scraper")
+        .arg("bin", "init-db")
+        .filter_logs(|l| !l.contains("workspace-inheritance"))
+        .run()
+        .join();
+
+    info!("current_dir: {}", env::current_dir().unwrap().display());
+    let file_name = "evm_to_ton_config";
+
+    let domains_tuple = ("arbitrumsepolia", "tontest2");
+
+    let agent_config_path = format!("../../config/{file_name}.json");
+
+    info!("Agent config path:{}", agent_config_path);
+    let relay_chains = vec!["arbitrumsepolia".to_string(), "tontest2".to_string()];
+    let metrics_port = 9090;
+    let debug = false;
+
+    let scraper_metrics_port = metrics_port + 10;
+    info!("Running postgres db...");
+    let postgres = Program::new("docker")
+        .cmd("run")
+        .flag("rm")
+        .arg("name", "ton-evm-scraper-postgres")
+        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
+        .arg("publish", "5432:5432")
+        .cmd("postgres:14")
+        .spawn("SQL", None);
+
+    sleep(Duration::from_secs(10));
+
+    let relayer = launch_evm_to_ton_relayer(
+        agent_config_path.clone(),
+        relay_chains.clone(),
+        metrics_port,
+        debug,
+    );
+
+    let persistent_path = "./persistent_data";
+    let db_path = format!("{}/db", persistent_path);
+    fs::create_dir_all(&db_path).expect("Failed to create persistent database path");
+
+    let validator1 = launch_evm_validator(
+        agent_config_path.clone(),
+        private_key,
+        metrics_port + 1,
+        debug,
+        Some(format!("{}1", persistent_path)),
+    );
+
+    let validator2 = launch_ton_validator(
+        agent_config_path.clone(),
+        agent_config[1].clone(),
+        metrics_port + 2,
+        debug,
+        Some(format!("{}2", persistent_path)),
+    );
+
+    //let validators = vec![validator1];
+
+    let scraper = launch_evm_ton_scraper(
+        agent_config_path.clone(),
+        relay_chains.clone(),
+        scraper_metrics_port,
+        debug,
+    );
+
+    info!("Waiting for agents to run for 3 minutes...");
+    sleep(Duration::from_secs(300));
+
+    // let _ = TonHyperlaneStack {
+    //     validators: validators.into_iter().map(|v| v.join()).collect(),
+    //     relayer: relayer.join(),
+    //     scraper: scraper.join(),
+    //     postgres,
+    // };
+    validator1.join();
+    validator2.join();
+    scraper.join();
 }
 
 #[apply(as_task)]
@@ -436,6 +571,9 @@ mod test {
         use crate::ton::run_ton_to_ton;
         env_logger::init();
 
-        run_ton_to_ton()
+        use crate::ton::run_ton_to_evm;
+
+        run_ton_to_evm()
+        // run_ton_to_ton()
     }
 }
