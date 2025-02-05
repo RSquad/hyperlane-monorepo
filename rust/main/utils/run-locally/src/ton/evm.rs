@@ -1,7 +1,5 @@
 use log::info;
 use macro_rules_attribute::apply;
-use std::process::Command;
-use std::str::from_utf8;
 use std::{env, fs, path::PathBuf};
 use tempfile::tempdir;
 
@@ -30,8 +28,8 @@ pub fn launch_evm_to_ton_relayer(
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
-        .hyp_env("arbitrumsepolia", "1")
-        .hyp_env("tontest2", "1")
+        .hyp_env("arbitrumsepolia", "421614")
+        .hyp_env("tontest1", "777001")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
         .hyp_env("GASPAYMENTENFORCEMENT", "[{\"type\": \"none\"}]") //
         .hyp_env("METRICSPORT", metrics.to_string())
@@ -113,7 +111,7 @@ pub fn launch_evm_ton_scraper(
         .env("RUST_BACKTRACE", "1")
         .hyp_env("CHAINSTOSCRAPE", chains.join(","))
         .hyp_env("arbitrumsepolia", "1")
-        .hyp_env("tontest2", "1")
+        .hyp_env("tontest1", "1")
         .hyp_env(
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
