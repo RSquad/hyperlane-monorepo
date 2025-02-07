@@ -7,12 +7,9 @@ use crate::{
     logging::log,
     program::Program,
     ton::evm::{launch_evm_to_ton_relayer, launch_evm_ton_scraper, launch_evm_validator},
-    ton::setup::{
-        deploy_all_contracts, deploy_and_setup_domains, send_dispatch,
-        send_set_validators_and_threshold,
-    },
+    ton::setup::{deploy_and_setup_domain, deploy_and_setup_domains, send_dispatch},
     ton::types::{generate_ton_config, TonAgentConfig},
-    ton::utils::resolve_abs_path,
+    ton::utils::{build_rust_bins, resolve_abs_path},
     utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
 };
 
@@ -69,17 +66,7 @@ fn run_ton_to_ton() {
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir("../../")
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    build_rust_bins(&["relayer", "validator", "scraper", "init-db"]);
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
@@ -188,13 +175,7 @@ fn run_ton_to_evm() {
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
 
-    deploy_all_contracts(domain_ton);
-    sleep(Duration::from_secs(30));
-
-    send_set_validators_and_threshold(domain_ton, validator_key).expect(&format!(
-        "Failed to set validators and threshold for domain {}",
-        domain_ton
-    ));
+    deploy_and_setup_domain(domain_ton, &validator_key);
 
     let agent_config = generate_ton_config(
         file_name,
@@ -212,17 +193,7 @@ fn run_ton_to_evm() {
     sleep(Duration::from_secs(300));
 
     log!("Building rust...");
-    Program::new("cargo")
-        .cmd("build")
-        .working_dir("../../")
-        .arg("features", "test-utils")
-        .arg("bin", "relayer")
-        .arg("bin", "validator")
-        .arg("bin", "scraper")
-        .arg("bin", "init-db")
-        .filter_logs(|l| !l.contains("workspace-inheritance"))
-        .run()
-        .join();
+    build_rust_bins(&["relayer", "validator", "scraper", "init-db"]);
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "evm_to_ton_config";
