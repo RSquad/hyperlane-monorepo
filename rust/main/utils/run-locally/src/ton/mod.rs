@@ -7,7 +7,10 @@ use crate::{
     logging::log,
     program::Program,
     ton::evm::{launch_evm_to_ton_relayer, launch_evm_ton_scraper, launch_evm_validator},
-    ton::setup::{deploy_all_contracts, send_dispatch, send_set_validators_and_threshold},
+    ton::setup::{
+        deploy_all_contracts, deploy_and_setup_domains, send_dispatch,
+        send_set_validators_and_threshold,
+    },
     ton::types::{generate_ton_config, TonAgentConfig},
     ton::utils::resolve_abs_path,
     utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
@@ -47,15 +50,8 @@ fn run_ton_to_ton() {
 
     info!("domains:{:?}", domains);
 
-    for &domain in &domains {
-        deploy_all_contracts(domain);
-        sleep(Duration::from_secs(30));
+    deploy_and_setup_domains(&domains, &validator_key);
 
-        send_set_validators_and_threshold(domain, validator_key).expect(&format!(
-            "Failed to set validators and threshold for domain {}",
-            domain
-        ));
-    }
     for &dispatch_domain in &domains {
         for &target_domain in &domains {
             if dispatch_domain != target_domain {

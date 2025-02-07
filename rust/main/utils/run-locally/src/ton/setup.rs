@@ -2,8 +2,22 @@ use serde_json::Value;
 use std::fs;
 use std::process::Command;
 use std::str::from_utf8;
+use std::thread::sleep;
+use std::time::Duration;
 
 use crate::logging::log;
+
+pub fn deploy_and_setup_domains(domains: &[u32], validator_key: &str) {
+    for &domain in domains {
+        deploy_and_setup_domain(domain, validator_key);
+    }
+}
+pub fn deploy_and_setup_domain(domain: u32, validator_key: &str) {
+    deploy_all_contracts(domain);
+    sleep(Duration::from_secs(30));
+    send_set_validators_and_threshold(domain, validator_key)
+        .expect("Failed to set validators and threshold");
+}
 
 pub fn send_dispatch(dispatch_domain: u32, target_domain: u32) -> Result<(), String> {
     log!("Launching sendDispatch script...");
