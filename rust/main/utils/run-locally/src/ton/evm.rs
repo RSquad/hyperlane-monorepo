@@ -10,6 +10,7 @@ use crate::{
     utils::{as_task, concat_path, make_static, AgentHandles},
 };
 
+#[apply(as_task)]
 pub fn launch_evm_to_ton_relayer(
     agent_config_path: String,
     relay_chains: Vec<String>,
