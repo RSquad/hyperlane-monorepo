@@ -17,7 +17,7 @@ use crate::{
 
 mod evm;
 mod types;
-mod utils; // check
+mod utils;
 
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
@@ -176,7 +176,6 @@ fn run_ton_to_evm() {
         .split(',')
         .map(|d| d.parse::<u32>().expect("Invalid domain format"))
         .collect();
-    let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
 
     info!("domains:{:?}", domains);
 
@@ -189,33 +188,34 @@ fn run_ton_to_evm() {
         .expect("evm_private_key env variable is missing")
         .to_string();
 
-    let domain_ton = 777002;
+    let domain_ton = 777001;
+    let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
 
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "ton_config";
 
-    // deploy_all_contracts(domain_ton);
-    // sleep(Duration::from_secs(30));
+    deploy_all_contracts(domain_ton);
+    sleep(Duration::from_secs(30));
 
-    // send_set_validators_and_threshold(domain_ton, validator_key).expect(&format!(
-    //     "Failed to set validators and threshold for domain {}",
-    //     domain_ton
-    // ));
+    send_set_validators_and_threshold(domain_ton, validator_key).expect(&format!(
+        "Failed to set validators and threshold for domain {}",
+        domain_ton
+    ));
 
     let agent_config = generate_ton_config(
         file_name,
         &mnemonic,
         &wallet_version,
         &api_key,
-        ("777002", "777002"),
+        ("777001", "777002"),
     )
     .unwrap();
 
-    //let agent_config_path = format!("../../config/{file_name}.json");
+    let agent_config_path = format!("../../config/{file_name}.json");
 
-    // info!("Agent config path:{}", agent_config_path);
+    info!("Agent config path:{}", agent_config_path);
 
-    // sleep(Duration::from_secs(300));
+    sleep(Duration::from_secs(300));
 
     log!("Building rust...");
     Program::new("cargo")
@@ -233,12 +233,10 @@ fn run_ton_to_evm() {
     info!("current_dir: {}", env::current_dir().unwrap().display());
     let file_name = "evm_to_ton_config";
 
-    let domains_tuple = ("arbitrumsepolia", "tontest2");
-
     let agent_config_path = format!("../../config/{file_name}.json");
 
     info!("Agent config path:{}", agent_config_path);
-    let relay_chains = vec!["arbitrumsepolia".to_string(), "tontest2".to_string()];
+    let relay_chains = vec!["arbitrumsepolia".to_string(), "tontest1".to_string()];
     let metrics_port = 9090;
     let debug = false;
 
@@ -266,23 +264,23 @@ fn run_ton_to_evm() {
     let db_path = format!("{}/db", persistent_path);
     fs::create_dir_all(&db_path).expect("Failed to create persistent database path");
 
-    let validator1 = launch_evm_validator(
+    let validator1: Box<dyn TaskHandle<Output = AgentHandles>> = Box::new(launch_evm_validator(
         agent_config_path.clone(),
         private_key,
         metrics_port + 1,
         debug,
         Some(format!("{}1", persistent_path)),
-    );
+    ));
 
-    let validator2 = launch_ton_validator(
+    let validator2: Box<dyn TaskHandle<Output = AgentHandles>> = Box::new(launch_ton_validator(
         agent_config_path.clone(),
-        agent_config[1].clone(),
+        agent_config[0].clone(),
         metrics_port + 2,
         debug,
         Some(format!("{}2", persistent_path)),
-    );
+    ));
 
-    //let validators = vec![validator1];
+    let validators = vec![validator1, validator2];
 
     let scraper = launch_evm_ton_scraper(
         agent_config_path.clone(),
@@ -294,15 +292,12 @@ fn run_ton_to_evm() {
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
 
-    // let _ = TonHyperlaneStack {
-    //     validators: validators.into_iter().map(|v| v.join()).collect(),
-    //     relayer: relayer.join(),
-    //     scraper: scraper.join(),
-    //     postgres,
-    // };
-    validator1.join();
-    validator2.join();
-    scraper.join();
+    let _ = TonHyperlaneStack {
+        validators: validators.into_iter().map(|v| v.join_box()).collect(),
+        relayer: relayer.join(),
+        scraper: scraper.join(),
+        postgres,
+    };
 }
 
 #[apply(as_task)]
@@ -324,6 +319,7 @@ pub fn launch_ton_relayer(
         .hyp_env("RELAYCHAINS", relay_chains.join(","))
         .hyp_env("DB", relayer_base.as_ref().to_str().unwrap())
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
+        .hyp_env("arbitrumsepolia", "421614")
         .hyp_env("tontest1", "1")
         .hyp_env("tontest2", "1")
         .hyp_env("TRACING_LEVEL", if debug { "debug" } else { "info" })
@@ -372,7 +368,8 @@ pub fn launch_ton_validator(
         .hyp_env("VALIDATOR_SIGNER_TYPE", agent_config.signer.typ)
         .hyp_env(
             "VALIDATOR_KEY",
-            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
+            "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a", //"0xa444a04e2711c5b7c6b85bbf3d8d75dea86891dc53adcf5cff42833c764c5b10"
+                                                                                  //"0x42ff1dedb84f103d79d3857c132ea37c11536558c57a279f5e071f364de0ec54",
         )
         .hyp_env(
             "VALIDATOR_MNEMONICPHRASE",

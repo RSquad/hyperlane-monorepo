@@ -67,7 +67,6 @@ impl TonAgentConfig {
         validator_announce: &str,
         merkle_tree_hook: &str,
     ) -> Self {
-        log!("TonAgentConfig::new() mailbox:{:?} igp:{:?}, validator_announce:{:?} merkle_tree_hook:{:?}", mailbox, igp, validator_announce, merkle_tree_hook);
         let mnemonic_vec: Vec<String> = signer_phrase
             .split_whitespace()
             .map(|s| s.to_string())
@@ -99,8 +98,8 @@ impl TonAgentConfig {
             },
             contract_address_bytes: 32,
             index: AgentConfigIndex {
-                from: 1,
-                chunk: 26942839,
+                from: 27861115,
+                chunk: 1000,
             },
         }
     }
@@ -169,7 +168,6 @@ pub fn generate_evm_to_ton_config(
     api_key: &str,
     domains: (&str, &str),
 ) -> Result<Vec<TonAgentConfig>, Error> {
-    let file_name = "evm_to_ton_config";
     let output_path = format!("../../config/{output_name}.json");
 
     let deployed_contracts_1 = read_deployed_contracts(domains.0);
@@ -185,7 +183,7 @@ pub fn generate_evm_to_ton_config(
             &deployed_contracts_1,
         ),
         create_chain_config(
-            "tontest2",
+            "tontest1",
             domains.1,
             &mnemonic,
             wallet_version,
