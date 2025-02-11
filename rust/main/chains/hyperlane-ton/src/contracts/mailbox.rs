@@ -427,6 +427,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
+
         info!(
             "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
             start_block, end_block
@@ -808,9 +809,7 @@ mod tests {
     use std::str::FromStr;
     use tokio;
 
-    #[tokio::test]
-    #[ignore]
-    async fn test_fetch_logs_in_range() {
+    fn create_indexer() -> TonMailboxIndexer {
         let mailbox_address =
             env::var("TEST_ADDRESS").expect("TEST_ADDRESS env variable must be set");
         let mailbox_address =
@@ -848,7 +847,13 @@ mod tests {
         };
 
         let indexer = TonMailboxIndexer { mailbox };
+        indexer
+    }
 
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_logs_in_range() {
+        let indexer = create_indexer();
         let block_range: RangeInclusive<u32> = 1..=28039020;
 
         let result: Result<Vec<(Indexed<H256>, LogMeta)>, ChainCommunicationError> =
@@ -860,6 +865,29 @@ mod tests {
                 assert!(
                     !events.is_empty(),
                     "Expected some events to be fetched from the mailbox"
+                );
+            }
+            Err(err) => {
+                panic!("fetch_logs_in_range failed: {:?}", err);
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_logs_in_range_empty() {
+        let indexer = create_indexer();
+        let block_range: RangeInclusive<u32> = 1..=2;
+
+        let result: Result<Vec<(Indexed<H256>, LogMeta)>, ChainCommunicationError> =
+            indexer.fetch_logs_in_range(block_range).await;
+
+        match result {
+            Ok(events) => {
+                println!("Fetched {} events", events.len());
+                assert!(
+                    events.is_empty(),
+                    "Expected no events in the mailbox, but got some"
                 );
             }
             Err(err) => {
