@@ -513,7 +513,6 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             }
             offset += batch_size;
         }
-        info!("events in mailbox:{:?}", all_events);
         Ok(all_events)
     }
 
@@ -796,4 +795,76 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
         body: data.to_vec(),
     };
     Ok(message)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::TonConnectionConf;
+
+    use super::*;
+    use reqwest::{Client, Url};
+    use std::env;
+    use std::ops::RangeInclusive;
+    use std::str::FromStr;
+    use tokio;
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_logs_in_range() {
+        let mailbox_address =
+            env::var("TEST_ADDRESS").expect("TEST_ADDRESS env variable must be set");
+        let mailbox_address =
+            TonAddress::from_base64_url(&mailbox_address).expect("Failed to create address");
+        let api_key = env::var("API_KEY").expect("API_KEY env variable must be set");
+        let mnemonic_phrase =
+            env::var("MNEMONIC_PHRASE").expect("MNEMONIC_PHRASE env variable must be set");
+
+        let mnemonic_words: Vec<String> = mnemonic_phrase
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
+
+        let signer =
+            TonSigner::from_mnemonic(mnemonic_words, tonlib_core::wallet::WalletVersion::V4R2)
+                .expect("Failed to create signer");
+
+        let client = Client::new();
+
+        let url = Url::from_str("https://testnet.toncenter.com/api/")
+            .expect("Failed to create url from str");
+
+        let config = TonConnectionConf::new(url, api_key, 10);
+
+        let provider = TonProvider::new(
+            client,
+            config,
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::TonTest1),
+        );
+        let mailbox = TonMailbox {
+            provider,
+            mailbox_address: mailbox_address.clone(),
+            signer,
+            workchain: 0,
+        };
+
+        let indexer = TonMailboxIndexer { mailbox };
+
+        let block_range: RangeInclusive<u32> = 1..=28039020;
+
+        let result: Result<Vec<(Indexed<H256>, LogMeta)>, ChainCommunicationError> =
+            indexer.fetch_logs_in_range(block_range).await;
+
+        match result {
+            Ok(events) => {
+                info!("Fetched {} events", events.len());
+                assert!(
+                    !events.is_empty(),
+                    "Expected some events to be fetched from the mailbox"
+                );
+            }
+            Err(err) => {
+                panic!("fetch_logs_in_range failed: {:?}", err);
+            }
+        }
+    }
 }
