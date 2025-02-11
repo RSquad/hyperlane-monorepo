@@ -557,63 +557,80 @@ impl Indexer<H256> for TonMailboxIndexer {
             ))
         })?;
 
-        let messages = self
-            .mailbox
-            .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.mailbox.mailbox_address.to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to fetch messages in range: {:?} for Indexer<H256>",
-                    e
-                )))
-            })?;
-        let events = messages
-            .messages
-            .into_iter()
-            .filter_map(|message| {
-                let hash = &message.hash;
+        let mut all_events = vec![];
+        let mut offset: usize = 0;
+        const LIMIT: usize = 1000;
 
-                let decoded = match general_purpose::STANDARD.decode(hash) {
-                    Ok(decoded) => decoded,
-                    Err(err) => {
-                        warn!("error decode:{:?}", err);
+        loop {
+            let messages = self
+                .mailbox
+                .provider
+                .get_messages(
+                    None,
+                    None,
+                    Some(self.mailbox.mailbox_address.to_string()),
+                    Some("null".to_string()),
+                    None,
+                    Some(start_utime),
+                    Some(end_utime),
+                    None,
+                    None,
+                    None,
+                    Some(LIMIT as u32),
+                    Some(offset as u32),
+                    Some("desc".to_string()),
+                )
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                        "Failed to fetch messages in range: {:?} for Indexer<H256>",
+                        e
+                    )))
+                })?;
+            let batch_size = messages.messages.len();
+            let events: Vec<(Indexed<H256>, LogMeta)> = messages
+                .messages
+                .into_iter()
+                .filter_map(|message| {
+                    let hash = &message.hash;
+
+                    let decoded = match general_purpose::STANDARD.decode(hash) {
+                        Ok(decoded) => decoded,
+                        Err(err) => {
+                            warn!("error decode:{:?}", err);
+                            return None;
+                        }
+                    };
+
+                    if decoded.len() != 32 {
                         return None;
                     }
-                };
 
-                if decoded.len() != 32 {
-                    return None;
-                }
+                    let log_meta = LogMeta {
+                        address: ConversionUtils::ton_address_to_h256(
+                            &self.mailbox.mailbox_address,
+                        ),
+                        block_number: 0,
+                        block_hash: Default::default(),
+                        transaction_id: Default::default(),
+                        transaction_index: 0,
+                        log_index: Default::default(),
+                    };
 
-                let log_meta = LogMeta {
-                    address: ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address),
-                    block_number: 0,
-                    block_hash: Default::default(),
-                    transaction_id: Default::default(),
-                    transaction_index: 0,
-                    log_index: Default::default(),
-                };
+                    Some((Indexed::new(H256::from_slice(&decoded)), log_meta))
+                })
+                .collect();
+            all_events.extend(events);
 
-                Some((Indexed::new(H256::from_slice(&decoded)), log_meta))
-            })
-            .collect();
+            // Checking if we have reached the end
+            if batch_size < LIMIT {
+                break;
+            }
+            // Shifting the offset
+            offset += batch_size;
+        }
 
-        Ok(events)
+        Ok(all_events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
