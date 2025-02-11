@@ -449,56 +449,72 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             ))
         })?;
 
-        let messages = self
-            .mailbox
-            .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.mailbox.mailbox_address.to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to fetch messages in range: {:?}",
-                    e
-                )))
-            })?;
+        let mut all_events = vec![];
+        let mut offset: usize = 0;
+        const LIMIT: usize = 1000;
 
-        let events = messages
-            .messages
-            .into_iter()
-            .filter_map(|message| {
-                parse_message(&message.message_content.body)
-                    .ok()
-                    .map(|hyperlane_message| {
-                        let index_event = Indexed::from(hyperlane_message);
-                        let log_meta = LogMeta {
-                            address: ConversionUtils::ton_address_to_h256(
-                                &self.mailbox.mailbox_address,
-                            ),
-                            block_number: 0, // currently ton isn't supported this metrics in events
-                            block_hash: Default::default(),
-                            transaction_id: Default::default(),
-                            transaction_index: 0,
-                            log_index: Default::default(),
-                        };
-                        (index_event, log_meta)
-                    })
-            })
-            .collect();
-        info!("events in mailbox:{:?}", events);
-        Ok(events)
+        loop {
+            let messages = self
+                .mailbox
+                .provider
+                .get_messages(
+                    None,
+                    None,
+                    Some(self.mailbox.mailbox_address.to_string()),
+                    Some("null".to_string()),
+                    None,
+                    Some(start_utime),
+                    Some(end_utime),
+                    None,
+                    None,
+                    None,
+                    Some(LIMIT as u32),
+                    Some(offset as u32),
+                    Some("desc".to_string()),
+                )
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                        "Failed to fetch messages in range: {:?}",
+                        e
+                    )))
+                })?;
+            let batch_size = messages.messages.len();
+            info!("Fetched {} messages in current batch", batch_size);
+
+            let events: Vec<(Indexed<HyperlaneMessage>, LogMeta)> = messages
+                .messages
+                .into_iter()
+                .filter_map(|message| {
+                    parse_message(&message.message_content.body)
+                        .ok()
+                        .map(|hyperlane_message| {
+                            let index_event = Indexed::from(hyperlane_message);
+                            let log_meta = LogMeta {
+                                address: ConversionUtils::ton_address_to_h256(
+                                    &self.mailbox.mailbox_address,
+                                ),
+                                block_number: 0, // currently ton isn't supported this metrics in events
+                                block_hash: Default::default(),
+                                transaction_id: Default::default(),
+                                transaction_index: 0,
+                                log_index: Default::default(),
+                            };
+                            (index_event, log_meta)
+                        })
+                })
+                .collect();
+
+            all_events.extend(events);
+
+            // If the batch has less than the limit or even 0 messages, it means that the end has been reached.
+            if batch_size < LIMIT || batch_size == 0 {
+                break;
+            }
+            offset += batch_size;
+        }
+        info!("events in mailbox:{:?}", all_events);
+        Ok(all_events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -623,7 +639,7 @@ impl Indexer<H256> for TonMailboxIndexer {
             all_events.extend(events);
 
             // Checking if we have reached the end
-            if batch_size < LIMIT {
+            if batch_size < LIMIT || batch_size == 0 {
                 break;
             }
             // Shifting the offset
