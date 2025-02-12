@@ -26,9 +26,12 @@ use hyperlane_core::{
 use crate::{
     client::provider::TonProvider,
     error::HyperlaneTonError,
+    message::Message,
     signer::signer::TonSigner,
     traits::ton_api_center::TonApiCenter,
-    utils::{conversion::ConversionUtils, log_meta::create_ton_log_meta},
+    utils::{
+        conversion::ConversionUtils, log_meta::create_ton_log_meta, pagination::paginate_logs,
+    },
 };
 
 pub struct TonMailbox {
@@ -436,54 +439,26 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         let mailbox_addr = self.mailbox.mailbox_address.to_string();
         let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
 
-        let mut all_events = vec![];
-        let mut offset: usize = 0;
-        const LIMIT: usize = 1000;
-
-        loop {
-            let messages = self
-                .mailbox
-                .provider
-                .get_logs(
-                    &mailbox_addr,
-                    start_utime,
-                    end_utime,
-                    LIMIT as u32,
-                    offset as u32,
-                )
-                .await
-                .map_err(|e| {
-                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                        "Failed to fetch messages in range: {:?}",
-                        e
-                    )))
-                })?;
-            let batch_size = messages.messages.len();
-            info!("Fetched {} messages in current batch", batch_size);
-
-            let events: Vec<(Indexed<HyperlaneMessage>, LogMeta)> = messages
-                .messages
-                .into_iter()
-                .filter_map(|message| {
-                    parse_message(&message.message_content.body)
-                        .ok()
-                        .map(|hyperlane_message| {
-                            let index_event = Indexed::from(hyperlane_message);
-                            let log_meta = create_ton_log_meta(mailbox_addr_h256);
-                            (index_event, log_meta)
-                        })
+        let parse_fn = |message: Message| {
+            parse_message(&message.message_content.body)
+                .ok()
+                .map(|hyperlane_message| {
+                    (
+                        Indexed::from(hyperlane_message),
+                        create_ton_log_meta(mailbox_addr_h256),
+                    )
                 })
-                .collect();
-
-            all_events.extend(events);
-
-            // If the batch has less than the limit or even 0 messages, it means that the end has been reached.
-            if batch_size < LIMIT {
-                break;
-            }
-            offset += batch_size;
-        }
-        Ok(all_events)
+        };
+        paginate_logs(
+            &self.mailbox.provider,
+            &mailbox_addr,
+            start_utime,
+            end_utime,
+            1000,
+            0,
+            parse_fn,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -522,59 +497,33 @@ impl Indexer<H256> for TonMailboxIndexer {
         let mailbox_addr = self.mailbox.mailbox_address.to_string();
         let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
 
-        let mut all_events = Vec::new();
-        let mut offset: usize = 0;
-        const LIMIT: usize = 1000;
+        let parse_fn = move |message: Message| {
+            let decoded = match general_purpose::STANDARD.decode(&message.hash) {
+                Ok(d) => d,
+                Err(_) => {
+                    warn!("Failed to decode hash: {}", message.hash);
+                    return None;
+                }
+            };
+            if decoded.len() != 32 {
+                warn!("Decoded hash has invalid length: {}", decoded.len());
+                return None;
+            };
+            let index_event = Indexed::new(H256::from_slice(&decoded));
+            let log_meta = create_ton_log_meta(mailbox_addr_h256);
+            Some((index_event, log_meta))
+        };
 
-        loop {
-            let messages = self
-                .mailbox
-                .provider
-                .get_logs(
-                    &mailbox_addr,
-                    start_utime,
-                    end_utime,
-                    LIMIT as u32,
-                    offset as u32,
-                )
-                .await
-                .map_err(|e| {
-                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                        "Failed to fetch messages in range: {:?}",
-                        e
-                    )))
-                })?;
-            let batch_size = messages.messages.len();
-            info!("Fetched {} messages at offset {}", batch_size, offset);
-
-            let events: Vec<(Indexed<H256>, LogMeta)> = messages
-                .messages
-                .into_iter()
-                .filter_map(|message| {
-                    if let Ok(decoded) = general_purpose::STANDARD.decode(&message.hash) {
-                        if decoded.len() == 32 {
-                            let index_event = Indexed::new(H256::from_slice(&decoded));
-                            let log_meta = create_ton_log_meta(mailbox_addr_h256);
-                            return Some((index_event, log_meta));
-                        } else {
-                            warn!("Decoded hash has invalid length: {}", decoded.len());
-                        }
-                    } else {
-                        warn!("Failed to decode hash: {}", message.hash);
-                    }
-                    None
-                })
-                .collect();
-
-            all_events.extend(events);
-
-            if batch_size < LIMIT {
-                break;
-            }
-            offset += batch_size;
-        }
-
-        Ok(all_events)
+        paginate_logs(
+            &self.mailbox.provider,
+            &mailbox_addr,
+            start_utime,
+            end_utime,
+            1000,
+            0,
+            parse_fn,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -784,12 +733,13 @@ mod tests {
         let indexer = create_indexer();
         let block_range: RangeInclusive<u32> = 1..=28039020;
 
-        let result: Result<Vec<(Indexed<H256>, LogMeta)>, ChainCommunicationError> =
+        let result: Result<Vec<(Indexed<HyperlaneMessage>, LogMeta)>, ChainCommunicationError> =
             indexer.fetch_logs_in_range(block_range).await;
 
         match result {
             Ok(events) => {
-                info!("Fetched {} events", events.len());
+                println!("Fetched {} events", events.len());
+                println!("Event random:{:?}", events.first());
                 assert!(
                     !events.is_empty(),
                     "Expected some events to be fetched from the mailbox"
