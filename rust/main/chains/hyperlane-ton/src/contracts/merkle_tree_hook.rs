@@ -20,9 +20,14 @@ use hyperlane_core::{
 };
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
-    ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
-    utils::log_meta::create_ton_log_meta,
+    client::provider::TonProvider,
+    error::HyperlaneTonError,
+    message::Message,
+    run_get_method::StackValue,
+    ton_api_center::TonApiCenter,
+    utils::{
+        conversion::ConversionUtils, log_meta::create_ton_log_meta, pagination::paginate_logs,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -251,94 +256,32 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             "fetch_logs_in_range in MerkleTreeHook start_utime:{:?} end_utime:{:?}",
             start_utime, end_utime
         );
-        let mut offset: usize = 0;
-        const LIMIT: usize = 1000;
-        let mut all_events = Vec::new();
 
         let merkle_tree_hook_address = self.merkle_tree_hook_address.to_string();
         let merkle_tree_hook_address_h256 =
             ConversionUtils::ton_address_to_h256(&self.merkle_tree_hook_address);
 
-        loop {
-            let messages = self
-                .provider
-                .get_logs(
-                    &merkle_tree_hook_address,
-                    start_utime,
-                    end_utime,
-                    LIMIT as u32,
-                    offset as u32,
-                )
-                .await
-                .map_err(|e| {
-                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                        "Failed to fetch messages in range: {:?}",
-                        e
-                    )))
-                })?;
-            let batch_size = messages.messages.len();
-            info!(
-                "Fetched {} messages in current batch at offset {}",
-                batch_size, offset
-            );
-
-            let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = messages
-                .messages
-                .iter()
-                .filter_map(|message| {
-                    let cell =
-                        ConversionUtils::parse_root_cell_from_boc(&message.message_content.body)
-                            .map_err(|e| {
-                                warn!("Failed to parse root cell from BOC: {:?}", e);
-                                e
-                            })
-                            .ok()?;
-
-                    let mut parser = cell.parser();
-
-                    let message_id = parser
-                        .load_uint(256)
-                        .map_err(|e| {
-                            warn!("Failed to load_uint message_id: {:?}", e);
-                            e
-                        })
-                        .ok()?;
-                    let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
-
-                    let index = parser
-                        .load_uint(32)
-                        .map_err(|e| {
-                            warn!("Failed to load_uint index: {:?}", e);
-                            e
-                        })
-                        .ok()?;
-
-                    let index_u32 = index
-                        .to_u32()
-                        .ok_or_else(|| {
-                            warn!("Index value is too large for u32");
-                        })
-                        .ok()?;
-
-                    let merkle_tree_insertion =
-                        MerkleTreeInsertion::new(index_u32, message_id_h256);
-
-                    let log_meta = create_ton_log_meta(merkle_tree_hook_address_h256);
-
-                    Some((Indexed::new(merkle_tree_insertion), log_meta))
+        let parse_fn = |message: Message| {
+            parse_merkle_tree_insertion(&message.message_content.body)
+                .ok()
+                .map(|merkle_tree_insertion| {
+                    (
+                        Indexed::from(merkle_tree_insertion),
+                        create_ton_log_meta(merkle_tree_hook_address_h256),
+                    )
                 })
-                .collect();
+        };
 
-            all_events.extend(events);
-
-            if batch_size < LIMIT {
-                break;
-            }
-            offset += batch_size;
-        }
-
-        info!("events in merkleTreeHook:{:?}", all_events);
-        Ok(all_events)
+        paginate_logs(
+            &self.provider,
+            &merkle_tree_hook_address,
+            start_utime,
+            end_utime,
+            1000,
+            0,
+            parse_fn,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -381,4 +324,37 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
 
         Ok((Some(sequence), tip))
     }
+}
+fn parse_merkle_tree_insertion(body: &str) -> ChainResult<MerkleTreeInsertion> {
+    let cell = ConversionUtils::parse_root_cell_from_boc(body).map_err(|e| {
+        warn!("Failed to parse root cell from BOC: {:?}", e);
+        ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+            "Failed to parse root cell from BOC".to_string(),
+        ))
+    })?;
+
+    let mut parser = cell.parser();
+
+    let message_id = parser.load_uint(256).map_err(|e| {
+        warn!("Failed to load_uint message_id: {:?}", e);
+        ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+            "Failed to load message_id".to_string(),
+        ))
+    })?;
+    let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
+
+    let index = parser.load_uint(32).map_err(|e| {
+        warn!("Failed to load_uint index: {:?}", e);
+        ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+            "Failed to load index".to_string(),
+        ))
+    })?;
+
+    let index_u32 = index.to_u32().ok_or_else(|| {
+        ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+            "Index value is too large for u32".to_string(),
+        ))
+    })?;
+
+    Ok(MerkleTreeInsertion::new(index_u32, message_id_h256))
 }
