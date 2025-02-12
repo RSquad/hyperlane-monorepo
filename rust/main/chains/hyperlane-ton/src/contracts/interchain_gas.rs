@@ -12,12 +12,12 @@ use tracing::{info, warn};
 use hyperlane_core::{
     ChainCommunicationError, ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
     HyperlaneProvider, Indexed, Indexer, InterchainGasPaymaster, InterchainGasPayment, LogMeta,
-    SequenceAwareIndexer, H256, H512, U256,
+    SequenceAwareIndexer, H256, U256,
 };
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    ConversionUtils,
+    utils::log_meta::create_ton_log_meta, ConversionUtils,
 };
 
 #[derive(Clone)]
@@ -70,6 +70,9 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         let mut offset: usize = 0;
         const LIMIT: usize = 1000;
 
+        let igp_address = self.igp_address.to_string();
+        let igp_address_h256 = ConversionUtils::ton_address_to_h256(&self.igp_address);
+
         let (start_utime, end_utime) = self.provider.get_utime_range(range).await?;
 
         let mut all_events = Vec::new();
@@ -78,7 +81,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
             let message_response = self
                 .provider
                 .get_logs(
-                    self.igp_address.to_string().as_str(),
+                    &igp_address,
                     start_utime,
                     end_utime,
                     LIMIT as u32,
@@ -105,14 +108,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
                     match parse_igp_events(&message.message_content.body) {
                         Ok(event) => Some((
                             Indexed::new(event),
-                            LogMeta {
-                                address: ConversionUtils::ton_address_to_h256(&self.igp_address),
-                                block_number: 0,
-                                block_hash: H256::zero(),
-                                transaction_id: H512::zero(),
-                                transaction_index: 0,
-                                log_index: U256::zero(),
-                            },
+                            create_ton_log_meta(igp_address_h256)
                         )),
                         Err(e) => {
                             warn!(

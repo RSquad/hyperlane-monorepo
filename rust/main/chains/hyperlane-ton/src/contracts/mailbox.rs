@@ -1,5 +1,4 @@
 use std::{
-    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     time::SystemTime,
@@ -25,8 +24,11 @@ use hyperlane_core::{
 };
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
+    client::provider::TonProvider,
+    error::HyperlaneTonError,
+    signer::signer::TonSigner,
+    traits::ton_api_center::TonApiCenter,
+    utils::{conversion::ConversionUtils, log_meta::create_ton_log_meta},
 };
 
 pub struct TonMailbox {
@@ -432,6 +434,8 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         );
 
         let mailbox_addr = self.mailbox.mailbox_address.to_string();
+        let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
+
         let mut all_events = vec![];
         let mut offset: usize = 0;
         const LIMIT: usize = 1000;
@@ -465,16 +469,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                         .ok()
                         .map(|hyperlane_message| {
                             let index_event = Indexed::from(hyperlane_message);
-                            let log_meta = LogMeta {
-                                address: ConversionUtils::ton_address_to_h256(
-                                    &self.mailbox.mailbox_address,
-                                ),
-                                block_number: 0, // currently ton isn't supported this metrics in events
-                                block_hash: Default::default(),
-                                transaction_id: Default::default(),
-                                transaction_index: 0,
-                                log_index: Default::default(),
-                            };
+                            let log_meta = create_ton_log_meta(mailbox_addr_h256);
                             (index_event, log_meta)
                         })
                 })
@@ -522,30 +517,11 @@ impl Indexer<H256> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
-        info!(
-            "fetch_logs_in_range in TonMailboxIndexer with start: {:?} end: {:?}",
-            start_block, end_block
-        );
-
-        let timestamps = self
-            .mailbox
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get start_utime".to_string(),
-            ))
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get end_utime".to_string(),
-            ))
-        })?;
+        let (start_utime, end_utime) = self.mailbox.provider.get_utime_range(range).await?;
 
         let mailbox_addr = self.mailbox.mailbox_address.to_string();
+        let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
+
         let mut all_events = Vec::new();
         let mut offset: usize = 0;
         const LIMIT: usize = 1000;
@@ -578,16 +554,7 @@ impl Indexer<H256> for TonMailboxIndexer {
                     if let Ok(decoded) = general_purpose::STANDARD.decode(&message.hash) {
                         if decoded.len() == 32 {
                             let index_event = Indexed::new(H256::from_slice(&decoded));
-                            let log_meta = LogMeta {
-                                address: ConversionUtils::ton_address_to_h256(
-                                    &self.mailbox.mailbox_address,
-                                ),
-                                block_number: 0, // currently ton isn't supported this metrics in events
-                                block_hash: Default::default(),
-                                transaction_id: Default::default(),
-                                transaction_index: 0,
-                                log_index: Default::default(),
-                            };
+                            let log_meta = create_ton_log_meta(mailbox_addr_h256);
                             return Some((index_event, log_meta));
                         } else {
                             warn!("Decoded hash has invalid length: {}", decoded.len());

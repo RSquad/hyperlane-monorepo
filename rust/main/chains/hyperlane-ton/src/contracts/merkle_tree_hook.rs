@@ -22,6 +22,7 @@ use hyperlane_core::{
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
     ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
+    utils::log_meta::create_ton_log_meta,
 };
 
 #[derive(Debug, Clone)]
@@ -255,6 +256,9 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         let mut all_events = Vec::new();
 
         let merkle_tree_hook_address = self.merkle_tree_hook_address.to_string();
+        let merkle_tree_hook_address_h256 =
+            ConversionUtils::ton_address_to_h256(&self.merkle_tree_hook_address);
+
         loop {
             let messages = self
                 .provider
@@ -319,16 +323,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
                     let merkle_tree_insertion =
                         MerkleTreeInsertion::new(index_u32, message_id_h256);
 
-                    let log_meta = LogMeta {
-                        address: ConversionUtils::ton_address_to_h256(
-                            &self.merkle_tree_hook_address,
-                        ),
-                        block_number: Default::default(),
-                        block_hash: Default::default(),
-                        transaction_id: Default::default(),
-                        transaction_index: 0,
-                        log_index: Default::default(),
-                    };
+                    let log_meta = create_ton_log_meta(merkle_tree_hook_address_h256);
 
                     Some((Indexed::new(merkle_tree_insertion), log_meta))
                 })
