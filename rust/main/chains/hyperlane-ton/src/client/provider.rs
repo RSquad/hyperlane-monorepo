@@ -1,4 +1,5 @@
-use std::str::FromStr;
+use std::ops::RangeInclusive;
+use std::{cmp::max, str::FromStr};
 
 use async_trait::async_trait;
 use derive_new::new;
@@ -963,6 +964,53 @@ impl TonProvider {
 
         info!("Latest block found: {:?}", block.seqno);
         Ok(block.seqno as u32)
+    }
+
+    pub async fn get_logs(
+        &self,
+        address: &str,
+        start_utime: i64,
+        end_utime: i64,
+        limit: u32,
+        offset: u32,
+    ) -> ChainResult<MessageResponse> {
+        self.get_messages(
+            None,                      // msg_hash
+            None,                      // body_hash
+            Some(address.to_string()), // source
+            None,                      // destination (None означает, что это лог)
+            None,                      // opcode
+            Some(start_utime),         // start_utime
+            Some(end_utime),           // end_utime
+            None,                      // start_lt
+            None,                      // end_lt
+            None,                      // direction
+            Some(limit),               // limit
+            Some(offset),              // offset
+            Some("desc".to_string()),  // sort
+        )
+        .await
+    }
+
+    pub async fn get_utime_range(&self, range: RangeInclusive<u32>) -> ChainResult<(i64, i64)> {
+        let start_block = max(*range.start(), 1);
+        let end_block = max(*range.end(), 1);
+
+        let timestamps = self
+            .fetch_blocks_timestamps(vec![start_block, end_block])
+            .await?;
+
+        let start_utime = *timestamps.get(0).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get start_utime".to_string(),
+            ))
+        })?;
+        let end_utime = *timestamps.get(1).ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "Failed to get end_utime".to_string(),
+            ))
+        })?;
+        Ok((start_utime, end_utime))
     }
 
     pub async fn fetch_blocks_timestamps(&self, blocks: Vec<u32>) -> ChainResult<Vec<i64>> {

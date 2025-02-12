@@ -68,38 +68,19 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<InterchainGasPayment>, LogMeta)>> {
-        info!("fetch_logs_in_range in GasPaymster start");
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
+        let mut offset: usize = 0;
+        const LIMIT: usize = 1000;
 
-        let timestamps = self
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
-
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            HyperlaneTonError::ParsingError("Failed to get start_utime".to_string())
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            HyperlaneTonError::ParsingError("Failed to get end_utime".to_string())
-        })?;
+        let (start_utime, end_utime) = self.provider.get_utime_range(range).await?;
 
         let message_response = self
             .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.igp_address.to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
+            .get_logs(
+                self.igp_address.to_string().as_str(),
+                start_utime,
+                end_utime,
+                LIMIT as u32,
+                offset as u32,
             )
             .await
             .map_err(|e| {

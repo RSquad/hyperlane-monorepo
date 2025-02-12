@@ -425,30 +425,11 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
-
+        let (start_utime, end_utime) = self.mailbox.provider.get_utime_range(range).await?;
         info!(
-            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
-            start_block, end_block
+            "fetch_logs_in_range in TonMailboxIndexer with start_utime:{:?} end_utime:{:?}",
+            start_utime, end_utime
         );
-
-        let timestamps = self
-            .mailbox
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
-
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get start_utime".to_string(),
-            ))
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get end_utime".to_string(),
-            ))
-        })?;
 
         let mut all_events = vec![];
         let mut offset: usize = 0;
@@ -458,20 +439,12 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             let messages = self
                 .mailbox
                 .provider
-                .get_messages(
-                    None,
-                    None,
-                    Some(self.mailbox.mailbox_address.to_string()),
-                    Some("null".to_string()),
-                    None,
-                    Some(start_utime),
-                    Some(end_utime),
-                    None,
-                    None,
-                    None,
-                    Some(LIMIT as u32),
-                    Some(offset as u32),
-                    Some("desc".to_string()),
+                .get_logs(
+                    self.mailbox.mailbox_address.to_string().as_str(),
+                    start_utime,
+                    end_utime,
+                    LIMIT as u32,
+                    offset as u32,
                 )
                 .await
                 .map_err(|e| {

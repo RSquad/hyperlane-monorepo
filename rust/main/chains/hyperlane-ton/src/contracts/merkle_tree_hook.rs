@@ -245,45 +245,22 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<MerkleTreeInsertion>, LogMeta)>> {
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
-
+        let (start_utime, end_utime) = self.provider.get_utime_range(range).await?;
         info!(
-            "fetch_logs_in_range in MerkleTreeHook start:{:?} end:{:?}",
-            start_block, end_block
+            "fetch_logs_in_range in MerkleTreeHook start_utime:{:?} end_utime:{:?}",
+            start_utime, end_utime
         );
-        let timestamps = self
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
-
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get start_utime".to_string(),
-            ))
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get end_utime".to_string(),
-            ))
-        })?;
+        let mut offset: usize = 0;
+        const LIMIT: usize = 1000;
 
         let messages = self
             .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.merkle_tree_hook_address.to_hex().to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
+            .get_logs(
+                self.merkle_tree_hook_address.to_string().as_str(),
+                start_utime,
+                end_utime,
+                LIMIT as u32,
+                offset as u32,
             )
             .await
             .map_err(|e| {
