@@ -978,7 +978,7 @@ impl TonProvider {
             None,                      // msg_hash
             None,                      // body_hash
             Some(address.to_string()), // source
-            None,                      // destination (None означает, что это лог)
+            None,                      // destination
             None,                      // opcode
             Some(start_utime),         // start_utime
             Some(end_utime),           // end_utime
