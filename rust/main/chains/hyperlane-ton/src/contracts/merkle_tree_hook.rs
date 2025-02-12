@@ -1,4 +1,4 @@
-use std::{cmp::max, ops::RangeInclusive};
+use std::ops::RangeInclusive;
 
 use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
@@ -252,78 +252,98 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         );
         let mut offset: usize = 0;
         const LIMIT: usize = 1000;
+        let mut all_events = Vec::new();
 
-        let messages = self
-            .provider
-            .get_logs(
-                self.merkle_tree_hook_address.to_string().as_str(),
-                start_utime,
-                end_utime,
-                LIMIT as u32,
-                offset as u32,
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to fetch messages in range: {:?}",
-                    e
-                )))
-            })?;
-
-        let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = messages
-            .messages
-            .iter()
-            .filter_map(|message| {
-                let cell = ConversionUtils::parse_root_cell_from_boc(&message.message_content.body)
-                    .map_err(|e| {
-                        warn!("Failed to parse root cell from BOC: {:?}", e);
+        let merkle_tree_hook_address = self.merkle_tree_hook_address.to_string();
+        loop {
+            let messages = self
+                .provider
+                .get_logs(
+                    &merkle_tree_hook_address,
+                    start_utime,
+                    end_utime,
+                    LIMIT as u32,
+                    offset as u32,
+                )
+                .await
+                .map_err(|e| {
+                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                        "Failed to fetch messages in range: {:?}",
                         e
-                    })
-                    .ok()?;
+                    )))
+                })?;
+            let batch_size = messages.messages.len();
+            info!(
+                "Fetched {} messages in current batch at offset {}",
+                batch_size, offset
+            );
 
-                let mut parser = cell.parser();
+            let events: Vec<(Indexed<MerkleTreeInsertion>, LogMeta)> = messages
+                .messages
+                .iter()
+                .filter_map(|message| {
+                    let cell =
+                        ConversionUtils::parse_root_cell_from_boc(&message.message_content.body)
+                            .map_err(|e| {
+                                warn!("Failed to parse root cell from BOC: {:?}", e);
+                                e
+                            })
+                            .ok()?;
 
-                let message_id = parser
-                    .load_uint(256)
-                    .map_err(|e| {
-                        warn!("Failed to load_uint message_id: {:?}", e);
-                        e
-                    })
-                    .ok()?;
-                let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
+                    let mut parser = cell.parser();
 
-                let index = parser
-                    .load_uint(32)
-                    .map_err(|e| {
-                        warn!("Failed to load_uint index: {:?}", e);
-                        e
-                    })
-                    .ok()?;
+                    let message_id = parser
+                        .load_uint(256)
+                        .map_err(|e| {
+                            warn!("Failed to load_uint message_id: {:?}", e);
+                            e
+                        })
+                        .ok()?;
+                    let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
 
-                let index_u32 = index
-                    .to_u32()
-                    .ok_or_else(|| {
-                        warn!("Index value is too large for u32");
-                    })
-                    .ok()?;
+                    let index = parser
+                        .load_uint(32)
+                        .map_err(|e| {
+                            warn!("Failed to load_uint index: {:?}", e);
+                            e
+                        })
+                        .ok()?;
 
-                let merkle_tree_insertion = MerkleTreeInsertion::new(index_u32, message_id_h256);
+                    let index_u32 = index
+                        .to_u32()
+                        .ok_or_else(|| {
+                            warn!("Index value is too large for u32");
+                        })
+                        .ok()?;
 
-                let log_meta = LogMeta {
-                    address: ConversionUtils::ton_address_to_h256(&self.merkle_tree_hook_address),
-                    block_number: Default::default(),
-                    block_hash: Default::default(),
-                    transaction_id: Default::default(),
-                    transaction_index: 0,
-                    log_index: Default::default(),
-                };
+                    let merkle_tree_insertion =
+                        MerkleTreeInsertion::new(index_u32, message_id_h256);
 
-                Some((Indexed::new(merkle_tree_insertion), log_meta))
-            })
-            .collect();
+                    let log_meta = LogMeta {
+                        address: ConversionUtils::ton_address_to_h256(
+                            &self.merkle_tree_hook_address,
+                        ),
+                        block_number: Default::default(),
+                        block_hash: Default::default(),
+                        transaction_id: Default::default(),
+                        transaction_index: 0,
+                        log_index: Default::default(),
+                    };
 
-        info!("events in merkleTreeHook:{:?}", events);
-        Ok(events)
+                    Some((Indexed::new(merkle_tree_insertion), log_meta))
+                })
+                .collect();
+
+            all_events.extend(events);
+
+            if batch_size < LIMIT || batch_size == 0 {
+                break;
+            }
+            offset += batch_size;
+        }
+
+        info!("events in merkleTreeHook:{:?}", all_events);
+        Ok(all_events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {

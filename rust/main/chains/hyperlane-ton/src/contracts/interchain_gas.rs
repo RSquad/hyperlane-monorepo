@@ -1,5 +1,4 @@
 use std::{
-    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     string::ToString,
@@ -18,7 +17,7 @@ use hyperlane_core::{
 
 use crate::{
     client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, ConversionUtils,
+    ConversionUtils,
 };
 
 #[derive(Clone)]
@@ -73,48 +72,68 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
 
         let (start_utime, end_utime) = self.provider.get_utime_range(range).await?;
 
-        let message_response = self
-            .provider
-            .get_logs(
-                self.igp_address.to_string().as_str(),
-                start_utime,
-                end_utime,
-                LIMIT as u32,
-                offset as u32,
-            )
-            .await
-            .map_err(|e| {
-                HyperlaneTonError::ApiRequestFailed(format!("Failed to fetch messages: {:?}", e))
-            })?;
+        let mut all_events = Vec::new();
 
-        let events = message_response
-            .messages
-            .iter()
-            .filter_map(
-                |message| match parse_igp_events(&message.message_content.body) {
-                    Ok(event) => Some((
-                        Indexed::new(event),
-                        LogMeta {
-                            address: ConversionUtils::ton_address_to_h256(&self.igp_address),
-                            block_number: 0,
-                            block_hash: H256::zero(),
-                            transaction_id: H512::zero(),
-                            transaction_index: 0,
-                            log_index: U256::zero(),
-                        },
-                    )),
-                    Err(e) => {
-                        warn!(
-                            "Failed to parse interchain gas payment for message: {:?}, error: {:?}",
-                            message, e
-                        );
-                        None
+        loop {
+            let message_response = self
+                .provider
+                .get_logs(
+                    self.igp_address.to_string().as_str(),
+                    start_utime,
+                    end_utime,
+                    LIMIT as u32,
+                    offset as u32,
+                )
+                .await
+                .map_err(|e| {
+                    HyperlaneTonError::ApiRequestFailed(format!(
+                        "Failed to fetch messages: {:?}",
+                        e
+                    ))
+                })?;
+
+            let batch_size = message_response.messages.len();
+            info!(
+                "Fetched {} messages in current batch at offset {}",
+                batch_size, offset
+            );
+
+            let events: Vec<(Indexed<InterchainGasPayment>, LogMeta)> = message_response
+                .messages
+                .iter()
+                .filter_map(|message| {
+                    match parse_igp_events(&message.message_content.body) {
+                        Ok(event) => Some((
+                            Indexed::new(event),
+                            LogMeta {
+                                address: ConversionUtils::ton_address_to_h256(&self.igp_address),
+                                block_number: 0,
+                                block_hash: H256::zero(),
+                                transaction_id: H512::zero(),
+                                transaction_index: 0,
+                                log_index: U256::zero(),
+                            },
+                        )),
+                        Err(e) => {
+                            warn!(
+                                "Failed to parse interchain gas payment for message: {:?}, error: {:?}",
+                                message, e
+                            );
+                            None
+                        }
                     }
-                },
-            )
-            .collect();
+                })
+                .collect();
 
-        Ok(events)
+            all_events.extend(events);
+
+            // If the current batch has less than the LIMIT, it means that the end has been reached
+            if batch_size < LIMIT {
+                break;
+            }
+            offset += batch_size;
+        }
+        Ok(all_events)
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
