@@ -431,6 +431,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             start_utime, end_utime
         );
 
+        let mailbox_addr = self.mailbox.mailbox_address.to_string();
         let mut all_events = vec![];
         let mut offset: usize = 0;
         const LIMIT: usize = 1000;
@@ -440,7 +441,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
                 .mailbox
                 .provider
                 .get_logs(
-                    self.mailbox.mailbox_address.to_string().as_str(),
+                    &mailbox_addr,
                     start_utime,
                     end_utime,
                     LIMIT as u32,
@@ -523,9 +524,8 @@ impl Indexer<H256> for TonMailboxIndexer {
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
         let start_block = max(*range.start(), 1);
         let end_block = max(*range.end(), 1);
-
         info!(
-            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
+            "fetch_logs_in_range in TonMailboxIndexer with start: {:?} end: {:?}",
             start_block, end_block
         );
 
@@ -534,7 +534,6 @@ impl Indexer<H256> for TonMailboxIndexer {
             .provider
             .fetch_blocks_timestamps(vec![start_block, end_block])
             .await?;
-
         let start_utime = *timestamps.get(0).ok_or_else(|| {
             ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
                 "Failed to get start_utime".to_string(),
@@ -546,7 +545,8 @@ impl Indexer<H256> for TonMailboxIndexer {
             ))
         })?;
 
-        let mut all_events = vec![];
+        let mailbox_addr = self.mailbox.mailbox_address.to_string();
+        let mut all_events = Vec::new();
         let mut offset: usize = 0;
         const LIMIT: usize = 1000;
 
@@ -557,7 +557,7 @@ impl Indexer<H256> for TonMailboxIndexer {
                 .get_messages(
                     None,
                     None,
-                    Some(self.mailbox.mailbox_address.to_string()),
+                    Some(mailbox_addr.clone()),
                     Some("null".to_string()),
                     None,
                     Some(start_utime),
@@ -572,50 +572,46 @@ impl Indexer<H256> for TonMailboxIndexer {
                 .await
                 .map_err(|e| {
                     ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                        "Failed to fetch messages in range: {:?} for Indexer<H256>",
+                        "Failed to fetch messages in range: {:?}",
                         e
                     )))
                 })?;
             let batch_size = messages.messages.len();
+            info!("Fetched {} messages at offset {}", batch_size, offset);
+
             let events: Vec<(Indexed<H256>, LogMeta)> = messages
                 .messages
                 .into_iter()
                 .filter_map(|message| {
-                    let hash = &message.hash;
-
-                    let decoded = match general_purpose::STANDARD.decode(hash) {
-                        Ok(decoded) => decoded,
-                        Err(err) => {
-                            warn!("error decode:{:?}", err);
-                            return None;
+                    if let Ok(decoded) = general_purpose::STANDARD.decode(&message.hash) {
+                        if decoded.len() == 32 {
+                            let index_event = Indexed::new(H256::from_slice(&decoded));
+                            let log_meta = LogMeta {
+                                address: ConversionUtils::ton_address_to_h256(
+                                    &self.mailbox.mailbox_address,
+                                ),
+                                block_number: 0, // currently ton isn't supported this metrics in events
+                                block_hash: Default::default(),
+                                transaction_id: Default::default(),
+                                transaction_index: 0,
+                                log_index: Default::default(),
+                            };
+                            return Some((index_event, log_meta));
+                        } else {
+                            warn!("Decoded hash has invalid length: {}", decoded.len());
                         }
-                    };
-
-                    if decoded.len() != 32 {
-                        return None;
+                    } else {
+                        warn!("Failed to decode hash: {}", message.hash);
                     }
-
-                    let log_meta = LogMeta {
-                        address: ConversionUtils::ton_address_to_h256(
-                            &self.mailbox.mailbox_address,
-                        ),
-                        block_number: 0,
-                        block_hash: Default::default(),
-                        transaction_id: Default::default(),
-                        transaction_index: 0,
-                        log_index: Default::default(),
-                    };
-
-                    Some((Indexed::new(H256::from_slice(&decoded)), log_meta))
+                    None
                 })
                 .collect();
+
             all_events.extend(events);
 
-            // Checking if we have reached the end
             if batch_size < LIMIT || batch_size == 0 {
                 break;
             }
-            // Shifting the offset
             offset += batch_size;
         }
 
