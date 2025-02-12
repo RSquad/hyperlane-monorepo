@@ -554,20 +554,12 @@ impl Indexer<H256> for TonMailboxIndexer {
             let messages = self
                 .mailbox
                 .provider
-                .get_messages(
-                    None,
-                    None,
-                    Some(mailbox_addr.clone()),
-                    Some("null".to_string()),
-                    None,
-                    Some(start_utime),
-                    Some(end_utime),
-                    None,
-                    None,
-                    None,
-                    Some(LIMIT as u32),
-                    Some(offset as u32),
-                    Some("desc".to_string()),
+                .get_logs(
+                    &mailbox_addr,
+                    start_utime,
+                    end_utime,
+                    LIMIT as u32,
+                    offset as u32,
                 )
                 .await
                 .map_err(|e| {
