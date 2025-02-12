@@ -483,7 +483,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             all_events.extend(events);
 
             // If the batch has less than the limit or even 0 messages, it means that the end has been reached.
-            if batch_size < LIMIT || batch_size == 0 {
+            if batch_size < LIMIT {
                 break;
             }
             offset += batch_size;
@@ -601,7 +601,7 @@ impl Indexer<H256> for TonMailboxIndexer {
 
             all_events.extend(events);
 
-            if batch_size < LIMIT || batch_size == 0 {
+            if batch_size < LIMIT {
                 break;
             }
             offset += batch_size;

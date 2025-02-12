@@ -336,7 +336,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
 
             all_events.extend(events);
 
-            if batch_size < LIMIT || batch_size == 0 {
+            if batch_size < LIMIT {
                 break;
             }
             offset += batch_size;
