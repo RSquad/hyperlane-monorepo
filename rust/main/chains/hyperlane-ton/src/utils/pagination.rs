@@ -3,7 +3,6 @@ use hyperlane_core::ChainResult;
 use crate::{message::Message, TonProvider};
 
 pub async fn paginate_logs<T, F>(
-    //provider: &impl TonApiCenter,
     provider: &TonProvider,
     address: &str,
     start_utime: i64,
