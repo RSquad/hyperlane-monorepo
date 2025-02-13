@@ -3,7 +3,7 @@ use std::{cmp::max, str::FromStr};
 
 use async_trait::async_trait;
 use derive_new::new;
-use reqwest::{Client, Response};
+use reqwest::{Client, Method, Response};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tokio::time::sleep;
@@ -48,8 +48,10 @@ pub struct TonProvider {
 impl TonProvider {
     pub async fn request_and_parse<T: DeserializeOwned>(
         &self,
+        method: Method,
         endpoint: &str,
-        params: &[(&str, String)],
+        params: Option<&[(&str, String)]>,
+        body: Option<&Value>,
     ) -> ChainResult<T> {
         let url = self
             .connection_conf
@@ -57,16 +59,16 @@ impl TonProvider {
             .join(endpoint)
             .map_err(|e| HyperlaneTonError::UrlConstructionError(e.to_string()))?;
 
-        let response: Response = self
-            .http_client
-            .get(url)
-            .query(params)
-            .header("accept", "application/json")
-            .header("Content-Type", "application/json")
-            .header("X-API-Key", self.connection_conf.api_key.clone())
-            .send()
-            .await
-            .map_err(|e| HyperlaneTonError::ApiRequestFailed(format!("Request error: {:?}", e)))?;
+        let response: Response = match method {
+            Method::GET => self
+                .query_request(url, params.unwrap_or(&[]))
+                .await
+                .map_err(|e| {
+                    HyperlaneTonError::ApiRequestFailed(format!("Request error: {:?}", e))
+                })?,
+            Method::POST => self.post_request(url, body.unwrap_or(&json!({}))).await?,
+            _ => panic!("Not supported http method"),
+        };
 
         if !response.status().is_success() {
             let status = response.status();
@@ -200,7 +202,12 @@ impl HyperlaneProvider for TonProvider {
         let query_params = vec![("hash", format!("{:?}", hash_h256))];
 
         let response: TransactionResponse = self
-            .request_and_parse(TRANSACTIONS_ENDPOINT, &query_params)
+            .request_and_parse(
+                Method::GET,
+                TRANSACTIONS_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
             .await
             .map_err(|e| {
                 warn!("Error fetching transaction by hash: {:?}", e);
@@ -370,7 +377,7 @@ impl TonApiCenter for TonProvider {
         info!("Constructed query parameters for messages: {:?}", params);
 
         let parsed_response: MessageResponse = self
-            .request_and_parse(MESSAGES_ENDPOINT, &params)
+            .request_and_parse(Method::GET, MESSAGES_ENDPOINT, Some(&params), None)
             .await
             .map_err(|e| {
                 warn!("Failed to fetch messages: {:?}", e);
@@ -420,7 +427,12 @@ impl TonApiCenter for TonProvider {
         .collect();
 
         let parsed_response: TransactionResponse = self
-            .request_and_parse(TRANSACTIONS_ENDPOINT, &query_params)
+            .request_and_parse(
+                Method::GET,
+                TRANSACTIONS_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
             .await
             .map_err(|e| {
                 warn!("Failed to fetch messages: {:?}", e);
@@ -440,7 +452,12 @@ impl TonApiCenter for TonProvider {
         ];
 
         let response: AccountStateResponse = self
-            .request_and_parse(ACCOUNT_STATES_ENDPOINT, &query_params)
+            .request_and_parse(
+                Method::GET,
+                ACCOUNT_STATES_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
             .await
             .map_err(|e| {
                 warn!("Failed to fetch account state: {:?}", e);
@@ -460,7 +477,12 @@ impl TonApiCenter for TonProvider {
         ];
 
         let parsed_response: WalletInformation = self
-            .request_and_parse(WALLET_INFORMATION_ENDPOINT, &query_params)
+            .request_and_parse(
+                Method::GET,
+                WALLET_INFORMATION_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
             .await
             .map_err(|e| {
                 warn!("Failed to fetch wallet information: {:?}", e);
@@ -604,7 +626,12 @@ impl TonApiCenter for TonProvider {
         let query_params = [("address", account)];
 
         let result = self
-            .request_and_parse(WALLET_STATE_ENDPOINT, &query_params)
+            .request_and_parse(
+                Method::GET,
+                WALLET_STATE_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
             .await
             .map_err(|e| {
                 warn!("Failed to fetch wallet states: {:?}", e);
@@ -629,7 +656,12 @@ impl TonApiCenter for TonProvider {
         .collect();
 
         let parsed_response: TransactionResponse = self
-            .request_and_parse(TRANSACTIONS_BY_MESSAGE_ENDPOINT, &query_params)
+            .request_and_parse(
+                Method::GET,
+                TRANSACTIONS_BY_MESSAGE_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
             .await
             .map_err(|e| {
                 warn!("Failed to fetch transaction by message: {:?}", e);
@@ -684,7 +716,7 @@ impl TonApiCenter for TonProvider {
         info!("Query params:{:?}", query_params);
 
         let parsed_response: BlockResponse = self
-            .request_and_parse(BLOCKS_ENDPOINT, &query_params)
+            .request_and_parse(Method::GET, BLOCKS_ENDPOINT, Some(&query_params), None)
             .await
             .map_err(|e| {
                 warn!("Failed to get blocks: {:?}", e);
