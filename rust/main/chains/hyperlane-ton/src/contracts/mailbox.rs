@@ -1,5 +1,4 @@
 use std::{
-    cmp::max,
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
     time::SystemTime,
@@ -25,8 +24,14 @@ use hyperlane_core::{
 };
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, signer::signer::TonSigner,
-    traits::ton_api_center::TonApiCenter, utils::conversion::ConversionUtils,
+    client::provider::TonProvider,
+    error::HyperlaneTonError,
+    message::Message,
+    signer::signer::TonSigner,
+    traits::ton_api_center::TonApiCenter,
+    utils::{
+        conversion::ConversionUtils, log_meta::create_ton_log_meta, pagination::paginate_logs,
+    },
 };
 
 pub struct TonMailbox {
@@ -425,80 +430,35 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<HyperlaneMessage>, LogMeta)>> {
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
+        let (start_utime, end_utime) = self.mailbox.provider.get_utime_range(range).await?;
         info!(
-            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
-            start_block, end_block
+            "fetch_logs_in_range in TonMailboxIndexer with start_utime:{:?} end_utime:{:?}",
+            start_utime, end_utime
         );
 
-        let timestamps = self
-            .mailbox
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
+        let mailbox_addr = self.mailbox.mailbox_address.to_string();
+        let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
 
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get start_utime".to_string(),
-            ))
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get end_utime".to_string(),
-            ))
-        })?;
-
-        let messages = self
-            .mailbox
-            .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.mailbox.mailbox_address.to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to fetch messages in range: {:?}",
-                    e
-                )))
-            })?;
-
-        let events = messages
-            .messages
-            .into_iter()
-            .filter_map(|message| {
-                parse_message(&message.message_content.body)
-                    .ok()
-                    .map(|hyperlane_message| {
-                        let index_event = Indexed::from(hyperlane_message);
-                        let log_meta = LogMeta {
-                            address: ConversionUtils::ton_address_to_h256(
-                                &self.mailbox.mailbox_address,
-                            ),
-                            block_number: 0, // currently ton isn't supported this metrics in events
-                            block_hash: Default::default(),
-                            transaction_id: Default::default(),
-                            transaction_index: 0,
-                            log_index: Default::default(),
-                        };
-                        (index_event, log_meta)
-                    })
-            })
-            .collect();
-        info!("events in mailbox:{:?}", events);
-        Ok(events)
+        let parse_fn = |message: Message| {
+            parse_message(&message.message_content.body)
+                .ok()
+                .map(|hyperlane_message| {
+                    (
+                        Indexed::from(hyperlane_message),
+                        create_ton_log_meta(mailbox_addr_h256),
+                    )
+                })
+        };
+        paginate_logs(
+            &self.mailbox.provider,
+            &mailbox_addr,
+            start_utime,
+            end_utime,
+            1000,
+            0,
+            parse_fn,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -532,88 +492,38 @@ impl Indexer<H256> for TonMailboxIndexer {
         &self,
         range: RangeInclusive<u32>,
     ) -> ChainResult<Vec<(Indexed<H256>, LogMeta)>> {
-        let start_block = max(*range.start(), 1);
-        let end_block = max(*range.end(), 1);
+        let (start_utime, end_utime) = self.mailbox.provider.get_utime_range(range).await?;
 
-        info!(
-            "fetch_logs_in_range in TonMailboxIndexer with start:{:?} end:{:?}",
-            start_block, end_block
-        );
+        let mailbox_addr = self.mailbox.mailbox_address.to_string();
+        let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
 
-        let timestamps = self
-            .mailbox
-            .provider
-            .fetch_blocks_timestamps(vec![start_block, end_block])
-            .await?;
-
-        let start_utime = *timestamps.get(0).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get start_utime".to_string(),
-            ))
-        })?;
-        let end_utime = *timestamps.get(1).ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "Failed to get end_utime".to_string(),
-            ))
-        })?;
-
-        let messages = self
-            .mailbox
-            .provider
-            .get_messages(
-                None,
-                None,
-                Some(self.mailbox.mailbox_address.to_string()),
-                Some("null".to_string()),
-                None,
-                Some(start_utime),
-                Some(end_utime),
-                None,
-                None,
-                None,
-                None,
-                None,
-                Some("desc".to_string()),
-            )
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to fetch messages in range: {:?} for Indexer<H256>",
-                    e
-                )))
-            })?;
-        let events = messages
-            .messages
-            .into_iter()
-            .filter_map(|message| {
-                let hash = &message.hash;
-
-                let decoded = match general_purpose::STANDARD.decode(hash) {
-                    Ok(decoded) => decoded,
-                    Err(err) => {
-                        warn!("error decode:{:?}", err);
-                        return None;
-                    }
-                };
-
-                if decoded.len() != 32 {
+        let parse_fn = move |message: Message| {
+            let decoded = match general_purpose::STANDARD.decode(&message.hash) {
+                Ok(d) => d,
+                Err(_) => {
+                    warn!("Failed to decode hash: {}", message.hash);
                     return None;
                 }
+            };
+            if decoded.len() != 32 {
+                warn!("Decoded hash has invalid length: {}", decoded.len());
+                return None;
+            };
+            let index_event = Indexed::new(H256::from_slice(&decoded));
+            let log_meta = create_ton_log_meta(mailbox_addr_h256);
+            Some((index_event, log_meta))
+        };
 
-                let log_meta = LogMeta {
-                    address: ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address),
-                    block_number: 0,
-                    block_hash: Default::default(),
-                    transaction_id: Default::default(),
-                    transaction_index: 0,
-                    log_index: Default::default(),
-                };
-
-                Some((Indexed::new(H256::from_slice(&decoded)), log_meta))
-            })
-            .collect();
-
-        Ok(events)
+        paginate_logs(
+            &self.mailbox.provider,
+            &mailbox_addr,
+            start_utime,
+            end_utime,
+            1000,
+            0,
+            parse_fn,
+        )
+        .await
     }
 
     async fn get_finalized_block_number(&self) -> ChainResult<u32> {
@@ -763,4 +673,104 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
         body: data.to_vec(),
     };
     Ok(message)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::TonConnectionConf;
+
+    use super::*;
+    use reqwest::{Client, Url};
+    use std::env;
+    use std::ops::RangeInclusive;
+    use std::str::FromStr;
+    use tokio;
+
+    fn create_indexer() -> TonMailboxIndexer {
+        let mailbox_address =
+            env::var("TEST_ADDRESS").expect("TEST_ADDRESS env variable must be set");
+        let mailbox_address =
+            TonAddress::from_base64_url(&mailbox_address).expect("Failed to create address");
+        let api_key = env::var("API_KEY").expect("API_KEY env variable must be set");
+        let mnemonic_phrase =
+            env::var("MNEMONIC_PHRASE").expect("MNEMONIC_PHRASE env variable must be set");
+
+        let mnemonic_words: Vec<String> = mnemonic_phrase
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
+
+        let signer =
+            TonSigner::from_mnemonic(mnemonic_words, tonlib_core::wallet::WalletVersion::V4R2)
+                .expect("Failed to create signer");
+
+        let client = Client::new();
+
+        let url = Url::from_str("https://testnet.toncenter.com/api/")
+            .expect("Failed to create url from str");
+
+        let config = TonConnectionConf::new(url, api_key, 10);
+
+        let provider = TonProvider::new(
+            client,
+            config,
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::TonTest1),
+        );
+        let mailbox = TonMailbox {
+            provider,
+            mailbox_address: mailbox_address.clone(),
+            signer,
+            workchain: 0,
+        };
+
+        let indexer = TonMailboxIndexer { mailbox };
+        indexer
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_logs_in_range() {
+        let indexer = create_indexer();
+        let block_range: RangeInclusive<u32> = 1..=28039020;
+
+        let result: Result<Vec<(Indexed<HyperlaneMessage>, LogMeta)>, ChainCommunicationError> =
+            indexer.fetch_logs_in_range(block_range).await;
+
+        match result {
+            Ok(events) => {
+                println!("Fetched {} events", events.len());
+                println!("Event random:{:?}", events.first());
+                assert!(
+                    !events.is_empty(),
+                    "Expected some events to be fetched from the mailbox"
+                );
+            }
+            Err(err) => {
+                panic!("fetch_logs_in_range failed: {:?}", err);
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_logs_in_range_empty() {
+        let indexer = create_indexer();
+        let block_range: RangeInclusive<u32> = 1..=2;
+
+        let result: Result<Vec<(Indexed<H256>, LogMeta)>, ChainCommunicationError> =
+            indexer.fetch_logs_in_range(block_range).await;
+
+        match result {
+            Ok(events) => {
+                println!("Fetched {} events", events.len());
+                assert!(
+                    events.is_empty(),
+                    "Expected no events in the mailbox, but got some"
+                );
+            }
+            Err(err) => {
+                panic!("fetch_logs_in_range failed: {:?}", err);
+            }
+        }
+    }
 }
