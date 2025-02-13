@@ -1,4 +1,6 @@
 const int op::dispatch = "op::dispatch"c;
+const int op::dispatch::init = "op::dispatch::init"c;
+const int op::dispatch::default_hook = "op::dispatch::default_hook"c;
 const int op::process = "op::process"c;
 const int op::handle = "op::handle"c;
 const int op::quote_dispatch = "op::quote_dispatch"c;
