@@ -396,7 +396,7 @@ describe('TokenCollateral', () => {
       recipientAddr: tokenCollateral.address.hash,
       message: beginCell()
         .storeBuffer(recipient.address.hash)
-        .storeUint(jettonAmount, 128)
+        .storeUint(jettonAmount, 256)
         .endCell(),
       hookMetadata: {
         variant: 0,
