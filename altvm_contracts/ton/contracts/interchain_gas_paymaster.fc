@@ -84,9 +84,10 @@ int get_gas_limit(cell hook_metadata) inline {
 
     int overpayment = value - required_payment;
 
+    reserve_original_balance(value, required_payment);
     if (overpayment > 0) {
         builder msg = build_message(refund_addr, overpayment, false, null(), null());
-        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::ignore_errors);
+        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::pay_transfer_fees_separately);
     }
 
     builder gas_data = begin_cell()
@@ -115,6 +116,8 @@ int get_gas_limit(cell hook_metadata) inline {
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
+    slice body = in_msg_body;
+
     load_globals();
 
     if (op == op::post_dispatch) {
@@ -131,6 +134,22 @@ int get_gas_limit(cell hook_metadata) inline {
             gas_limit,
             refund_addr
         );
+        cell body = begin_cell()
+            .store_uint(op::dispatch, 32)
+            .store_uint(query_id, 64)
+            .store_uint(op::dispatch::default_hook, 32)
+            .store_slice(body)
+            .end_cell();
+        
+        builder default_hook_msg = build_message(
+                msg_sender,
+                msg_value,
+                true,
+                null(),
+                body
+            );
+
+        send_raw_message(default_hook_msg.end_cell(), send_mode::carry_remaining_balance);
         return ();
     }
 
@@ -207,4 +226,8 @@ int get_hook_type() method_id {
 slice get_owner() method_id {
     load_globals();
     return g::owner;
+}
+
+int get_test() method_id {
+    return 15;
 }
