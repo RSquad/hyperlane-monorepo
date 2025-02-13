@@ -4,10 +4,11 @@ use std::{cmp::max, str::FromStr};
 use async_trait::async_trait;
 use derive_new::new;
 use reqwest::{Client, Response};
+use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tokio::time::sleep;
 use tonlib_core::TonAddress;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use url::Url;
 
 use hyperlane_core::{
@@ -16,8 +17,12 @@ use hyperlane_core::{
     H512, U256,
 };
 
+use crate::constants::{
+    ACCOUNT_STATES_ENDPOINT, BLOCKS_ENDPOINT, MESSAGES_ENDPOINT, TRANSACTIONS_BY_MESSAGE_ENDPOINT,
+    TRANSACTIONS_ENDPOINT, WALLET_INFORMATION_ENDPOINT, WALLET_STATE_ENDPOINT,
+    WORKCHAIN_MASTERCHAIN,
+};
 use crate::{
-    constants::WORKCHAIN_MASTERCHAIN,
     error::HyperlaneTonError,
     run_get_method::StackItem,
     trait_builder::TonConnectionConf,
@@ -41,6 +46,48 @@ pub struct TonProvider {
 }
 
 impl TonProvider {
+    pub async fn request_and_parse<T: DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        params: &[(&str, String)],
+    ) -> ChainResult<T> {
+        let url = self
+            .connection_conf
+            .url
+            .join(endpoint)
+            .map_err(|e| HyperlaneTonError::UrlConstructionError(e.to_string()))?;
+
+        let response: Response = self
+            .http_client
+            .get(url)
+            .query(params)
+            .header("accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("X-API-Key", self.connection_conf.api_key.clone())
+            .send()
+            .await
+            .map_err(|e| HyperlaneTonError::ApiRequestFailed(format!("Request error: {:?}", e)))?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            return Err(HyperlaneTonError::ApiInvalidResponse(format!(
+                "Request failed with status: {}, body: {}",
+                status, body
+            ))
+            .into());
+        }
+
+        let response_text = response.text().await.map_err(|e| {
+            HyperlaneTonError::ApiInvalidResponse(format!("Failed to get response text: {:?}", e))
+        })?;
+
+        let parsed: T = serde_json::from_str(&response_text).map_err(|e| {
+            HyperlaneTonError::ParsingError(format!("Failed to parse JSON: {:?}", e))
+        })?;
+
+        Ok(parsed)
+    }
     async fn post_request(
         &self,
         url: Url,
@@ -147,38 +194,17 @@ impl HyperlaneProvider for TonProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let hash: H256 = H256::from_slice(&h512_to_bytes(hash));
+        let hash_h256: H256 = H256::from_slice(&h512_to_bytes(hash));
         info!("Fetching transaction by hash: {:?}", hash);
 
-        let url = self
-            .connection_conf
-            .url
-            .join("v3/transactions")
-            .map_err(|e| {
-                warn!("Failed to construct transaction URL: {:?}", e);
-                ChainCommunicationError::from(HyperlaneTonError::UrlConstructionError(format!(
-                    "{:?}",
-                    e
-                )))
-            })?;
+        let query_params = vec![("hash", format!("{:?}", hash_h256))];
 
-        debug!("Constructed transaction URL: {}", url);
-
-        let response = self
-            .query_request(url, &[("hash", format!("{:?}", hash))])
+        let response: TransactionResponse = self
+            .request_and_parse(TRANSACTIONS_ENDPOINT, &query_params)
             .await
             .map_err(|e| {
-                warn!("Error when sending request to TON API");
-                ChainCommunicationError::from(HyperlaneTonError::ApiConnectionError(format!(
-                    "{:?}",
-                    e
-                )))
-            })?
-            .json::<TransactionResponse>()
-            .await
-            .map_err(|e| {
-                warn!("Error deserializing response from TON API");
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!("{:?}", e)))
+                warn!("Error fetching transaction by hash: {:?}", e);
+                HyperlaneTonError::ApiConnectionError(format!("{:?}", e))
             })?;
 
         if let Some(transaction) = response.transactions.first() {
@@ -322,15 +348,6 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> ChainResult<MessageResponse> {
-        info!("Fetching messages with filters");
-
-        let url = self.connection_conf.url.join("v3/messages").map_err(|e| {
-            warn!("Failed to construct messages URL: {:?}", e);
-            HyperlaneTonError::UrlConstructionError(e.to_string())
-        })?;
-
-        debug!("Constructed messages URL: {}", url);
-
         let params: Vec<(&str, String)> = vec![
             ("msg_hash", msg_hash.map(|v| v.join(","))),
             ("body_hash", body_hash),
@@ -352,27 +369,12 @@ impl TonApiCenter for TonProvider {
 
         info!("Constructed query parameters for messages: {:?}", params);
 
-        let response = self.query_request(url, &params).await.map_err(|e| {
-            warn!("Error sending query request: {:?}", e);
-            HyperlaneTonError::ApiRequestFailed(format!("Failed to fetch messages: {:?}", e))
-        })?;
-
-        let response_text = response.text().await.map_err(|e| {
-            warn!("Error retrieving message response text: {:?}", e);
-            HyperlaneTonError::ApiInvalidResponse(format!(
-                "Failed to retrieve response text: {:?}",
+        let parsed_response: MessageResponse = self
+            .request_and_parse(MESSAGES_ENDPOINT, &params)
+            .await
+            .map_err(|e| {
+                warn!("Failed to fetch messages: {:?}", e);
                 e
-            ))
-        })?;
-        debug!("Received response text: {:?}", response_text);
-
-        let parsed_response: MessageResponse =
-            serde_json::from_str(&response_text).map_err(|e| {
-                warn!("Error parsing message response: {:?}", e);
-                HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse message response: {:?}",
-                    e
-                ))
             })?;
 
         info!("Successfully parsed message response");
@@ -396,19 +398,6 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> ChainResult<TransactionResponse> {
-        info!("Fetching transactions with filters");
-
-        let url = self
-            .connection_conf
-            .url
-            .join("v3/transactions")
-            .map_err(|e| {
-                warn!("Failed to construct transactions URL: {:?}", e);
-                HyperlaneTonError::UrlConstructionError(e.to_string())
-            })?;
-
-        debug!("Constructed transactions URL: {}", url);
-
         let query_params: Vec<(&str, String)> = vec![
             ("workchain", workchain.map(|v| v.to_string())),
             ("shard", shard),
@@ -430,26 +419,14 @@ impl TonApiCenter for TonProvider {
         .filter_map(|(key, value)| value.map(|v| (key, v)))
         .collect();
 
-        let response = self
-            .query_request(url, &query_params)
+        let parsed_response: TransactionResponse = self
+            .request_and_parse(TRANSACTIONS_ENDPOINT, &query_params)
             .await
             .map_err(|e| {
-                HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to fetch transactions: {:?}",
-                    e
-                ))
-            })?
-            .json::<TransactionResponse>()
-            .await
-            .map_err(|e| {
-                HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse transaction response: {:?}",
-                    e
-                ))
+                warn!("Failed to fetch messages: {:?}", e);
+                e
             })?;
-
-        info!("Successfully retrieved transaction response");
-        Ok(response)
+        Ok(parsed_response)
     }
 
     async fn get_account_state(
@@ -457,44 +434,18 @@ impl TonApiCenter for TonProvider {
         address: String,
         include_boc: bool,
     ) -> ChainResult<AccountStateResponse> {
-        info!(
-            "Fetching account state for address: {:?}, include_boc: {:?}",
-            address, include_boc
-        );
-
-        let url = self
-            .connection_conf
-            .url
-            .join("v3/accountStates")
-            .map_err(|e| {
-                warn!("Failed to construct account state URL: {:?}", e);
-                HyperlaneTonError::UrlConstructionError(e.to_string())
-            })?;
-
         let query_params: Vec<(&str, String)> = vec![
             ("address", address),
             ("include_boc", include_boc.to_string()),
         ];
 
-        let response = self
-            .query_request(url, &query_params)
+        let response: AccountStateResponse = self
+            .request_and_parse(ACCOUNT_STATES_ENDPOINT, &query_params)
             .await
             .map_err(|e| {
-                HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to send query request: {:?}",
-                    e
-                ))
-            })?
-            .json::<AccountStateResponse>()
-            .await
-            .map_err(|e| {
-                HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse AccountStateResponse: {:?}",
-                    e
-                ))
+                warn!("Failed to fetch account state: {:?}", e);
+                e
             })?;
-
-        info!("Successfully retrieved account state response");
         Ok(response)
     }
 
@@ -503,40 +454,19 @@ impl TonApiCenter for TonProvider {
         address: &str,
         use_v2: bool,
     ) -> ChainResult<WalletInformation> {
-        info!("get_wallet_information executed");
-        let url = self
-            .connection_conf
-            .url
-            .join("v3/walletInformation")
-            .map_err(|e| {
-                warn!("Failed to construct account state URL: {:?}", e);
-                HyperlaneTonError::UrlConstructionError(e.to_string())
-            })?;
-
         let query_params: Vec<(&str, String)> = vec![
             ("address", address.to_string()),
             ("use_v2", use_v2.to_string()),
         ];
 
-        let response = self
-            .query_request(url, &query_params)
+        let parsed_response: WalletInformation = self
+            .request_and_parse(WALLET_INFORMATION_ENDPOINT, &query_params)
             .await
             .map_err(|e| {
-                HyperlaneTonError::ApiRequestFailed(format!(
-                    "Failed to send query request: {:?}",
-                    e
-                ))
-            })?
-            .json::<WalletInformation>()
-            .await
-            .map_err(|e| {
-                HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse WalletInformation: {:?}",
-                    e
-                ))
+                warn!("Failed to fetch wallet information: {:?}", e);
+                e
             })?;
-        info!("response:{:?}", response);
-        Ok(response)
+        Ok(parsed_response)
     }
 
     async fn run_get_method(
@@ -670,42 +600,16 @@ impl TonApiCenter for TonProvider {
 
             account = ConversionUtils::h256_to_ton_address(&h256, 0).to_string();
         }
-        let url = self
-            .connection_conf
-            .url
-            .join("v3/walletStates")
-            .map_err(|e| {
-                warn!("Failed to construct wallet states URL: {:?}", e);
-                HyperlaneTonError::UrlConstructionError(e.to_string())
-            })?;
 
         let query_params = [("address", account)];
-        debug!("Constructed wallet states URL: {:?}", url);
 
-        let response = self.query_request(url, &query_params).await.map_err(|e| {
-            warn!("Failed to send wallet states request: {:?}", e);
-            HyperlaneTonError::ApiRequestFailed(format!(
-                "Failed to send wallet states request: {:?}",
+        let result = self
+            .request_and_parse(WALLET_STATE_ENDPOINT, &query_params)
+            .await
+            .map_err(|e| {
+                warn!("Failed to fetch wallet states: {:?}", e);
                 e
-            ))
-        })?;
-
-        let body = response.text().await.map_err(|e| {
-            warn!("Failed to retrieve response body: {:?}", e);
-            HyperlaneTonError::ApiInvalidResponse(format!(
-                "Failed to retrieve response body: {:?}",
-                e
-            ))
-        })?;
-
-        let result: WalletStatesResponse = serde_json::from_str(&body).map_err(|e| {
-            HyperlaneTonError::ParsingError(format!(
-                "Failed to parse wallet states response: {:?}",
-                e
-            ))
-        })?;
-
-        info!("Successfully retrieved wallet states");
+            })?;
         Ok(result)
     }
 
@@ -715,19 +619,6 @@ impl TonApiCenter for TonProvider {
         body_hash: Option<String>,
         opcode: Option<String>,
     ) -> ChainResult<TransactionResponse> {
-        info!("Fetching transactions by message");
-
-        let url = self
-            .connection_conf
-            .url
-            .join("v3/transactionsByMessage")
-            .map_err(|e| {
-                warn!("Failed to construct transactions URL: {:?}", e);
-                HyperlaneTonError::UrlConstructionError(e.to_string())
-            })?;
-
-        debug!("Constructed transactions URL: {}", url);
-
         let query_params: Vec<(&str, String)> = vec![
             ("msg_hash", msg_hash),
             ("body_hash", body_hash.unwrap_or_default()),
@@ -737,27 +628,14 @@ impl TonApiCenter for TonProvider {
         .filter(|(_, v)| !v.is_empty())
         .collect();
 
-        let raw_response = self
-            .query_request(url, &query_params)
+        let parsed_response: TransactionResponse = self
+            .request_and_parse(TRANSACTIONS_BY_MESSAGE_ENDPOINT, &query_params)
             .await
             .map_err(|e| {
-                warn!("Failed to send transactionsByMessage request: {:?}", e);
-                HyperlaneTonError::ApiRequestFailed(format!("Error: {:?}", e))
-            })?
-            .text()
-            .await
-            .map_err(|e| {
-                warn!("Failed to read transactionsByMessage response: {:?}", e);
-                HyperlaneTonError::ApiInvalidResponse(format!("Error: {:?}", e))
+                warn!("Failed to fetch transaction by message: {:?}", e);
+                e
             })?;
-
-        let response: TransactionResponse = serde_json::from_str(&raw_response).map_err(|e| {
-            warn!("Failed to parse transactionsByMessage response: {:?}", e);
-            HyperlaneTonError::ParsingError(format!("Failed to parse response JSON: {:?}", e))
-        })?;
-
-        info!("Successfully retrieved transaction response");
-        Ok(response)
+        Ok(parsed_response)
     }
 
     async fn get_blocks(
@@ -774,13 +652,6 @@ impl TonApiCenter for TonProvider {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> ChainResult<BlockResponse> {
-        let url = self.connection_conf.url.join("v3/blocks").map_err(|e| {
-            warn!("Failed to construct transactions URL: {:?}", e);
-            HyperlaneTonError::UrlConstructionError(e.to_string())
-        })?;
-
-        info!("Constructed transactions URL: {}", url);
-
         let query_params: Vec<(&str, String)> = vec![
             ("workchain", workchain.to_string()),
             ("shard", shard.unwrap_or_default()),
@@ -811,26 +682,15 @@ impl TonApiCenter for TonProvider {
         .collect();
 
         info!("Query params:{:?}", query_params);
-        let raw_response = self
-            .query_request(url, &query_params)
+
+        let parsed_response: BlockResponse = self
+            .request_and_parse(BLOCKS_ENDPOINT, &query_params)
             .await
             .map_err(|e| {
-                warn!("Error sending request to fetch blocks: {:?}", e);
-                HyperlaneTonError::ApiRequestFailed(format!("Error: {:?}", e))
-            })?
-            .text()
-            .await
-            .map_err(|e| {
-                warn!("Error reading response text while fetching blocks: {:?}", e);
-                HyperlaneTonError::ApiInvalidResponse(format!("Error: {:?}", e))
+                warn!("Failed to get blocks: {:?}", e);
+                e
             })?;
-
-        info!("Raw response from server: {}", raw_response);
-
-        let response: BlockResponse = serde_json::from_str(&raw_response)?;
-
-        info!("Successfully retrieved blocks response");
-        Ok(response)
+        Ok(parsed_response)
     }
 }
 

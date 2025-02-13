@@ -21,6 +21,7 @@ use hyperlane_core::{
 
 use crate::{
     client::provider::TonProvider,
+    constants::LIMIT,
     error::HyperlaneTonError,
     message::Message,
     run_get_method::StackValue,
@@ -277,7 +278,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
             &merkle_tree_hook_address,
             start_utime,
             end_utime,
-            1000,
+            LIMIT as u32,
             0,
             parse_fn,
         )
