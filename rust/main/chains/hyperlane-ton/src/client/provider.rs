@@ -196,7 +196,9 @@ impl HyperlaneProvider for TonProvider {
     }
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let hash_h256: H256 = H256::from_slice(&h512_to_bytes(hash));
+        let bytes = &h512_to_bytes(hash);
+        let hash_h256: H256 = H256::from_slice(bytes.as_slice());
+        let hash_h256 = hex::encode(hash_h256.as_bytes()); // some errors
         info!("Fetching transaction by hash: {:?}", hash);
 
         let query_params = vec![("hash", format!("{:?}", hash_h256))];
@@ -947,5 +949,117 @@ impl TonProvider {
         }
 
         Ok(timestamps)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use reqwest::Client;
+    use std::env;
+    use tokio;
+    use url::Url;
+
+    fn create_test_provider() -> TonProvider {
+        let _ = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .try_init();
+        let api_key = env::var("API_KEY").expect("API_KEY env variable must be set");
+
+        let client = Client::new();
+
+        let url = Url::from_str("https://testnet.toncenter.com/api/")
+            .expect("Failed to create url from str");
+
+        let config = TonConnectionConf::new(url, api_key, 10);
+
+        let provider = TonProvider::new(
+            client,
+            config,
+            HyperlaneDomain::Known(hyperlane_core::KnownHyperlaneDomain::TonTest1),
+        );
+        provider
+    }
+
+    fn h256_to_h512(h: H256) -> H512 {
+        let mut bytes = [0u8; 64];
+        bytes[32..].copy_from_slice(h.as_bytes());
+        H512::from_slice(&bytes)
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_block_by_height() {
+        let provider = create_test_provider();
+        let block_result = provider.get_block_by_height(1).await;
+        assert!(
+            block_result.is_ok(),
+            "Expected get_block_by_height to succeed, got error: {:?}",
+            block_result
+        );
+
+        let block_info = block_result.unwrap();
+        info!("Block info for height 1: {:?}", block_info);
+
+        assert_eq!(block_info.number, 1, "Block number should be 1");
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_block_by_height_max_number() {
+        let provider = create_test_provider();
+        let block_result = provider.get_block_by_height(u64::MAX).await;
+        assert!(
+            block_result.is_err(),
+            "Expected get_block_by_height to fail with an error, but got success: {:?}",
+            block_result
+        );
+
+        if let Err(e) = block_result {
+            println!("Got expected error for u64::MAX block height: {:?}", e);
+        }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    /// cargo test test_get_txn_by_hash_real -- --ignored --nocapture
+    async fn test_get_txn_by_hash_real() {
+        let provider = create_test_provider();
+        let txn_hash_str = "c99043c6d1862b57a12fa556e3b0c02e945d0e784b6923cdb9aeb32bcae4ff08";
+        let h256 = H256::from_str(txn_hash_str).expect("Invalid H256 format");
+        let hash = h256_to_h512(h256);
+        println!("hash:{:?}", hash);
+
+        let result = provider.get_txn_by_hash(&hash).await;
+        println!("Result for transaction hash {}: {:?}", txn_hash_str, result);
+
+        assert!(
+            result.is_ok(),
+            "Expected transaction to be found, got error: {:?}",
+            result
+        );
+        let txn_info = result.unwrap();
+        println!("Transaction info: {:?}", txn_info);
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_is_contract_true() {
+        let provider = create_test_provider();
+
+        let contract_address =
+            TonAddress::from_base64_url("0QCSES0TZYqcVkgoguhIb8iMEo4cvaEwmIrU5qbQgnN8fo2A")
+                .expect("msg");
+        let contract_address = ConversionUtils::ton_address_to_h256(&contract_address);
+
+        let result = provider.is_contract(&contract_address).await;
+        println!("is_contract({:?}) returned: {:?}", contract_address, result);
+
+        assert!(
+            result.is_ok(),
+            "Expected is_contract to succeed, got error: {:?}",
+            result
+        );
+        let is_contract = result.unwrap();
+        assert!(is_contract, "Expected address to be a contract");
     }
 }
