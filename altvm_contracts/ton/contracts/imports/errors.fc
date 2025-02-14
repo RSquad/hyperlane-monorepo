@@ -13,3 +13,4 @@ const int error::replay = 112;
 const int error::domain_validators_not_found = 113;
 const int error::msg_value_too_low = 114;
 const int error::merkle_tree_full = 115;
+const int error::validator_already_exists = 116;

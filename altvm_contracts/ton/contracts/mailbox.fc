@@ -241,9 +241,8 @@ builder hyperlane::message::build(
 
         if(sub_op == op::process::verify) {
             g::cur_recipients~authorize(msg_sender);
-
             ;; verify message
-            int ism_found? = in_msg_body~load_int(1);
+            slice recipient_ism_addr = in_msg_body~load_msg_addr();
             cell message = in_msg_body~load_ref();
             cell metadata = in_msg_body~load_ref();
             cell verify_body = begin_cell()
@@ -252,7 +251,7 @@ builder hyperlane::message::build(
                 .store_ref(message)
                 .store_ref(metadata)
                 .end_cell();
-            slice ism_addr = ism_found? ? in_msg_body~load_msg_addr() : g::default_ism_addr;
+            slice ism_addr = recipient_ism_addr.preload_uint(2) == 0 ? g::default_ism_addr : recipient_ism_addr ;
             g::cur_isms~udict_set(64, g::query_id, ism_addr);
             builder verify_msg = build_message(ism_addr, 0, true, null(), verify_body);
             send_raw_message(verify_msg.end_cell(), send_mode::carry_remaining_value);
@@ -266,14 +265,18 @@ builder hyperlane::message::build(
             throw_unless(error::message_verification_failed, verified?);
             slice message = in_msg_body~load_ref().begin_parse();
 
-            message~skip_bits(8 + 32);
-
-            int origin_domain = message~load_uint(32);
-            int sender = message~load_uint(256);
-            int dest_domain = message~load_uint(32);
-            int recipient = message~load_uint(256);
-            cell message_body = message~load_ref();
-
+            
+            (
+                _,
+                _,
+                _, 
+                int origin_domain, 
+                int sender,
+                int dest_domain,
+                int recipient,
+                cell message_body
+            ) = hyperlane::message::unpack(message);
+            
             slice recipient_addr = build_addr(0, recipient);
             cell body = begin_cell()
                 .store_uint(op::handle, 32)

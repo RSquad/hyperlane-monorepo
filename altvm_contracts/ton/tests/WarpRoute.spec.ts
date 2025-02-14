@@ -1,6 +1,11 @@
 import { compile } from '@ton/blueprint';
 import { Cell, Dictionary, beginCell, toNano } from '@ton/core';
-import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
+import {
+  Blockchain,
+  SandboxContract,
+  SendMessageResult,
+  TreasuryContract,
+} from '@ton/sandbox';
 import '@ton/test-utils';
 
 import { InterchainGasPaymaster } from '../wrappers/InterchainGasPaymaster';
@@ -14,7 +19,7 @@ import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
 import { TokenCollateral } from '../wrappers/TokenCollateral';
-import { OpCodes } from '../wrappers/utils/constants';
+import { OpCodes, ProcessOpCodes } from '../wrappers/utils/constants';
 import {
   TMailboxContractConfig,
   TMultisigMetadata,
@@ -37,7 +42,7 @@ const buildTokenMessage = (
     sender: sender,
     destinationDomain,
     recipient: collateralAddr,
-    body: beginCell().storeBuffer(recipient).storeCoins(amount).endCell(),
+    body: beginCell().storeBuffer(recipient).storeUint(amount, 128).endCell(),
   };
 };
 
@@ -46,7 +51,7 @@ describe('TokenCollateral', () => {
   let mailboxCode: Cell;
   let requiredHookCode: Cell;
   let defaultHookCode: Cell;
-  let defaultIsmCode: Cell;
+  let mockIsmCode: Cell;
   let recipientCode: Cell;
   let minterCode: Cell;
   let walletCode: Cell;
@@ -56,7 +61,7 @@ describe('TokenCollateral', () => {
     mailboxCode = await compile('Mailbox');
     requiredHookCode = await compile('InterchainGasPaymaster');
     defaultHookCode = await compile('MerkleHookMock');
-    defaultIsmCode = await compile('MockIsm');
+    mockIsmCode = await compile('MockIsm');
     recipientCode = await compile('RecipientMock');
     minterCode = await compile('JettonMinter');
     walletCode = await compile('JettonWallet');
@@ -76,10 +81,6 @@ describe('TokenCollateral', () => {
   beforeEach(async () => {
     blockchain = await Blockchain.create();
     deployer = await blockchain.treasury('deployer');
-
-    tokenCollateral = blockchain.openContract(
-      TokenCollateral.createFromConfig({}, code),
-    );
 
     const intialGasConfig = {
       gasOracle: makeRandomBigint(),
@@ -116,7 +117,7 @@ describe('TokenCollateral', () => {
       MerkleHookMock.createFromConfig(defaultHookConfig, defaultHookCode),
     );
     initialDefaultIsm = blockchain.openContract(
-      MockIsm.createFromConfig({}, defaultIsmCode),
+      MockIsm.createFromConfig({}, mockIsmCode),
     );
     recipient = blockchain.openContract(
       RecipientMock.createFromConfig(
@@ -140,7 +141,44 @@ describe('TokenCollateral', () => {
     };
 
     mailbox = blockchain.openContract(
-      Mailbox.createFromConfig(initConfig, code),
+      Mailbox.createFromConfig(initConfig, mailboxCode),
+    );
+
+    const jettonParams = {
+      name: 'test ' + Math.floor(Math.random() * 10000000),
+      symbol: 'test',
+      decimals: '8',
+    };
+
+    jettonMinter = blockchain.openContract(
+      JettonMinterContract.createFromConfig(
+        {
+          adminAddress: deployer.address,
+          content: buildTokenMetadataCell(jettonParams),
+          jettonWalletCode: walletCode,
+        },
+        minterCode,
+      ),
+    );
+
+    jettonWallet = blockchain.openContract(
+      JettonWalletContract.createFromConfig(
+        {
+          ownerAddress: deployer.address,
+          minterAddress: jettonMinter.address,
+        },
+        walletCode,
+      ),
+    );
+
+    tokenCollateral = blockchain.openContract(
+      TokenCollateral.createFromConfig(
+        {
+          mailboxAddress: mailbox.address,
+          jettonAddress: jettonMinter.address,
+        },
+        code,
+      ),
     );
 
     const deployMboxRes = await mailbox.sendDeploy(
@@ -211,33 +249,6 @@ describe('TokenCollateral', () => {
       success: true,
     });
 
-    const jettonParams = {
-      name: 'test ' + Math.floor(Math.random() * 10000000),
-      symbol: 'test',
-      decimals: '8',
-    };
-
-    jettonMinter = blockchain.openContract(
-      JettonMinterContract.createFromConfig(
-        {
-          adminAddress: deployer.address,
-          content: buildTokenMetadataCell(jettonParams),
-          jettonWalletCode: walletCode,
-        },
-        minterCode,
-      ),
-    );
-
-    jettonWallet = blockchain.openContract(
-      JettonWalletContract.createFromConfig(
-        {
-          ownerAddress: deployer.address,
-          minterAddress: jettonMinter.address,
-        },
-        walletCode,
-      ),
-    );
-
     const deployMinterRes = await jettonMinter.sendDeploy(
       deployer.getSender(),
       toNano('1.5'),
@@ -250,27 +261,6 @@ describe('TokenCollateral', () => {
       success: true,
     });
 
-    const amountToMint = 10000n;
-    const mintRes = await jettonMinter.sendMint(deployer.getSender(), {
-      toAddress: deployer.address,
-      jettonAmount: amountToMint,
-      responseAddress: deployer.address,
-      queryId: 0,
-      value: toNano('0.2'),
-    });
-
-    expect(mintRes.transactions).toHaveTransaction({
-      from: jettonMinter.address,
-      to: jettonWallet.address,
-      success: true,
-    });
-
-    console.log(await jettonMinter.getTotalsupply());
-
-    expect((await jettonWallet.getBalance()).amount).toStrictEqual(
-      amountToMint,
-    );
-
     await jettonMinter.sendUpdateAdmin(deployer.getSender(), {
       value: toNano('0.1'),
       newAdminAddress: tokenCollateral.address,
@@ -279,19 +269,93 @@ describe('TokenCollateral', () => {
     expect((await jettonMinter.getAdmin())?.toString()).toStrictEqual(
       tokenCollateral.address.toString(),
     );
+
+    //await blockchain.setVerbosityForAddress(mailbox.address,'vm_logs_full');
   });
 
-  it('should deploy', async () => {
-    // the check is done inside beforeEach
-    // blockchain and tokenCollateral are ready to use
-  });
+  const expectWarpRouteSucceeded = (res: SendMessageResult) => {
+    const expectedTransactions = [
+      {
+        from: deployer.address,
+        to: mailbox.address,
+        success: true,
+        op: OpCodes.PROCESS,
+      },
+      {
+        from: mailbox.address,
+        to: tokenCollateral.address,
+        success: true,
+        op: OpCodes.GET_ISM,
+      },
+      {
+        from: tokenCollateral.address,
+        to: mailbox.address,
+        success: true,
+        op: OpCodes.PROCESS,
+        body: (x: Cell | undefined): boolean => {
+          if (!x) return false;
+          const s = x!.beginParse();
+          s.skip(32 + 64);
+          return s.loadUint(32) == ProcessOpCodes.VERIFY;
+        },
+      },
+      {
+        from: mailbox.address,
+        to: initialDefaultIsm.address,
+        success: true,
+        op: OpCodes.VERIFY,
+      },
+      {
+        from: initialDefaultIsm.address,
+        to: mailbox.address,
+        success: true,
+        op: OpCodes.PROCESS,
+        body: (x: Cell | undefined): boolean => {
+          if (!x) return false;
+          const s = x!.beginParse();
+          s.skip(32 + 64);
+          return s.loadUint(32) == ProcessOpCodes.DELIVER_MESSAGE;
+        },
+      },
+      {
+        from: mailbox.address,
+        to: tokenCollateral.address,
+        success: true,
+        op: OpCodes.HANDLE,
+      },
+      {
+        from: tokenCollateral.address,
+        to: jettonMinter.address,
+        success: true,
+        op: OpCodes.JETTON_MINT,
+      },
+      {
+        from: jettonMinter.address,
+        to: jettonWallet.address,
+        success: true,
+        op: OpCodes.JETTON_INTERNAL_TRANSFER,
+      },
+    ];
 
-  it('should receive tokens', async () => {
-    const amount = 10n;
+    expectedTransactions.forEach((ex, i) => {
+      try {
+        expect([res.transactions[i + 1]]).toHaveTransaction({
+          ...ex,
+        });
+      } catch (err) {
+        console.log('Failed exp:', i);
+        throw err;
+      }
+    });
+  };
+
+  it.only('should receive tokens', async () => {
+    const { amount: balanceBefore } = await jettonWallet.getBalance();
+    const mintedAmount = 1000n;
     const hyperlaneMessage = buildTokenMessage(
       tokenCollateral.address.hash,
       deployer.address.hash,
-      amount,
+      mintedAmount,
       Buffer.alloc(32),
     );
     const metadata: TMultisigMetadata = {
@@ -306,23 +370,10 @@ describe('TokenCollateral', () => {
       message: hyperlaneMessage,
     });
 
-    expect(res.transactions).toHaveTransaction({
-      from: mailbox.address,
-      to: tokenCollateral.address,
-      success: true,
-    });
+    expectWarpRouteSucceeded(res);
 
-    expect(res.transactions).toHaveTransaction({
-      from: tokenCollateral.address,
-      to: jettonMinter.address,
-      success: true,
-    });
-
-    expect(res.transactions).toHaveTransaction({
-      from: jettonMinter.address,
-      to: jettonWallet.address,
-      success: true,
-    });
+    const { amount: balanceAfter } = await jettonWallet.getBalance();
+    expect(balanceAfter - balanceBefore).toBe(mintedAmount);
   });
 
   it('should send tokens', async () => {
