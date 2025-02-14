@@ -92,7 +92,7 @@ describe('MultisigIsm', () => {
   let deployer: SandboxContract<TreasuryContract>;
   let fraud: SandboxContract<TreasuryContract>;
   let multisigIsm: SandboxContract<MultisigIsm>;
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const sampleWallet = ethers.Wallet.createRandom();
   const validator = ethers.Wallet.createRandom();
   beforeEach(async () => {
     blockchain = await Blockchain.create();
