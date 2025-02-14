@@ -4,6 +4,7 @@
 #include "imports/send_mode.fc";
 #include "imports/ton_msg.fc";
 #include "imports/events.fc";
+#include "imports/reserve_mode.fc";
 
 global slice g::owner;
 global slice g::beneficiary;
@@ -146,7 +147,7 @@ int get_gas_limit(cell hook_metadata) inline {
         throw_unless(
             error::unauthorized_sender,
             equal_slices(msg_sender, g::owner));
-        raw_reserve(storagefee() + MINIMAL_BALANCE, 2);
+        raw_reserve(storagefee() + MINIMAL_BALANCE, reserve_mode::at_most_this_amount);
         send_change(g::beneficiary, op, query_id, send_mode::carry_remaining_balance);
         return store_globals();
     }
