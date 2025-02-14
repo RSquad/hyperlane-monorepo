@@ -69,27 +69,12 @@ int get_gas_limit(cell hook_metadata) inline {
     return meta.metadata::unpack::gas_limit();
 }
 
-() pay_for_gas(
+int pay_for_gas(
     int message_id,
-    int value,
     int dest_domain,
-    int gas_limit,
-    slice refund_addr
+    int gas_limit
 ) impure inline {
     int required_payment = quote_gas_payment(dest_domain, gas_limit);
-    throw_unless(
-        error::insufficient_gas_payment,
-        value >= required_payment
-    );
-
-    int overpayment = value - required_payment;
-
-    reserve_original_balance(value, required_payment);
-    if (overpayment > 0) {
-        builder msg = build_message(refund_addr, overpayment, false, null(), null());
-        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::pay_transfer_fees_separately);
-    }
-
     builder gas_data = begin_cell()
         .store_uint(message_id, 256)
         .store_ref(begin_cell()
@@ -98,8 +83,8 @@ int get_gas_limit(cell hook_metadata) inline {
             .store_uint(required_payment, 256)
             .end_cell()
         );
-    
     send_event(event::gas_payment, gas_data);
+    return required_payment;
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -127,13 +112,12 @@ int get_gas_limit(cell hook_metadata) inline {
         cell hook_metadata = in_msg_body~load_ref();
 
         int gas_limit = get_gas_limit(hook_metadata);
-        pay_for_gas(
+        int required_payment = pay_for_gas(
             message_id,
-            msg_value,
             dest_domain,
-            gas_limit,
-            refund_addr
+            gas_limit
         );
+        reserve_original_balance(msg_value, required_payment);
         cell body = begin_cell()
             .store_uint(op::dispatch, 32)
             .store_uint(query_id, 64)
@@ -142,12 +126,12 @@ int get_gas_limit(cell hook_metadata) inline {
             .end_cell();
         
         builder default_hook_msg = build_message(
-                msg_sender,
-                msg_value,
-                true,
-                null(),
-                body
-            );
+            msg_sender,
+            msg_value,
+            true,
+            null(),
+            body
+        );
 
         send_raw_message(default_hook_msg.end_cell(), send_mode::carry_remaining_balance);
         return ();
