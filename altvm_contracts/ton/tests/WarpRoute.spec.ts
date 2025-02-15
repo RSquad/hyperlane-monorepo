@@ -55,6 +55,7 @@ describe('TokenCollateral', () => {
   let recipientCode: Cell;
   let minterCode: Cell;
   let walletCode: Cell;
+  const burnAmount = 1000n;
 
   beforeAll(async () => {
     code = await compile('TokenCollateral');
@@ -261,8 +262,16 @@ describe('TokenCollateral', () => {
       success: true,
     });
 
+    await jettonMinter.sendMint(deployer.getSender(), {
+      toAddress: deployer.address,
+      responseAddress: deployer.address,
+      jettonAmount: burnAmount,
+      queryId: 0,
+      value: toNano(0.1),
+    });
+
     await jettonMinter.sendUpdateAdmin(deployer.getSender(), {
-      value: toNano('0.1'),
+      value: toNano(0.1),
       newAdminAddress: tokenCollateral.address,
     });
 
@@ -349,7 +358,7 @@ describe('TokenCollateral', () => {
     });
   };
 
-  it.only('should receive tokens', async () => {
+  it('should receive tokens', async () => {
     const { amount: balanceBefore } = await jettonWallet.getBalance();
     const mintedAmount = 1000n;
     const hyperlaneMessage = buildTokenMessage(
@@ -379,7 +388,7 @@ describe('TokenCollateral', () => {
   it('should send tokens', async () => {
     const jettonAmount = 10n;
     const burnRes = await jettonWallet.sendBurn(deployer.getSender(), {
-      value: toNano('0.1'),
+      value: toNano(0.1),
       queryId: 0,
       jettonAmount: jettonAmount,
       responseAddress: deployer.address,
@@ -387,7 +396,7 @@ describe('TokenCollateral', () => {
       recipientAddr: tokenCollateral.address.hash,
       message: beginCell()
         .storeBuffer(recipient.address.hash)
-        .storeCoins(jettonAmount)
+        .storeUint(jettonAmount, 128)
         .endCell(),
       hookMetadata: {
         variant: 0,
@@ -398,10 +407,17 @@ describe('TokenCollateral', () => {
     });
 
     expect(burnRes.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: jettonWallet.address,
+      success: true,
+      op: OpCodes.JETTON_BURN,
+    });
+
+    expect(burnRes.transactions).toHaveTransaction({
       from: jettonWallet.address,
       to: jettonMinter.address,
       success: true,
-      op: OpCodes.JETTON_BURN,
+      op: OpCodes.JETTON_BURN_NOTIFICATION,
     });
 
     expect(burnRes.transactions).toHaveTransaction({

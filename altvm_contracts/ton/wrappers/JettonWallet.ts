@@ -51,7 +51,6 @@ export class JettonWalletContract implements Contract {
     recipientAddr: Buffer;
     message: Cell;
     hookMetadata: THookMetadata;
-    userFee?: bigint;
   }): Cell {
     const queryId = Math.floor(Math.random() * (Math.pow(2, 64) - 1));
     const body = beginCell()
@@ -117,7 +116,6 @@ export class JettonWalletContract implements Contract {
       message: Cell;
       hookMetadata: THookMetadata;
       recipientAddr: Buffer;
-      userFee?: bigint;
     },
   ) {
     const body = JettonWalletContract.buildBurnBodyCell({
@@ -127,7 +125,6 @@ export class JettonWalletContract implements Contract {
       destDomain: opts.destDomain,
       message: opts.message,
       hookMetadata: opts.hookMetadata,
-      userFee: opts.userFee,
     });
 
     await provider.internal(via, {

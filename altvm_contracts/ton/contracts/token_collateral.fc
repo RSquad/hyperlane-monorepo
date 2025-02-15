@@ -79,13 +79,14 @@ global slice g::mailbox_addr;
 
         builder msg = build_message(
             g::mailbox_addr,
-            msg_value,
+            0,
             true,
             null(),
             dispatch_body
         );
 
         send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
+        return ();
     }
 
     if (op == op::handle) {
