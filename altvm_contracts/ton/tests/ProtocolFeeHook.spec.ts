@@ -4,10 +4,11 @@ import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
 
 import { ProtocolFeeHook } from '../wrappers/ProtocolFeeHook';
+import { Errors } from '../wrappers/utils/constants';
 
 describe('ProtocolFeeHook', () => {
   let code: Cell;
-  const maxProtocolFee = 200n;
+  const maxProtocolFee = toNano('0.2');
 
   beforeAll(async () => {
     code = await compile('ProtocolFeeHook');
@@ -117,6 +118,96 @@ describe('ProtocolFeeHook', () => {
       from: deployer.address,
       to: protocolFeeHook.address,
       success: true,
+    });
+  });
+
+  it('should throw if msg value is too low', async () => {
+    await protocolFeeHook.sendSetProtocolFee(
+      deployer.getSender(),
+      toNano('0.01'),
+      {
+        protocolFee: toNano('0.02'),
+      },
+    );
+
+    const result = await protocolFeeHook.sendPostDispatch(
+      deployer.getSender(),
+      toNano('0.01'),
+      {
+        message: {
+          version: 1,
+          nonce: 2,
+          origin: 0,
+          sender: Buffer.alloc(32),
+          destinationDomain: 0,
+          recipient: Buffer.alloc(32),
+          body: beginCell().storeUint(123, 32).endCell(),
+        },
+        hookMetadata: {
+          variant: 0,
+          msgValue: toNano('0.01'),
+          gasLimit: 50000n,
+          refundAddress: deployer.address,
+        },
+      },
+    );
+
+    expect(result.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: protocolFeeHook.address,
+      success: false,
+      exitCode: Errors.INSUFFICIENT_PROTOCOL_FEE,
+    });
+  });
+
+  it('should throw if not owner on transfer ownership', async () => {
+    const result = await protocolFeeHook.sendTransferOwnership(
+      owner.getSender(),
+      toNano('0.01'),
+      {
+        ownerAddr: owner.address,
+      },
+    );
+
+    expect(result.transactions).toHaveTransaction({
+      from: owner.address,
+      to: protocolFeeHook.address,
+      success: false,
+      exitCode: Errors.UNAUTHORIZED_SENDER,
+    });
+  });
+
+  it('should throw if not owner on set beneficiary', async () => {
+    const result = await protocolFeeHook.sendSetBeneficiary(
+      owner.getSender(),
+      toNano('0.01'),
+      {
+        beneficiaryAddr: owner.address,
+      },
+    );
+
+    expect(result.transactions).toHaveTransaction({
+      from: owner.address,
+      to: protocolFeeHook.address,
+      success: false,
+      exitCode: Errors.UNAUTHORIZED_SENDER,
+    });
+  });
+
+  it('should throw if protocol fee too high', async () => {
+    const result = await protocolFeeHook.sendSetProtocolFee(
+      deployer.getSender(),
+      toNano('0.01'),
+      {
+        protocolFee: maxProtocolFee + 1n,
+      },
+    );
+
+    expect(result.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: protocolFeeHook.address,
+      success: false,
+      exitCode: Errors.EXCEEDS_MAX_PROTOCOL_FEE,
     });
   });
 
