@@ -28,7 +28,6 @@ describe('ProtocolFeeHook', () => {
     protocolFeeHook = blockchain.openContract(
       ProtocolFeeHook.createFromConfig(
         {
-          hookType: 0,
           protocolFee: 0n,
           maxProtocolFee,
           beneficiary: deployer.address,
@@ -82,6 +81,12 @@ describe('ProtocolFeeHook', () => {
     expect(result.transactions).toHaveTransaction({
       from: deployer.address,
       to: protocolFeeHook.address,
+      success: true,
+    });
+
+    expect(result.transactions).toHaveTransaction({
+      from: protocolFeeHook.address,
+      to: deployer.address,
       success: true,
     });
   });
@@ -156,7 +161,7 @@ describe('ProtocolFeeHook', () => {
       from: deployer.address,
       to: protocolFeeHook.address,
       success: false,
-      exitCode: Errors.INSUFFICIENT_PROTOCOL_FEE,
+      exitCode: Errors.MSG_VALUE_TOO_LOW,
     });
   });
 

@@ -3,8 +3,10 @@
 #include "imports/op_codes.fc";
 #include "imports/events.fc";
 #include "imports/errors.fc";
+#include "imports/hook_types.fc";
 
-global int g::hook_type;
+const int FWD_FEES = 2700000;
+
 global int g::protocol_fee;
 global int g::max_protocol_fee;
 global slice g::beneficiary;
@@ -12,7 +14,6 @@ global slice g::owner;
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
-        .store_uint(g::hook_type, 8)
         .store_uint(g::protocol_fee, 128)
         .store_uint(g::max_protocol_fee, 128)
         .store_slice(g::beneficiary)
@@ -23,7 +24,6 @@ global slice g::owner;
 
 () load_globals() impure inline_ref {
     slice ds = get_data().begin_parse();
-    g::hook_type = ds~load_uint(8);
     g::protocol_fee = ds~load_uint(128);
     g::max_protocol_fee = ds~load_uint(128);
     g::beneficiary = ds~load_msg_addr();
@@ -47,26 +47,33 @@ global slice g::owner;
     load_globals();
 
     if(op == op::post_dispatch) {
-        slice metadata = in_msg_body~load_ref().begin_parse();
-        slice message = in_msg_body~load_ref().begin_parse();
+        int gas_fee = gasfee(
+            gasconsumed() + 
+            10000,
+            false
+        );
         throw_if(
-            error::insufficient_protocol_fee,
-            msg_value <= g::protocol_fee
+            error::msg_value_too_low,
+            msg_value < g::protocol_fee + gas_fee + storagefee() + FWD_FEES
+        );
+        cell body = begin_cell()
+            .store_uint(op::dispatch, 32)
+            .store_uint(query_id, 64)
+            .store_uint(op::dispatch::default_hook, 32)
+            .store_slice(in_msg_body)
+            .end_cell();
+
+        builder dafault_hook_msg = build_message(
+            msg_sender,
+            msg_value,
+            true,
+            null(),
+            body
         );
 
-        metadata~skip_bits(16 + 256 + 256);
+        raw_reserve(storagefee() + g::protocol_fee, reserve_mode::balance_plus_this_amount);
 
-        slice refund_addr = metadata~load_msg_addr();
-        int refund = msg_value - g::protocol_fee;
-
-        if (refund > 0) {
-            send_change(
-                refund_addr, ;; todo: not clear we need refund address from metadata or sender address from message
-                op,
-                query_id,
-                send_mode::ignore_errors
-            );   
-        }
+        send_raw_message(dafault_hook_msg.end_cell(), send_mode::carry_remaining_balance);
 
         return store_globals();
     }
@@ -91,7 +98,7 @@ global slice g::owner;
     }
 
     if (op == op::collect_protocol_fee) {
-        raw_reserve(storagefee(), reserve_mode::at_most_this_amount);
+        raw_reserve(storagefee(), reserve_mode::balance_plus_this_amount);
 
         send_change(
             g::beneficiary,
@@ -112,28 +119,8 @@ global slice g::owner;
     throw(error::unknown_op);
 }
 
-int get_quote_dispatch() method_id {
+(int, int, slice, int) get_hook_data() method_id {
     load_globals();
-    return g::protocol_fee;
-}
-
-int get_protocol_fee() method_id {
-    load_globals();
-    return g::protocol_fee;
-}
-
-int get_max_protocol_fee() method_id {
-    load_globals();
-    return g::max_protocol_fee;
-}
-
-slice get_beneficiary() method_id {
-    load_globals();
-    return g::beneficiary;
-}
-
-int get_hook_type() method_id {
-    load_globals();
-    return g::hook_type;
+    return (g::max_protocol_fee, g::protocol_fee, g::beneficiary, hook_type::protocol_fee);
 }
 

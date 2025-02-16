@@ -14,7 +14,6 @@ import { OpCodes } from './utils/constants';
 import { THookMetadata, TMessage } from './utils/types';
 
 export type ProtocolFeeHookConfig = {
-  hookType: number;
   protocolFee: bigint;
   maxProtocolFee: bigint;
   beneficiary: Address;
@@ -25,7 +24,6 @@ export function protocolFeeHookConfigToCell(
   config: ProtocolFeeHookConfig,
 ): Cell {
   return beginCell()
-    .storeUint(config.hookType, 8)
     .storeUint(config.protocolFee, 128)
     .storeUint(config.maxProtocolFee, 128)
     .storeAddress(config.beneficiary)
@@ -159,28 +157,26 @@ export class ProtocolFeeHook implements Contract {
     });
   }
 
-  async getQuoteDispatch(provider: ContractProvider) {
-    const result = await provider.get('get_quote_dispatch', []);
-    return result.stack.readBigNumber();
-  }
-
   async getProtocolFee(provider: ContractProvider) {
-    const result = await provider.get('get_protocol_fee', []);
+    const result = await provider.get('get_hook_data', []);
+    result.stack.skip();
     return result.stack.readBigNumber();
   }
 
   async getMaxProtocolFee(provider: ContractProvider) {
-    const result = await provider.get('get_max_protocol_fee', []);
+    const result = await provider.get('get_hook_data', []);
     return result.stack.readBigNumber();
   }
 
   async getBeneficiary(provider: ContractProvider) {
-    const result = await provider.get('get_beneficiary', []);
+    const result = await provider.get('get_hook_data', []);
+    result.stack.skip(2);
     return result.stack.readAddress();
   }
 
   async getHookType(provider: ContractProvider) {
-    const result = await provider.get('get_hook_type', []);
+    const result = await provider.get('get_hook_data', []);
+    result.stack.skip(3);
     return result.stack.readNumber();
   }
 }

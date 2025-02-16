@@ -1,5 +1,6 @@
 ;; mailbox
 const int op::dispatch = "op::dispatch"c;
+const int op::dispatch::default_hook = "op::dispatch::default_hook"c;
 const int op::process = "op::process"c;
 const int op::process::init = "op::process::init"c;
 const int op::process::verify = "sub_op == op::process::verify"c;
