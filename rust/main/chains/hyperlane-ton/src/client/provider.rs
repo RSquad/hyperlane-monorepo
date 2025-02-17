@@ -197,12 +197,9 @@ impl HyperlaneProvider for TonProvider {
 
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
         let bytes = &h512_to_bytes(hash);
-        let hash_h256: H256 = H256::from_slice(bytes.as_slice());
-        let hash_h256 = hex::encode(hash_h256.as_bytes()); // some errors
-        info!("Fetching transaction by hash: {:?}", hash);
+        let tx_hash = hex::encode(bytes);
 
-        let query_params = vec![("hash", format!("{:?}", hash_h256))];
-
+        let query_params = vec![("hash", tx_hash.clone())];
         let response: TransactionResponse = self
             .request_and_parse(
                 Method::GET,
@@ -217,41 +214,12 @@ impl HyperlaneProvider for TonProvider {
             })?;
 
         if let Some(transaction) = response.transactions.first() {
-            let txn_info = TxnInfo {
-                hash: H512::from_slice(&hex::decode(&transaction.hash).unwrap()),
-                gas_limit: U256::from_dec_str(&transaction.description.compute_ph.gas_limit)
-                    .unwrap_or_default(),
-                max_priority_fee_per_gas: None,
-                max_fee_per_gas: None,
-                gas_price: None,
-                nonce: transaction.lt.parse::<u64>().unwrap_or(0),
-                sender: H256::from_slice(&hex::decode(&transaction.account).unwrap()),
-                recipient: transaction.in_msg.as_ref().and_then(|msg| {
-                    match TonAddress::from_base64_url(msg.destination.as_str()) {
-                        Ok(ton_address) => Some(ConversionUtils::ton_address_to_h256(&ton_address)),
-                        Err(e) => {
-                            warn!(
-                                "Failed to parse TON address from destination '{}': {:?}",
-                                msg.destination, e
-                            );
-                            None
-                        }
-                    }
-                }),
-                receipt: Some(TxnReceiptInfo {
-                    gas_used: U256::from_dec_str(&transaction.description.compute_ph.gas_used)
-                        .unwrap_or_default(),
-                    cumulative_gas_used: U256::zero(),
-                    effective_gas_price: None,
-                }),
-                raw_input_data: None,
-            };
-
+            let txn_info = ConversionUtils::parse_transaction(transaction)?;
             info!("Successfully retrieved transaction: {:?}", txn_info);
             Ok(txn_info)
         } else {
             error!("No transaction found for the provided hash");
-            return Err(HyperlaneTonError::TransactionNotFound.into());
+            Err(HyperlaneTonError::TransactionNotFound.into())
         }
     }
 
@@ -624,6 +592,7 @@ impl TonApiCenter for TonProvider {
 
             account = ConversionUtils::h256_to_ton_address(&h256, 0).to_string();
         }
+        println!("account:{:?}", account);
 
         let query_params = [("address", account)];
 
@@ -1061,5 +1030,121 @@ mod tests {
         );
         let is_contract = result.unwrap();
         assert!(is_contract, "Expected address to be a contract");
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_balance() {
+        let provider = create_test_provider();
+        let address = "UQCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar2F3".to_string();
+
+        let result = provider.get_balance(address.clone()).await;
+        println!("Balance result for {}: {:?}", address, result);
+
+        assert!(
+            result.is_ok(),
+            "Expected balance retrieval to succeed, got error: {:?}",
+            result
+        );
+        let balance = result.unwrap();
+        println!("Balance: {:?}", balance);
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_wallet_information() {
+        let provider = create_test_provider();
+        let address = "UQCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar2F3";
+
+        let result = provider.get_wallet_information(address, true).await;
+        println!("Wallet information result: {:?}", result);
+
+        assert!(
+            result.is_ok(),
+            "Expected wallet information retrieval to succeed, got error: {:?}",
+            result
+        );
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_blocks() {
+        let provider = create_test_provider();
+        let workchain = -1;
+        let seqno = Some(1);
+
+        let result = provider
+            .get_blocks(
+                workchain, None, seqno, None, None, None, None, None, None, None, None,
+            )
+            .await;
+
+        println!("Block result: {:?}", result);
+
+        assert!(
+            result.is_ok(),
+            "Expected get_blocks to succeed, got error: {:?}",
+            result
+        );
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_blocks_invalid_seqno() {
+        let provider = create_test_provider();
+        let workchain = 0;
+        let seqno = Some(u64::MAX);
+
+        let result = provider
+            .get_blocks(
+                workchain, None, seqno, None, None, None, None, None, None, None, None,
+            )
+            .await;
+
+        println!("Block result for invalid seqno: {:?}", result);
+
+        assert!(
+            result.is_err(),
+            "Expected get_blocks to fail for an invalid seqno"
+        );
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_block_timestamp() {
+        let provider = create_test_provider();
+        let block_seqno = 1;
+
+        let result = provider.fetch_block_timestamp(block_seqno).await;
+        println!("Block timestamp result: {:?}", result);
+
+        assert!(
+            result.is_ok(),
+            "Expected fetch_block_timestamp to succeed, got error: {:?}",
+            result
+        );
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_fetch_block_timestamp_invalid_seqno() {
+        let provider = create_test_provider();
+        let block_seqno = u32::MAX;
+
+        let result = provider.fetch_block_timestamp(block_seqno).await;
+        println!("Block timestamp result for invalid seqno: {:?}", result);
+
+        assert!(
+            result.is_err(),
+            "Expected fetch_block_timestamp to fail for an invalid block seqno"
+        );
+    }
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_finalized_block() {
+        let provider = create_test_provider();
+
+        let result = provider.get_finalized_block().await;
+        println!("Finalized block result: {:?}", result);
+
+        assert!(
+            result.is_ok(),
+            "Expected get_finalized_block to succeed, got error: {:?}",
+            result
+        );
     }
 }
