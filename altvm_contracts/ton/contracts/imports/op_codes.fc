@@ -37,4 +37,5 @@ const int op::collect_protocol_fee = "op::collect_protocol_fee"c;
 
 ;; interchain gas paymaster
 const int op::set_dest_gas_config = "op::set_dest_gas_config"c;
+const int op::claim = "op::claim"c;
 

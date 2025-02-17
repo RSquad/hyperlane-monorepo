@@ -19,6 +19,7 @@ export type ProtocolFeeHookConfig = {
   maxProtocolFee: bigint;
   beneficiary: Address;
   owner: Address;
+  collectedFee?: bigint;
 };
 
 export function protocolFeeHookConfigToCell(
@@ -27,7 +28,7 @@ export function protocolFeeHookConfigToCell(
   return beginCell()
     .storeUint(config.protocolFee, 128)
     .storeUint(config.maxProtocolFee, 128)
-    .storeUint(0, 128) // collected fees
+    .storeUint(config.collectedFee ?? 0, 128) // collected fees
     .storeAddress(config.beneficiary)
     .storeAddress(config.owner)
     .endCell();
@@ -178,11 +179,17 @@ export class ProtocolFeeHook implements Contract {
 
   async getHookType(provider: ContractProvider) {
     const result = await provider.get('get_hook_data', []);
-    result.stack.skip(3);
+    result.stack.skip(4);
     return result.stack.readNumber();
   }
 
+  async getCollectedFee(provider: ContractProvider) {
+    const result = await provider.get('get_hook_data', []);
+    result.stack.skip(3);
+    return result.stack.readBigNumber();
+  }
+
   async getBalance(provider: ContractProvider) {
-    return fromNano((await provider.getState()).balance);
+    return (await provider.getState()).balance;
   }
 }

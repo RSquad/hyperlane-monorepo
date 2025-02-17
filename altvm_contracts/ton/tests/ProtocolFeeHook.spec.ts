@@ -8,7 +8,7 @@ import { Errors, OpCodes } from '../wrappers/utils/constants';
 
 describe('ProtocolFeeHook', () => {
   let code: Cell;
-  const maxProtocolFee = toNano('0.2');
+  const maxProtocolFee = toNano(0.2);
 
   beforeAll(async () => {
     code = await compile('ProtocolFeeHook');
@@ -39,7 +39,7 @@ describe('ProtocolFeeHook', () => {
 
     const deployResult = await protocolFeeHook.sendDeploy(
       deployer.getSender(),
-      toNano('0.05'),
+      toNano(1),
     );
 
     expect(deployResult.transactions).toHaveTransaction({
@@ -58,7 +58,7 @@ describe('ProtocolFeeHook', () => {
   it('should send post dispatch', async () => {
     const result = await protocolFeeHook.sendPostDispatch(
       deployer.getSender(),
-      toNano('0.01'),
+      toNano('0.1'),
       {
         message: {
           version: 1,
@@ -70,7 +70,7 @@ describe('ProtocolFeeHook', () => {
           body: beginCell().storeUint(123, 32).endCell(),
         },
         hookMetadata: {
-          variant: 0,
+          variant: 1,
           msgValue: toNano('0.1'),
           gasLimit: 50000n,
           refundAddress: deployer.address,
@@ -92,13 +92,16 @@ describe('ProtocolFeeHook', () => {
   });
 
   it('should collect protocol fee', async () => {
+    const collectedFee = toNano(0.3);
+    const beneficiary = await blockchain.treasury('beneficiary');
     const protocolFeeHook = blockchain.openContract(
       ProtocolFeeHook.createFromConfig(
         {
-          protocolFee: 100n,
+          protocolFee: toNano(0.01),
           maxProtocolFee,
-          beneficiary: deployer.address,
+          beneficiary: beneficiary.address,
           owner: deployer.address,
+          collectedFee,
         },
         code,
       ),
@@ -106,8 +109,10 @@ describe('ProtocolFeeHook', () => {
 
     const deployResult = await protocolFeeHook.sendDeploy(
       deployer.getSender(),
-      toNano('100'),
+      toNano(1),
     );
+    const balanceBefore = await protocolFeeHook.getBalance();
+    expect(await protocolFeeHook.getCollectedFee()).toBe(collectedFee);
 
     expect(deployResult.transactions).toHaveTransaction({
       from: deployer.address,
@@ -130,9 +135,14 @@ describe('ProtocolFeeHook', () => {
 
     expect(result.transactions).toHaveTransaction({
       from: protocolFeeHook.address,
-      to: deployer.address,
+      to: beneficiary.address,
       success: true,
+      value: collectedFee,
     });
+
+    const balanceAfter = await protocolFeeHook.getBalance();
+    expect(balanceBefore - balanceAfter).toBeLessThan(collectedFee);
+    expect(await protocolFeeHook.getCollectedFee()).toBe(0n);
   });
 
   it('should set protocol fee', async () => {

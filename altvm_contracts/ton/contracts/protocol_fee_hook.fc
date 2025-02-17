@@ -134,8 +134,9 @@ global slice g::owner;
     throw(error::unknown_op);
 }
 
-(int, int, slice, int) get_hook_data() method_id {
+(int, int, slice, int, int) get_hook_data() method_id {
     load_globals();
-    return (g::max_protocol_fee, g::protocol_fee, g::beneficiary, hook_type::protocol_fee);
+    return (g::max_protocol_fee, g::protocol_fee, 
+        g::beneficiary, g::collected_fees, hook_type::protocol_fee);
 }
 
