@@ -287,6 +287,8 @@ slice begin_parse(cell c) asm "CTOS";
 ;;; Loads the first reference from the slice.
 (slice, cell) load_ref(slice s) asm( -> 1 0) "LDREF";
 
+(slice, slice) ~load_ref_slice(slice s) asm "LDREFRTOS";
+
 ;;; Preloads the first reference from the slice.
 cell preload_ref(slice s) asm "PLDREF";
 
