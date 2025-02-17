@@ -7,14 +7,12 @@ use reqwest::{Client, Method, Response};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 use tokio::time::sleep;
-use tonlib_core::TonAddress;
 use tracing::{error, info, warn};
 use url::Url;
 
 use hyperlane_core::{
     h512_to_bytes, BlockInfo, ChainCommunicationError, ChainInfo, ChainResult, FixedPointNumber,
-    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, TxnReceiptInfo, H256,
-    H512, U256,
+    HyperlaneChain, HyperlaneDomain, HyperlaneProvider, TxOutcome, TxnInfo, H256, H512, U256,
 };
 
 use crate::constants::{
@@ -1015,9 +1013,10 @@ mod tests {
     async fn test_is_contract_true() {
         let provider = create_test_provider();
 
-        let contract_address =
-            TonAddress::from_base64_url("0QCSES0TZYqcVkgoguhIb8iMEo4cvaEwmIrU5qbQgnN8fo2A")
-                .expect("msg");
+        let contract_address = tonlib_core::TonAddress::from_base64_url(
+            "0QCSES0TZYqcVkgoguhIb8iMEo4cvaEwmIrU5qbQgnN8fo2A",
+        )
+        .expect("msg");
         let contract_address = ConversionUtils::ton_address_to_h256(&contract_address);
 
         let result = provider.is_contract(&contract_address).await;
