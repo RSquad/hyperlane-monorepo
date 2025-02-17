@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "scripts": {
     "start": "blueprint run",
-    "build": "blueprint build",
+    "build": "blueprint build --all",
     "test": "jest --verbose",
     "test:mbox": "jest ./tests/Mailbox.spec.ts",
     "test:igp": "jest ./tests/InterchainGasPaymaster.spec.ts",
@@ -11,6 +11,7 @@
     "test:tmsig": "jest ./tests/Msigtest.spec.ts",
     "test:va": "jest ./tests/ValidatorAnnounce.spec.ts",
     "test:mth": "jest ./tests/MerkleTreeHook.spec.ts",
+    "test:wr": "jest ./tests/WarpRoute.spec.ts",
     "deploy:msig": "npx blueprint run deployMultisigIsm --mnemonic --testnet",
     "deploy:rcpnt": "npx blueprint run deployRecipientMock --mnemonic --testnet",
     "deploy:igp": "npx blueprint run deployInterchainGasPaymaster --mnemonic --testnet",

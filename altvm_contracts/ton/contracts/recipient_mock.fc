@@ -39,7 +39,6 @@ global slice g::ism_addr;
             .store_uint(op::process, 32)
             .store_uint(query_id, 64)
             .store_uint(op::process::verify, 32)
-            .store_int(true, 1)
             .store_slice(g::ism_addr)
             .store_slice(in_msg_body)
             .end_cell();
