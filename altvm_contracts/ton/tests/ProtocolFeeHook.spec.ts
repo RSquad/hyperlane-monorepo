@@ -4,7 +4,7 @@ import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
 
 import { ProtocolFeeHook } from '../wrappers/ProtocolFeeHook';
-import { Errors } from '../wrappers/utils/constants';
+import { Errors, OpCodes } from '../wrappers/utils/constants';
 
 describe('ProtocolFeeHook', () => {
   let code: Cell;
@@ -91,12 +91,59 @@ describe('ProtocolFeeHook', () => {
     });
   });
 
+  it('should collect protocol fee', async () => {
+    const collectedFees = toNano('100');
+    const protocolFeeHook = blockchain.openContract(
+      ProtocolFeeHook.createFromConfig(
+        {
+          protocolFee: 100n,
+          maxProtocolFee,
+          beneficiary: deployer.address,
+          owner: deployer.address,
+          collectedFees,
+        },
+        code,
+      ),
+    );
+
+    const deployResult = await protocolFeeHook.sendDeploy(
+      deployer.getSender(),
+      toNano('100'),
+    );
+
+    expect(deployResult.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: protocolFeeHook.address,
+      deploy: true,
+      success: true,
+    });
+
+    const result = await protocolFeeHook.sendCollectProtocolFee(
+      deployer.getSender(),
+      toNano('0.01'),
+    );
+
+    expect(result.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: protocolFeeHook.address,
+      success: true,
+      op: OpCodes.COLLECT_PROTOCOL_FEE,
+    });
+
+    expect(result.transactions).toHaveTransaction({
+      from: protocolFeeHook.address,
+      to: deployer.address,
+      success: true,
+    });
+  });
+
   it('should set protocol fee', async () => {
+    const newFee = 100n;
     const result = await protocolFeeHook.sendSetProtocolFee(
       deployer.getSender(),
       toNano('0.01'),
       {
-        protocolFee: 100n,
+        protocolFee: newFee,
       },
     );
 
@@ -107,7 +154,7 @@ describe('ProtocolFeeHook', () => {
     });
 
     const fee = await protocolFeeHook.getProtocolFee();
-    expect(fee).toStrictEqual(100n);
+    expect(fee).toStrictEqual(newFee);
   });
 
   it('should transfer ownership', async () => {
@@ -162,6 +209,23 @@ describe('ProtocolFeeHook', () => {
       to: protocolFeeHook.address,
       success: false,
       exitCode: Errors.MSG_VALUE_TOO_LOW,
+    });
+  });
+
+  it('should throw if not owner on set protocol fee', async () => {
+    const result = await protocolFeeHook.sendSetProtocolFee(
+      owner.getSender(),
+      toNano('0.01'),
+      {
+        protocolFee: 100n,
+      },
+    );
+
+    expect(result.transactions).toHaveTransaction({
+      from: owner.address,
+      to: protocolFeeHook.address,
+      success: false,
+      exitCode: Errors.UNAUTHORIZED_SENDER,
     });
   });
 

@@ -9,6 +9,7 @@ const int FWD_FEES = 2700000;
 
 global int g::protocol_fee;
 global int g::max_protocol_fee;
+global int g::collected_fees;
 global slice g::beneficiary;
 global slice g::owner;
 
@@ -16,6 +17,7 @@ global slice g::owner;
     cell data = begin_cell()
         .store_uint(g::protocol_fee, 128)
         .store_uint(g::max_protocol_fee, 128)
+        .store_uint(g::collected_fees, 128)
         .store_slice(g::beneficiary)
         .store_slice(g::owner)
         .end_cell();
@@ -26,6 +28,7 @@ global slice g::owner;
     slice ds = get_data().begin_parse();
     g::protocol_fee = ds~load_uint(128);
     g::max_protocol_fee = ds~load_uint(128);
+    g::collected_fees = ds~load_uint(128);
     g::beneficiary = ds~load_msg_addr();
     g::owner = ds~load_msg_addr();
 }
@@ -65,11 +68,13 @@ global slice g::owner;
 
         builder dafault_hook_msg = build_message(
             msg_sender,
-            msg_value,
+            0,
             true,
             null(),
             body
         );
+
+        g::collected_fees += g::protocol_fee;
 
         raw_reserve(storagefee() + g::protocol_fee, reserve_mode::balance_plus_this_amount);
 
@@ -79,6 +84,10 @@ global slice g::owner;
     }
 
     if (op == op::set_protocol_fee) {
+        throw_unless(
+            error::unauthorized_sender,
+            equal_slices(msg_sender, g::owner)
+        );
         int protocol_fee = in_msg_body~load_uint(128);
         throw_if(
             error::exceeds_max_protocol_fee,
@@ -92,26 +101,32 @@ global slice g::owner;
     if (op == op::set_beneficiary) {
         throw_unless(
             error::unauthorized_sender,
-            equal_slices(msg_sender, g::owner));
+            equal_slices(msg_sender, g::owner)
+        );
         g::beneficiary = in_msg_body~load_msg_addr();
         return store_globals();
     }
 
     if (op == op::collect_protocol_fee) {
-        raw_reserve(storagefee(), reserve_mode::balance_plus_this_amount);
-
-        send_change(
+        builder msg = build_message(
             g::beneficiary,
-            op,
-            query_id,
-            send_mode::carry_remaining_balance
+            g::collected_fees,
+            false,
+            null(),
+            null()
         );
+        g::collected_fees = 0;
+
+        send_raw_message(msg.store_uint(0, 1).end_cell(), send_mode::pay_transfer_fees_separately);
+
+        return store_globals();
     }
 
     if (op == op::transfer_ownership) {
         throw_unless(
             error::unauthorized_sender,
-            equal_slices(msg_sender, g::owner));
+            equal_slices(msg_sender, g::owner)
+        );
         g::owner = in_msg_body~load_msg_addr();
         return store_globals();
     }

@@ -7,6 +7,7 @@ import {
   Sender,
   beginCell,
   contractAddress,
+  fromNano,
 } from '@ton/core';
 
 import { buildHookMetadataCell, buildMessageCell } from './utils/builders';
@@ -18,6 +19,7 @@ export type ProtocolFeeHookConfig = {
   maxProtocolFee: bigint;
   beneficiary: Address;
   owner: Address;
+  collectedFees?: bigint;
 };
 
 export function protocolFeeHookConfigToCell(
@@ -26,6 +28,7 @@ export function protocolFeeHookConfigToCell(
   return beginCell()
     .storeUint(config.protocolFee, 128)
     .storeUint(config.maxProtocolFee, 128)
+    .storeUint(config.collectedFees ?? 0, 128)
     .storeAddress(config.beneficiary)
     .storeAddress(config.owner)
     .endCell();
@@ -178,5 +181,9 @@ export class ProtocolFeeHook implements Contract {
     const result = await provider.get('get_hook_data', []);
     result.stack.skip(3);
     return result.stack.readNumber();
+  }
+
+  async getBalance(provider: ContractProvider) {
+    return fromNano((await provider.getState()).balance);
   }
 }
