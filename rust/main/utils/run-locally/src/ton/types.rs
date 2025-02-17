@@ -164,7 +164,7 @@ pub fn generate_evm_to_ton_config(
     output_name: &str,
     mnemonic: &str,
     wallet_version: &str,
-    private_key: &str,
+    _private_key: &str,
     api_key: &str,
     domains: (&str, &str),
 ) -> Result<Vec<TonAgentConfig>, Error> {

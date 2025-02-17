@@ -38,7 +38,7 @@ export const buildSignatureCell = (signature: TSignature) => {
 };
 
 export const buildValidatorsDict = (validators: bigint[]) => {
-  let validatorsDict = Dictionary.empty(
+  const validatorsDict = Dictionary.empty(
     Dictionary.Keys.BigUint(32),
     Dictionary.Values.BigUint(256),
   );
@@ -51,7 +51,7 @@ export const buildValidatorsDict = (validators: bigint[]) => {
 };
 
 export const buildMetadataCell = (metadata: TMultisigMetadata) => {
-  let signatures = Dictionary.empty(
+  const signatures = Dictionary.empty(
     Dictionary.Keys.BigUint(32),
     Dictionary.Values.Buffer(65),
   );

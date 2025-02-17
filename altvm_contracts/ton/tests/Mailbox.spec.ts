@@ -72,7 +72,6 @@ describe('Mailbox', () => {
   let dispatchBody: {
     destDomain: number;
     recipientAddr: Buffer;
-    requiredValue: bigint;
     message: Cell;
     hookMetadata: THookMetadata;
     queryId?: number | undefined;
@@ -233,15 +232,10 @@ describe('Mailbox', () => {
       'hex',
     );
     hyperlaneMessage = buildMessage(addr, deployer.address.hash);
-    const requiredValue = await initialRequiredHook.getQuoteDispatch(
-      0,
-      hookMetadata,
-    );
     const id = messageId(hyperlaneMessage);
     dispatchBody = {
       destDomain: 0,
       recipientAddr: addr,
-      requiredValue: requiredValue,
       message: beginCell().storeUint(123, 32).endCell(),
       hookMetadata,
     };

@@ -16,6 +16,7 @@ use hyperlane_core::{
 
 use crate::{
     client::provider::TonProvider,
+    constants::LIMIT,
     error::HyperlaneTonError,
     message::Message,
     signer::signer::TonSigner,
@@ -91,7 +92,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
             &igp_address,
             start_utime,
             end_utime,
-            1000,
+            LIMIT as u32,
             0,
             parse_fn,
         )
