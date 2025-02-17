@@ -25,6 +25,7 @@ use hyperlane_core::{
 
 use crate::{
     client::provider::TonProvider,
+    constants::LIMIT,
     error::HyperlaneTonError,
     message::Message,
     signer::signer::TonSigner,
@@ -454,7 +455,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
             &mailbox_addr,
             start_utime,
             end_utime,
-            1000,
+            LIMIT as u32,
             0,
             parse_fn,
         )
@@ -519,7 +520,7 @@ impl Indexer<H256> for TonMailboxIndexer {
             &mailbox_addr,
             start_utime,
             end_utime,
-            1000,
+            LIMIT as u32,
             0,
             parse_fn,
         )
