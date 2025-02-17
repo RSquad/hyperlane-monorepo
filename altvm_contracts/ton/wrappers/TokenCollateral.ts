@@ -9,7 +9,9 @@ import {
   contractAddress,
 } from '@ton/core';
 
+import { buildHookMetadataCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
+import { THookMetadata } from './utils/types';
 
 export type TokenCollateralConfig = {
   ismAddress?: Address;
@@ -72,6 +74,35 @@ export class TokenCollateral implements Contract {
         .storeUint(OpCodes.HANDLE, 32)
         .storeUint(opts.queryId ?? 0, 64)
 
+        .endCell(),
+    });
+  }
+
+  async sendTransferRemote(
+    provider: ContractProvider,
+    via: Sender,
+    value: bigint,
+    opts: {
+      queryId?: bigint;
+      destination: number;
+      recipient: Buffer;
+      amount: bigint;
+      hookMetadata?: THookMetadata;
+    },
+  ) {
+    await provider.internal(via, {
+      value: value + opts.amount,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(OpCodes.TRANSFER_REMOTE, 32)
+        .storeUint(opts.queryId ?? 0, 64)
+        .storeUint(opts.destination, 32)
+        .storeBuffer(opts.recipient, 32)
+        .storeUint(opts.amount, 256)
+        .storeMaybeRef(
+          opts.hookMetadata ? buildHookMetadataCell(opts.hookMetadata!) : null,
+        )
+        .storeMaybeRef(null)
         .endCell(),
     });
   }

@@ -358,7 +358,7 @@ describe('TokenCollateral', () => {
     });
   };
 
-  it('should receive tokens', async () => {
+  it('warp route synthetic', async () => {
     const { amount: balanceBefore } = await jettonWallet.getBalance();
     const mintedAmount = 1000n;
     const hyperlaneMessage = buildTokenMessage(
@@ -385,7 +385,7 @@ describe('TokenCollateral', () => {
     expect(balanceAfter - balanceBefore).toBe(mintedAmount);
   });
 
-  it('should send tokens', async () => {
+  it('Burn synthetic token', async () => {
     const jettonAmount = 10n;
     const burnRes = await jettonWallet.sendBurn(deployer.getSender(), {
       value: toNano(0.1),
@@ -447,5 +447,18 @@ describe('TokenCollateral', () => {
       success: true,
       op: OpCodes.POST_DISPATCH,
     });
+  });
+
+  it('Warp route native', async () => {
+    const amount = toNano(1);
+    const res = await tokenCollateral.sendTransferRemote(
+      deployer.getSender(),
+      amount + toNano(0.1),
+      {
+        destination: 1,
+        recipient: deployer.address.hash,
+        amount,
+      },
+    );
   });
 });
