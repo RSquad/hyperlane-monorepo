@@ -92,7 +92,6 @@ describe('ProtocolFeeHook', () => {
   });
 
   it('should collect protocol fee', async () => {
-    const collectedFees = toNano('100');
     const protocolFeeHook = blockchain.openContract(
       ProtocolFeeHook.createFromConfig(
         {
@@ -100,7 +99,6 @@ describe('ProtocolFeeHook', () => {
           maxProtocolFee,
           beneficiary: deployer.address,
           owner: deployer.address,
-          collectedFees,
         },
         code,
       ),

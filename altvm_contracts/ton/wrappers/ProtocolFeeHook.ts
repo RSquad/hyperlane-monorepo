@@ -19,7 +19,6 @@ export type ProtocolFeeHookConfig = {
   maxProtocolFee: bigint;
   beneficiary: Address;
   owner: Address;
-  collectedFees?: bigint;
 };
 
 export function protocolFeeHookConfigToCell(
@@ -28,7 +27,7 @@ export function protocolFeeHookConfigToCell(
   return beginCell()
     .storeUint(config.protocolFee, 128)
     .storeUint(config.maxProtocolFee, 128)
-    .storeUint(config.collectedFees ?? 0, 128)
+    .storeUint(0, 128) // collected fees
     .storeAddress(config.beneficiary)
     .storeAddress(config.owner)
     .endCell();
