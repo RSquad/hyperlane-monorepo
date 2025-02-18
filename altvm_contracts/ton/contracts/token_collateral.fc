@@ -5,22 +5,8 @@
 #include "imports/send_mode.fc";
 #include "imports/ton_msg.fc";
 #include "imports/events.fc";
-#include "imports/metadata.fc";
-#include "./dispatch.fc";
-
-const int ONE_TON = 1000000000;
-
-;; Persistent globals
-
-;; Optional ISM address. Can be addr_none$00 or addr_std$10 ...
-global slice g::ism_addr;
-global slice g::jetton_addr;
-global slice g::mailbox_addr;
-global cell g::routers;
-
-;; Runtime globals
-global slice g::msg_sender;
-global int g::query_id;
+#include "jetton/jetton-utils.fc";
+#include "token_router.fc";
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
@@ -38,46 +24,6 @@ global int g::query_id;
     g::jetton_addr = ds~load_msg_addr();
     g::mailbox_addr = ds~load_msg_addr();
     g::routers = ds~load_dict();
-}
-
-int routers::must_get(cell routers, int domain) impure inline {
-    (slice value, int found?) = routers.udict_get?(32, domain);
-    throw_unless(err::router_not_found, found?);
-    return value~load_uint(256);
-}
-
-() op_handler::warp_native(
-    int destination,
-    int jetton_recipient,
-    int native_amount,
-    cell hook_metadata,
-    cell hook_addr
-) impure inline_ref {
-    if (null?(hook_metadata)) {
-        hook_metadata = standard_metadata::new(destination, g::msg_sender).end_cell();
-    }
-    cell token_message = token_message::new(jetton_recipient, native_amount);
-    int recipient_addr = g::routers.routers::must_get(destination);
-    cell dispatch_body = serialize_dispatch(
-        g::query_id, destination, recipient_addr, token_message, hook_metadata);
-
-    builder msg = build_message(
-        g::mailbox_addr,
-        0,
-        true,
-        null(),
-        dispatch_body
-    );
-    raw_reserve(storagefee() + native_amount, reserve_mode::balance_plus_this_amount);
-    send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
-}
-
-() op_handler::warp_collateral() impure inline_ref {
-  
-}
-
-() op_handler::warp_synthetic() impure inline_ref {
-  
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -117,7 +63,7 @@ int routers::must_get(cell routers, int domain) impure inline {
         cell hook_metadata = in_msg_body~load_maybe_ref();
         cell hook_addr = in_msg_body~load_maybe_ref();
         throw_if(error::msg_value_too_low, msg_value < amount + ONE_TON);
-        op_handler::warp_native(destination, recipient, amount, hook_metadata, hook_addr);
+        op_handler::transfer_remote(destination, recipient, amount, hook_metadata, hook_addr);
         return ();
     }
 
@@ -135,23 +81,26 @@ int routers::must_get(cell routers, int domain) impure inline {
         int recipient_addr = payload~load_uint(256);
         cell message = payload~load_ref();
         cell hook_metadata = payload~load_ref();
-
-        cell dispatch_body = serialize_dispatch(g::query_id, destination, recipient_addr, message, hook_metadata);
-        
-        builder msg = build_message(
-            g::mailbox_addr,
-            0,
-            true,
-            null(),
-            dispatch_body
-        );
-
-        send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
+        cell hook_addr = null();
+        op_handler::transfer_remote(destination, recipient_addr, amount, hook_metadata, hook_addr);
         return ();
     }
 
     if (op == op::internal_transfer) {
+        equal_slices(
+            calculate_user_jetton_wallet_address(my_address(), g::jetton_addr, g::jetton_wallet_code), 
+            g::msg_sender
+        );
+        int amount = in_msg_body~load_coins();
+        slice from_address = in_msg_body~load_msg_addr();
+        slice payload = in_msg_body~load_ref_slice();
 
+        int destination = payload~load_uint(32);
+        int recipient_addr = payload~load_uint(256);
+        cell hook_metadata = payload~load_maybe_ref();
+        cell hook_addr = payload~load_maybe_ref();
+        op_handler::transfer_remote(destination, recipient_addr, amount, hook_metadata, hook_addr);
+        return ();
     }
 
     if (op == op::handle) {

@@ -1,0 +1,38 @@
+
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/metadata.fc";
+#include "imports/dispatch.fc";
+#include "router_state.fc";
+
+int routers::must_get(cell routers, int domain) impure inline {
+    (slice value, int found?) = routers.udict_get?(32, domain);
+    throw_unless(err::router_not_found, found?);
+    return value~load_uint(256);
+}
+
+() op_handler::transfer_remote(
+    int destination,
+    int jetton_recipient,
+    int native_amount,
+    cell hook_metadata,
+    cell hook_addr
+) impure inline_ref {
+    if (null?(hook_metadata)) {
+        hook_metadata = standard_metadata::new(destination, g::msg_sender).end_cell();
+    }
+    cell token_message = token_message::new(jetton_recipient, native_amount);
+    int router_addr = g::routers.routers::must_get(destination);
+    cell dispatch_body = serialize_dispatch(
+        g::query_id, destination, router_addr, token_message, hook_metadata);
+
+    builder msg = build_message(
+        g::mailbox_addr,
+        0,
+        true,
+        null(),
+        dispatch_body
+    );
+    raw_reserve(storagefee() + native_amount, reserve_mode::balance_plus_this_amount);
+    send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
+}

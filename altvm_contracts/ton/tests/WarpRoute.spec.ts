@@ -433,7 +433,7 @@ describe('TokenCollateral', () => {
       queryId: 0,
       jettonAmount: jettonAmount,
       responseAddress: deployer.address,
-      destDomain: 0n,
+      destDomain: destinationChain,
       recipientAddr: tokenCollateral.address.hash,
       message: beginCell()
         .storeBuffer(recipient.address.hash)
