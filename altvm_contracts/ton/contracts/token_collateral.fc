@@ -5,6 +5,7 @@
 #include "imports/send_mode.fc";
 #include "imports/ton_msg.fc";
 #include "imports/events.fc";
+#include "imports/metadata.fc";
 #include "./dispatch.fc";
 
 const int ONE_TON = 1000000000;
@@ -26,6 +27,7 @@ global int g::query_id;
         .store_slice(g::ism_addr)
         .store_slice(g::jetton_addr)
         .store_slice(g::mailbox_addr)
+        .store_dict(g::routers)
         .end_cell();
     set_data(data);
 }
@@ -35,28 +37,12 @@ global int g::query_id;
     g::ism_addr = ds~load_msg_addr();
     g::jetton_addr = ds~load_msg_addr();
     g::mailbox_addr = ds~load_msg_addr();
-}
-
-cell standard_metadata::new(int destination) inline {
-    (_, int refund_addr) = g::msg_sender.parse_std_addr();
-    return begin_cell()
-        .store_uint(1, 16)  ;; variant
-        .store_uint(0, 256) ;;  value
-        .store_uint(0, 256) ;; gas limit
-        .store_uint(refund_addr, 256)
-        .end_cell();
-}
-
-cell token_message::new(int recipient, int amount) inline {
-    return begin_cell()
-        .store_uint(recipient, 256)
-        .store_uint(amount, 256)
-        .end_cell();
+    g::routers = ds~load_dict();
 }
 
 int routers::must_get(cell routers, int domain) impure inline {
     (slice value, int found?) = routers.udict_get?(32, domain);
-    throw_unless(111, found?);
+    throw_unless(err::router_not_found, found?);
     return value~load_uint(256);
 }
 
@@ -68,7 +54,7 @@ int routers::must_get(cell routers, int domain) impure inline {
     cell hook_addr
 ) impure inline_ref {
     if (null?(hook_metadata)) {
-        hook_metadata = standard_metadata::new(destination);
+        hook_metadata = standard_metadata::new(destination, g::msg_sender).end_cell();
     }
     cell token_message = token_message::new(jetton_recipient, native_amount);
     int recipient_addr = g::routers.routers::must_get(destination);
@@ -177,7 +163,7 @@ int routers::must_get(cell routers, int domain) impure inline {
         int sender = in_msg_body~load_uint(256);
         slice message_body = in_msg_body~load_ref().begin_parse();
         slice recipient_addr = build_addr(0, message_body~load_uint(256));
-        int amount = message_body~load_uint(128);
+        int amount = message_body~load_uint(256);
 
         cell wallet_body = begin_cell()
             .store_uint(op::internal_transfer, 32)

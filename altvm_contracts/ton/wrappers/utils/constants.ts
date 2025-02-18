@@ -1,3 +1,7 @@
+export const METADATA_VARIANT = {
+  STANDARD: 1,
+};
+
 export const OpCodes = {
   DISPATCH: 0xf8cf866b,
   DISPATCH_INIT: 0xd1ee78b4,

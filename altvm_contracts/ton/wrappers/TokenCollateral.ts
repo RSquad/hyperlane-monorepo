@@ -3,6 +3,7 @@ import {
   Cell,
   Contract,
   ContractProvider,
+  Dictionary,
   SendMode,
   Sender,
   beginCell,
@@ -17,6 +18,8 @@ export type TokenCollateralConfig = {
   ismAddress?: Address;
   jettonAddress: Address;
   mailboxAddress: Address;
+  // domain -> router address (h256)
+  routers: Dictionary<number, Buffer>;
 };
 
 export function tokenCollateralConfigToCell(
@@ -28,6 +31,7 @@ export function tokenCollateralConfigToCell(
     .storeBuilder(config.ismAddress ? addrStd : addrNone)
     .storeAddress(config.jettonAddress)
     .storeAddress(config.mailboxAddress)
+    .storeDict(config.routers)
     .endCell();
 }
 
@@ -91,7 +95,7 @@ export class TokenCollateral implements Contract {
     },
   ) {
     await provider.internal(via, {
-      value: value + opts.amount,
+      value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
         .storeUint(OpCodes.TRANSFER_REMOTE, 32)

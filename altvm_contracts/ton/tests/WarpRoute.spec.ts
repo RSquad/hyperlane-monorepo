@@ -1,5 +1,11 @@
 import { compile } from '@ton/blueprint';
-import { Cell, Dictionary, beginCell, toNano } from '@ton/core';
+import {
+  Cell,
+  Dictionary,
+  TransactionDescriptionGeneric,
+  beginCell,
+  toNano,
+} from '@ton/core';
 import {
   Blockchain,
   SandboxContract,
@@ -7,6 +13,7 @@ import {
   TreasuryContract,
 } from '@ton/sandbox';
 import '@ton/test-utils';
+import { FlatTransactionComparable } from '@ton/test-utils';
 
 import { InterchainGasPaymaster } from '../wrappers/InterchainGasPaymaster';
 import {
@@ -19,7 +26,16 @@ import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
 import { TokenCollateral } from '../wrappers/TokenCollateral';
-import { OpCodes, ProcessOpCodes } from '../wrappers/utils/constants';
+import {
+  buildHookMetadataCell,
+  buildMessageCell,
+  buildMetadataCell,
+} from '../wrappers/utils/builders';
+import {
+  METADATA_VARIANT,
+  OpCodes,
+  ProcessOpCodes,
+} from '../wrappers/utils/constants';
 import {
   TMailboxContractConfig,
   TMultisigMetadata,
@@ -42,7 +58,7 @@ const buildTokenMessage = (
     sender: sender,
     destinationDomain,
     recipient: collateralAddr,
-    body: beginCell().storeBuffer(recipient).storeUint(amount, 128).endCell(),
+    body: beginCell().storeBuffer(recipient).storeUint(amount, 256).endCell(),
   };
 };
 
@@ -56,6 +72,7 @@ describe('TokenCollateral', () => {
   let minterCode: Cell;
   let walletCode: Cell;
   const burnAmount = 1000n;
+  const destinationChain = 1234;
 
   beforeAll(async () => {
     code = await compile('TokenCollateral');
@@ -78,6 +95,7 @@ describe('TokenCollateral', () => {
   let initialRequiredHook: SandboxContract<InterchainGasPaymaster>;
   let initialDefaultHook: SandboxContract<MerkleHookMock>;
   let initialDefaultIsm: SandboxContract<MockIsm>;
+  let routers: Dictionary<number, Buffer>;
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
@@ -172,11 +190,18 @@ describe('TokenCollateral', () => {
       ),
     );
 
+    routers = Dictionary.empty(
+      Dictionary.Keys.Uint(32),
+      Dictionary.Values.Buffer(32),
+    );
+    const routerMock = blockchain.treasury('routerMock');
+    routers.set(destinationChain, (await routerMock).address.hash);
     tokenCollateral = blockchain.openContract(
       TokenCollateral.createFromConfig(
         {
           mailboxAddress: mailbox.address,
           jettonAddress: jettonMinter.address,
+          routers,
         },
         code,
       ),
@@ -281,6 +306,22 @@ describe('TokenCollateral', () => {
 
     //await blockchain.setVerbosityForAddress(mailbox.address,'vm_logs_full');
   });
+
+  const expectTransactionFlow = (
+    result: SendMessageResult,
+    transactions: FlatTransactionComparable[],
+  ) => {
+    transactions.forEach((ex, i) => {
+      try {
+        expect([result.transactions[i + 1]]).toHaveTransaction({
+          ...ex,
+        });
+      } catch (err) {
+        console.log('Failed exp:', i);
+        throw err;
+      }
+    });
+  };
 
   const expectWarpRouteSucceeded = (res: SendMessageResult) => {
     const expectedTransactions = [
@@ -399,7 +440,7 @@ describe('TokenCollateral', () => {
         .storeUint(jettonAmount, 256)
         .endCell(),
       hookMetadata: {
-        variant: 0,
+        variant: METADATA_VARIANT.STANDARD,
         msgValue: toNano('1'),
         gasLimit: 100000000n,
         refundAddress: deployer.address,
@@ -450,15 +491,73 @@ describe('TokenCollateral', () => {
   });
 
   it('Warp route native', async () => {
-    const amount = toNano(1);
+    const amount = toNano(2);
+    const executionFee = toNano(1);
+
     const res = await tokenCollateral.sendTransferRemote(
       deployer.getSender(),
-      amount + toNano(0.1),
+      amount + executionFee,
       {
-        destination: 1,
+        destination: destinationChain,
         recipient: deployer.address.hash,
         amount,
       },
     );
+
+    const tx = res.transactions.find(
+      (tx) =>
+        tx.address.toString(16) ===
+        tokenCollateral.address.hash.toString('hex'),
+    );
+    expect(tx).toBeDefined();
+    const descr = tx!.description as TransactionDescriptionGeneric;
+    const fwdFees = descr.actionPhase!.totalFwdFees!;
+    const actionFees = descr.actionPhase!.totalActionFees!;
+    expectTransactionFlow(res, [
+      {
+        from: deployer.address,
+        to: tokenCollateral.address,
+        success: true,
+        op: OpCodes.TRANSFER_REMOTE,
+        value: amount + executionFee,
+        body: beginCell()
+          .storeUint(OpCodes.TRANSFER_REMOTE, 32)
+          .storeUint(0, 64)
+          .storeUint(destinationChain, 32)
+          .storeBuffer(deployer.address.hash, 32)
+          .storeUint(amount, 256)
+          .storeMaybeRef(null)
+          .storeMaybeRef(null)
+          .endCell(),
+      },
+      {
+        from: tokenCollateral.address,
+        to: mailbox.address,
+        success: true,
+        op: OpCodes.DISPATCH,
+        value: executionFee - tx!.totalFees.coins - fwdFees + actionFees,
+        body: beginCell()
+          .storeUint(OpCodes.DISPATCH, 32)
+          .storeUint(0, 64)
+          .storeUint(OpCodes.DISPATCH_INIT, 32)
+          .storeUint(destinationChain, 32)
+          .storeBuffer(routers.get(destinationChain)!, 32)
+          .storeRef(
+            beginCell()
+              .storeBuffer(deployer.address.hash)
+              .storeUint(amount, 256)
+              .endCell(),
+          )
+          .storeRef(
+            buildHookMetadataCell({
+              variant: METADATA_VARIANT.STANDARD,
+              msgValue: 0n,
+              gasLimit: 0n,
+              refundAddress: deployer.address,
+            }),
+          )
+          .endCell(),
+      },
+    ]);
   });
 });

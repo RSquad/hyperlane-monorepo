@@ -25,7 +25,7 @@ export const buildHookMetadataCell = (metadata: THookMetadata) => {
     .storeUint(metadata.variant, 16)
     .storeUint(metadata.msgValue, 256)
     .storeUint(metadata.gasLimit, 256)
-    .storeAddress(metadata.refundAddress)
+    .storeBuffer(metadata.refundAddress.hash, 32)
     .endCell();
 };
 
