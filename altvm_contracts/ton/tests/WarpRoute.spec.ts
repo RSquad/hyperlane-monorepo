@@ -25,7 +25,7 @@ import { Mailbox } from '../wrappers/Mailbox';
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
-import { TokenCollateral } from '../wrappers/TokenCollateral';
+import { TokenRouter } from '../wrappers/TokenRouter';
 import {
   buildHookMetadataCell,
   buildMessageCell,
@@ -62,7 +62,7 @@ const buildTokenMessage = (
   };
 };
 
-describe('TokenCollateral', () => {
+describe('TokenRouter', () => {
   let code: Cell;
   let mailboxCode: Cell;
   let requiredHookCode: Cell;
@@ -75,7 +75,7 @@ describe('TokenCollateral', () => {
   const destinationChain = 1234;
 
   beforeAll(async () => {
-    code = await compile('TokenCollateral');
+    code = await compile('HypJetton');
     mailboxCode = await compile('Mailbox');
     requiredHookCode = await compile('InterchainGasPaymaster');
     defaultHookCode = await compile('MerkleHookMock');
@@ -87,7 +87,7 @@ describe('TokenCollateral', () => {
 
   let blockchain: Blockchain;
   let deployer: SandboxContract<TreasuryContract>;
-  let tokenCollateral: SandboxContract<TokenCollateral>;
+  let tokenRouter: SandboxContract<TokenRouter>;
   let mailbox: SandboxContract<Mailbox>;
   let recipient: SandboxContract<RecipientMock>;
   let jettonMinter: SandboxContract<JettonMinterContract>;
@@ -196,9 +196,10 @@ describe('TokenCollateral', () => {
     );
     const routerMock = blockchain.treasury('routerMock');
     routers.set(destinationChain, (await routerMock).address.hash);
-    tokenCollateral = blockchain.openContract(
-      TokenCollateral.createFromConfig(
+    tokenRouter = blockchain.openContract(
+      TokenRouter.createFromConfig(
         {
+          ownerAddress: deployer.address,
           mailboxAddress: mailbox.address,
           jettonAddress: jettonMinter.address,
           routers,
@@ -263,14 +264,14 @@ describe('TokenCollateral', () => {
       success: true,
     });
 
-    const deployResult = await tokenCollateral.sendDeploy(
+    const deployResult = await tokenRouter.sendDeploy(
       deployer.getSender(),
       toNano('0.05'),
     );
 
     expect(deployResult.transactions).toHaveTransaction({
       from: deployer.address,
-      to: tokenCollateral.address,
+      to: tokenRouter.address,
       deploy: true,
       success: true,
     });
@@ -297,11 +298,11 @@ describe('TokenCollateral', () => {
 
     await jettonMinter.sendUpdateAdmin(deployer.getSender(), {
       value: toNano(0.1),
-      newAdminAddress: tokenCollateral.address,
+      newAdminAddress: tokenRouter.address,
     });
 
     expect((await jettonMinter.getAdmin())?.toString()).toStrictEqual(
-      tokenCollateral.address.toString(),
+      tokenRouter.address.toString(),
     );
 
     //await blockchain.setVerbosityForAddress(mailbox.address,'vm_logs_full');
@@ -333,12 +334,12 @@ describe('TokenCollateral', () => {
       },
       {
         from: mailbox.address,
-        to: tokenCollateral.address,
+        to: tokenRouter.address,
         success: true,
         op: OpCodes.GET_ISM,
       },
       {
-        from: tokenCollateral.address,
+        from: tokenRouter.address,
         to: mailbox.address,
         success: true,
         op: OpCodes.PROCESS,
@@ -369,12 +370,12 @@ describe('TokenCollateral', () => {
       },
       {
         from: mailbox.address,
-        to: tokenCollateral.address,
+        to: tokenRouter.address,
         success: true,
         op: OpCodes.HANDLE,
       },
       {
-        from: tokenCollateral.address,
+        from: tokenRouter.address,
         to: jettonMinter.address,
         success: true,
         op: OpCodes.JETTON_MINT,
@@ -403,7 +404,7 @@ describe('TokenCollateral', () => {
     const { amount: balanceBefore } = await jettonWallet.getBalance();
     const mintedAmount = 1000n;
     const hyperlaneMessage = buildTokenMessage(
-      tokenCollateral.address.hash,
+      tokenRouter.address.hash,
       deployer.address.hash,
       mintedAmount,
       Buffer.alloc(32),
@@ -434,7 +435,7 @@ describe('TokenCollateral', () => {
       jettonAmount: jettonAmount,
       responseAddress: deployer.address,
       destDomain: destinationChain,
-      recipientAddr: tokenCollateral.address.hash,
+      recipientAddr: tokenRouter.address.hash,
       message: beginCell()
         .storeBuffer(recipient.address.hash)
         .storeUint(jettonAmount, 256)
@@ -463,13 +464,13 @@ describe('TokenCollateral', () => {
 
     expect(burnRes.transactions).toHaveTransaction({
       from: jettonMinter.address,
-      to: tokenCollateral.address,
+      to: tokenRouter.address,
       success: true,
       op: OpCodes.JETTON_BURN_NOTIFICATION,
     });
 
     expect(burnRes.transactions).toHaveTransaction({
-      from: tokenCollateral.address,
+      from: tokenRouter.address,
       to: mailbox.address,
       success: true,
       op: OpCodes.DISPATCH,
@@ -494,7 +495,7 @@ describe('TokenCollateral', () => {
     const amount = toNano(2);
     const executionFee = toNano(1);
 
-    const res = await tokenCollateral.sendTransferRemote(
+    const res = await tokenRouter.sendTransferRemote(
       deployer.getSender(),
       amount + executionFee,
       {
@@ -506,8 +507,7 @@ describe('TokenCollateral', () => {
 
     const tx = res.transactions.find(
       (tx) =>
-        tx.address.toString(16) ===
-        tokenCollateral.address.hash.toString('hex'),
+        tx.address.toString(16) === tokenRouter.address.hash.toString('hex'),
     );
     expect(tx).toBeDefined();
     const descr = tx!.description as TransactionDescriptionGeneric;
@@ -516,7 +516,7 @@ describe('TokenCollateral', () => {
     expectTransactionFlow(res, [
       {
         from: deployer.address,
-        to: tokenCollateral.address,
+        to: tokenRouter.address,
         success: true,
         op: OpCodes.TRANSFER_REMOTE,
         value: amount + executionFee,
@@ -531,7 +531,7 @@ describe('TokenCollateral', () => {
           .endCell(),
       },
       {
-        from: tokenCollateral.address,
+        from: tokenRouter.address,
         to: mailbox.address,
         success: true,
         op: OpCodes.DISPATCH,

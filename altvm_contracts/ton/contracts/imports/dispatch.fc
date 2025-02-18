@@ -1,5 +1,5 @@
 
-cell serialize_dispatch(
+cell serialize_dispatch_body(
     int query_id,
     int destination,
     int recipient,

@@ -14,17 +14,17 @@ import { buildHookMetadataCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
 import { THookMetadata } from './utils/types';
 
-export type TokenCollateralConfig = {
+export type TokenRouterConfig = {
   ismAddress?: Address;
   jettonAddress: Address;
   mailboxAddress: Address;
   // domain -> router address (h256)
   routers: Dictionary<number, Buffer>;
+  ownerAddress: Address;
+  jettonWalletCode?: Cell;
 };
 
-export function tokenCollateralConfigToCell(
-  config: TokenCollateralConfig,
-): Cell {
+export function tokenRouterConfigToCell(config: TokenRouterConfig): Cell {
   const addrNone = beginCell().storeUint(0, 2);
   const addrStd = beginCell().storeAddress(config.ismAddress);
   return beginCell()
@@ -32,27 +32,29 @@ export function tokenCollateralConfigToCell(
     .storeAddress(config.jettonAddress)
     .storeAddress(config.mailboxAddress)
     .storeDict(config.routers)
+    .storeMaybeRef(config.jettonWalletCode)
+    .storeRef(beginCell().storeAddress(config.ownerAddress).endCell())
     .endCell();
 }
 
-export class TokenCollateral implements Contract {
+export class TokenRouter implements Contract {
   constructor(
     readonly address: Address,
     readonly init?: { code: Cell; data: Cell },
   ) {}
 
   static createFromAddress(address: Address) {
-    return new TokenCollateral(address);
+    return new TokenRouter(address);
   }
 
   static createFromConfig(
-    config: TokenCollateralConfig,
+    config: TokenRouterConfig,
     code: Cell,
     workchain = 0,
   ) {
-    const data = tokenCollateralConfigToCell(config);
+    const data = tokenRouterConfigToCell(config);
     const init = { code, data };
-    return new TokenCollateral(contractAddress(workchain, init), init);
+    return new TokenRouter(contractAddress(workchain, init), init);
   }
 
   async sendDeploy(provider: ContractProvider, via: Sender, value: bigint) {
@@ -63,12 +65,31 @@ export class TokenCollateral implements Contract {
     });
   }
 
+  async sendGetIsm(
+    provider: ContractProvider,
+    via: Sender,
+    value: bigint,
+    queryId: bigint,
+  ) {
+    await provider.internal(via, {
+      value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(OpCodes.GET_ISM, 32)
+        .storeUint(queryId ?? 0, 64)
+        .endCell(),
+    });
+  }
+
   async sendHandle(
     provider: ContractProvider,
     via: Sender,
     value: bigint,
     opts: {
       queryId: bigint;
+      origin: number;
+      sender: Buffer; // h256
+      messageBody: Cell;
     },
   ) {
     await provider.internal(via, {
@@ -77,7 +98,9 @@ export class TokenCollateral implements Contract {
       body: beginCell()
         .storeUint(OpCodes.HANDLE, 32)
         .storeUint(opts.queryId ?? 0, 64)
-
+        .storeUint(opts.origin, 32)
+        .storeBuffer(opts.sender, 32)
+        .storeRef(opts.messageBody)
         .endCell(),
     });
   }
