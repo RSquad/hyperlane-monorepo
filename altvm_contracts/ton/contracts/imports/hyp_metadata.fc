@@ -1,9 +1,0 @@
-int metadata::refund_addr(slice metadata) inline {
-  metadata~skip_bits(16 + 256 + 256);
-  return metadata~load_uint(256);
-}
-
-int metadata::unpack::gas_limit(slice metadata) inline {
-    metadata~skip_bits(16 + 256);
-    return metadata~load_uint(256);
-}

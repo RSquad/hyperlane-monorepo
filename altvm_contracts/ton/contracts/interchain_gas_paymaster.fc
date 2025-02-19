@@ -6,7 +6,7 @@
 #include "imports/events.fc";
 #include "imports/reserve_mode.fc";
 #include "imports/signing_utils.fc";
-#include "imports/hyp_metadata.fc";
+#include "imports/metadata.fc";
 #include "imports/hyp_message.fc";
 
 global slice g::owner;

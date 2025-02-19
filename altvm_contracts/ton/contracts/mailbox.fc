@@ -5,7 +5,7 @@
 #include "imports/events.fc";
 #include "imports/signing_utils.fc";
 #include "imports/hyp_message.fc";
-#include "imports/hyp_metadata.fc";
+#include "imports/metadata.fc";
 
 global int g::version;
 global int g::local_domain;
