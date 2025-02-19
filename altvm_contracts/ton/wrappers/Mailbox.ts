@@ -113,9 +113,8 @@ export class Mailbox implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.DISPATCH, 32)
-        .storeUint(opts.queryId ?? 0, 64)
         .storeUint(OpCodes.DISPATCH_INIT, 32)
+        .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.destDomain, 32)
         .storeBuffer(opts.recipientAddr)
         .storeRef(opts.message)
@@ -138,9 +137,8 @@ export class Mailbox implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.PROCESS, 32)
-        .storeUint(opts.queryId ?? 0, 64)
         .storeUint(OpCodes.PROCESS_INIT, 32)
+        .storeUint(opts.queryId ?? 0, 64)
         .storeRef(buildMessageCell(opts.message))
         .storeMaybeRef(buildMetadataCell(opts.metadata))
         .endCell(),
@@ -162,7 +160,7 @@ export class Mailbox implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.PROCESS, 32)
+        .storeUint(OpCodes.PROCESS_INIT, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.subOp, 32)
         .storeBit(false)

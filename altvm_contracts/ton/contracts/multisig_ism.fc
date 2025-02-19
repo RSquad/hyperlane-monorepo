@@ -88,7 +88,7 @@ int digest(
         return store_globals();
     }
 
-    if (op == op::verify) {
+    if (op == op::ism::verify) {
         slice body = in_msg_body;
         cell message = in_msg_body~load_ref();
         cell metadata = in_msg_body~load_ref();

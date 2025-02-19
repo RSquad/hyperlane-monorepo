@@ -10,12 +10,14 @@ const int TREE_DEPTH = 32;
 const int MAX_LEAVES = 4294967295;
 
 global int g::count;
+global slice g::mailbox_addr;
 global cell g::tree;
 
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
         .store_uint(g::count, 256)
+        .store_slice(g::mailbox_addr)
         .store_dict(g::tree)
         .end_cell();
     set_data(data);
@@ -24,6 +26,7 @@ global cell g::tree;
 () load_globals() impure inline_ref {
     slice ds = get_data().begin_parse();
     g::count = ds~load_uint(256);
+    g::mailbox_addr = ds~load_msg_addr();
     g::tree = ds~load_dict();
 }
 
@@ -75,6 +78,28 @@ int root_w_ctx(cell zeroes) impure inline {
     return current;
 }
 
+() post_dispatch(slice s, int op, int query_id, int value, slice dest) impure inline {
+    slice body = s;
+    slice hyp_message = s~load_ref_slice();
+
+    insert_into_tree(message_id(hyp_message));
+
+    builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
+    send_event(
+        event::inserted_into_tree,
+        data
+    );
+
+    send_answer(
+        op,
+        query_id,
+        value,
+        0,
+        dest,
+        body
+    );
+}
+
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
         return ();
@@ -91,17 +116,25 @@ int root_w_ctx(cell zeroes) impure inline {
 
     load_globals();
 
-    if(op == op::post_dispatch) {
-        int message_id = in_msg_body~load_uint(256);
-
-        insert_into_tree(message_id);
-
-        builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
-        send_event(
-            event::inserted_into_tree,
-            data
+    if (op == op::hook::post_dispatch::required) {
+        post_dispatch(
+            in_msg_body,
+            op,
+            query_id,
+            msg_value,
+            msg_sender
         );
+        return store_globals();
+    }
 
+    if (op == op::hook::post_dispatch::default) {
+        post_dispatch(
+            in_msg_body,
+            op,
+            query_id,
+            msg_value,
+            msg_sender
+        );
         return store_globals();
     }
 

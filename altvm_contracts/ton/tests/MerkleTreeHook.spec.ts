@@ -76,7 +76,7 @@ describe('MerkleTreeHook', () => {
       expect(res.transactions).toHaveTransaction({
         from: deployer.address,
         to: merkleTreeHook.address,
-        op: OpCodes.POST_DISPATCH,
+        op: OpCodes.POST_DISPATCH_REQUIRED,
         success: true,
       });
       expect(res.externals).toHaveLength(1);
@@ -155,7 +155,7 @@ describe('MerkleTreeHook', () => {
       expect(res.transactions).toHaveTransaction({
         from: deployer.address,
         to: merkleTreeHook.address,
-        op: OpCodes.POST_DISPATCH,
+        op: OpCodes.POST_DISPATCH_REQUIRED,
         success: true,
       });
       expect(res.externals).toHaveLength(1);

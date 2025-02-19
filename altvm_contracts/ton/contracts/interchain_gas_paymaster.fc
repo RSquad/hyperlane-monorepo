@@ -85,6 +85,29 @@ int pay_for_gas(
     return required_payment;
 }
 
+() post_dispatch(slice s, int op, int query_id, int value, slice dest) inline {
+    slice body = s;
+    slice hyp_message = s~load_ref_slice();
+    cell hook_metadata = s~load_maybe_ref();
+    int message_id = message_id(hyp_message);
+    int dest_domain = message::unpack::dest_domain(hyp_message);
+
+    int gas_limit = get_gas_limit(hook_metadata);
+    int required_payment = pay_for_gas(
+        message_id,
+        dest_domain,
+        gas_limit
+    );
+    send_answer(
+        op,
+        query_id,
+        value,
+        required_payment,
+        dest,
+        body
+    );
+}
+
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
         return ();
@@ -103,35 +126,25 @@ int pay_for_gas(
 
     load_globals();
 
-    if (op == op::post_dispatch) {
-        slice hyp_message = in_msg_body~load_ref_slice();
-        cell hook_metadata = in_msg_body~load_maybe_ref();
-        int message_id = message_id(hyp_message);
-        int dest_domain = message::unpack::dest_domain(hyp_message);
-
-        int gas_limit = get_gas_limit(hook_metadata);
-        int required_payment = pay_for_gas(
-            message_id,
-            dest_domain,
-            gas_limit
+    if (op == op::hook::post_dispatch::required) {
+        post_dispatch(
+            in_msg_body,
+            op,
+            query_id,
+            msg_value,
+            msg_sender
         );
-        reserve_original_balance(msg_value, required_payment);
-        cell body = begin_cell()
-            .store_uint(op::dispatch, 32)
-            .store_uint(query_id, 64)
-            .store_uint(op::dispatch::default_hook, 32)
-            .store_slice(body)
-            .end_cell();
-        
-        builder default_hook_msg = build_message(
-            msg_sender,
-            0,
-            true,
-            null(),
-            body
-        );
+        return ();
+    }
 
-        send_raw_message(default_hook_msg.end_cell(), send_mode::carry_remaining_balance);
+    if (op == op::hook::post_dispatch::default) {
+        post_dispatch(
+            in_msg_body,
+            op,
+            query_id,
+            msg_value,
+            msg_sender
+        );
         return ();
     }
 

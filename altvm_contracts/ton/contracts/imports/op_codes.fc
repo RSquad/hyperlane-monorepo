@@ -1,20 +1,18 @@
 ;; mailbox
-const int op::dispatch = "op::dispatch"c;
-const int op::dispatch::init = "op::dispatch::init"c;
-const int op::dispatch::default_hook = "op::dispatch::default_hook"c;
-const int op::dispatch::send_change = "op::dispatch::send_change"c;
-const int op::process = "op::process"c;
-const int op::process::init = "op::process::init"c;
-const int op::process::verify = "op::process::verify"c;
+const int ANSWER_BIT = 0x80000000;
+const int op::mailbox::dispatch::init = "op::mailbox::dispatch::init"c;
+const int op::mailbox::process::init = "op::mailbox::process::init"c;
+const int op::mailbox::process::verify = "op::mailbox::process::verify"c;
+const int op::mailbox::process::verify::answer = op::mailbox::process::verify | ANSWER_BIT;
 const int op::set_default_ism = "op::set_default_ism"c;
 const int op::set_required_hook = "op::set_required_hook"c;
 const int op::set_default_hook = "op::set_default_hook"c;
-const int op::process::deliver_message = "op::process::deliver_message"c;
 const int op::set_authorized_hook = "op::set_authorized_hook"c;
 
 ;; recipient
 const int op::handle = "op::handle"c;
-const int op::get_ism = "op::get_ism"c;
+const int op::recipient::get_ism = "op::recipient::get_ism"c;
+const int op::recipient::get_ism::answer = op::recipient::get_ism | ANSWER_BIT;
 const int op::set_ism = "op::set_ism"c;
 const int op::remove_ism = "op::remove_ism"c;
 
@@ -22,12 +20,18 @@ const int op::remove_ism = "op::remove_ism"c;
 const int op::announce = "op::announce"c;
 
 ;; multisig ism
-const int op::verify = "op::verify"c;
+const int op::ism::verify = "op::ism::verify"c;
+const int op::ism::verify::answer = op::ism::verify | ANSWER_BIT;
 const int op::set_validators_and_threshold = "op::set_validators_and_threshold"c;
 
 ;; common opcodes
 const int op::quote_dispatch = "op::quote_dispatch"c;
-const int op::post_dispatch = "op::post_dispatch"c;
+const int op::hook::post_dispatch::default = "op::hook::post_dispatch::default"c;
+const int op::hook::post_dispatch::default::answer = 
+    op::hook::post_dispatch::default | ANSWER_BIT;
+const int op::hook::post_dispatch::required = "op::hook::post_dispatch::required"c;
+const int op::hook::post_dispatch::required::answer = 
+    op::hook::post_dispatch::required | ANSWER_BIT;
 const int op::set_beneficiary = "op::set_beneficiary"c;
 const int op::transfer_remote = "op::transfer_remote"c;
 const int op::transfer_ownership = "op::transfer_ownership"c;

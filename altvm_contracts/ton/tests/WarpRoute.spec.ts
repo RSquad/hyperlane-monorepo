@@ -314,7 +314,7 @@ describe('TokenRouter', () => {
         from: deployer.address,
         to: mailbox.address,
         success: true,
-        op: OpCodes.PROCESS,
+        op: OpCodes.PROCESS_INIT,
       },
       {
         from: mailbox.address,
@@ -326,7 +326,7 @@ describe('TokenRouter', () => {
         from: tokenRouter.address,
         to: mailbox.address,
         success: true,
-        op: OpCodes.PROCESS,
+        op: OpCodes.PROCESS_INIT,
         body: (x: Cell | undefined): boolean => {
           if (!x) return false;
           const s = x!.beginParse();
@@ -344,7 +344,7 @@ describe('TokenRouter', () => {
         from: initialDefaultIsm.address,
         to: mailbox.address,
         success: true,
-        op: OpCodes.PROCESS,
+        op: OpCodes.PROCESS_INIT,
         body: (x: Cell | undefined): boolean => {
           if (!x) return false;
           const s = x!.beginParse();
@@ -419,13 +419,13 @@ describe('TokenRouter', () => {
         from: tokenRouter.address,
         to: mailbox.address,
         success: true,
-        op: OpCodes.DISPATCH,
+        op: OpCodes.DISPATCH_INIT,
       },
       {
         from: mailbox.address,
         to: initialRequiredHook.address,
         success: true,
-        op: OpCodes.POST_DISPATCH,
+        op: OpCodes.POST_DISPATCH_REQUIRED,
       },
     ]);
   });
@@ -473,10 +473,10 @@ describe('TokenRouter', () => {
         from: tokenRouter.address,
         to: mailbox.address,
         success: true,
-        op: OpCodes.DISPATCH,
+        op: OpCodes.DISPATCH_INIT,
         value: executionFee - tx!.totalFees.coins - fwdFees + actionFees,
         body: beginCell()
-          .storeUint(OpCodes.DISPATCH, 32)
+          .storeUint(OpCodes.DISPATCH_INIT, 32)
           .storeUint(0, 64)
           .storeUint(OpCodes.DISPATCH_INIT, 32)
           .storeUint(destinationChain, 32)

@@ -104,7 +104,7 @@ export class InterchainGasPaymaster implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.POST_DISPATCH, 32)
+        .storeUint(OpCodes.POST_DISPATCH_REQUIRED, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeRef(buildMessageCell(opts.message))
         .storeMaybeRef(buildHookMetadataCell(opts.hookMetadata))

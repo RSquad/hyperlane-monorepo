@@ -16,7 +16,12 @@ import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
 import { buildMessage } from '../wrappers/utils/builders';
-import { Errors, OpCodes, ProcessOpCodes } from '../wrappers/utils/constants';
+import {
+  ANSWER_BIT,
+  Errors,
+  OpCodes,
+  ProcessOpCodes,
+} from '../wrappers/utils/constants';
 import {
   THookMetadata,
   TMailboxContractConfig,
@@ -244,27 +249,27 @@ describe('Mailbox', () => {
       from: mailbox.address,
       to: initialRequiredHook.address,
       success: true,
-      op: OpCodes.POST_DISPATCH,
+      op: OpCodes.POST_DISPATCH_REQUIRED,
     });
 
     expect(res.transactions).toHaveTransaction({
       from: initialRequiredHook.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.DISPATCH,
+      op: (OpCodes.POST_DISPATCH_REQUIRED | ANSWER_BIT) >>> 0,
     });
 
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
       to: initialDefaultHook.address,
       success: true,
-      op: OpCodes.POST_DISPATCH,
+      op: OpCodes.POST_DISPATCH_DEFAULT,
     });
 
     expect(res.transactions).toHaveTransaction({
       from: initialDefaultHook.address,
       to: mailbox.address,
-      op: OpCodes.DISPATCH,
+      op: (OpCodes.POST_DISPATCH_DEFAULT | ANSWER_BIT) >>> 0,
       success: true,
     });
 
@@ -315,7 +320,7 @@ describe('Mailbox', () => {
       from: recipient.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.PROCESS,
+      op: OpCodes.PROCESS_INIT,
     });
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
@@ -327,7 +332,7 @@ describe('Mailbox', () => {
       from: initialDefaultIsm.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.PROCESS,
+      op: OpCodes.PROCESS_INIT,
     });
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
