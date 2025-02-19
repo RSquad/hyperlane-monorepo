@@ -11,15 +11,17 @@
         );
         (int amount, slice recipient_addr) = handle_params::unpack_checked(in_msg_body);
 
-        builder simple_msg = build_message(
+        builder simple_msg_b = build_message(
             recipient_addr,
             amount,
             false,
             null(),
             null()
         );
+        ;; set Either 0 for body
+        cell msg = simple_msg_b.store_uint(0, 1).end_cell();
 
-        send_raw_message(simple_msg.end_cell(), send_mode::pay_transfer_fees_separately);
+        send_raw_message(msg, send_mode::pay_transfer_fees_separately);
         throw(0);
     }
 }

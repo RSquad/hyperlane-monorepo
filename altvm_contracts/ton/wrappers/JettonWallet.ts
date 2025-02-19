@@ -50,7 +50,7 @@ export class JettonWalletContract implements Contract {
     destDomain: number;
     recipientAddr: Buffer;
     message: Cell;
-    hookMetadata: THookMetadata;
+    hookMetadata: Cell;
   }): Cell {
     const queryId = Math.floor(Math.random() * (Math.pow(2, 64) - 1));
     const body = beginCell()
@@ -63,7 +63,7 @@ export class JettonWalletContract implements Contract {
           .storeUint(params.destDomain, 32)
           .storeBuffer(params.recipientAddr)
           .storeRef(params.message)
-          .storeRef(buildHookMetadataCell(params.hookMetadata))
+          .storeRef(params.hookMetadata)
           .endCell(),
       );
     return body.endCell();
@@ -114,7 +114,7 @@ export class JettonWalletContract implements Contract {
       responseAddress: Address;
       destDomain: number;
       message: Cell;
-      hookMetadata: THookMetadata;
+      hookMetadata: Cell;
       recipientAddr: Buffer;
     },
   ) {

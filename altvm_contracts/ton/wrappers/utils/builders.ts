@@ -92,7 +92,7 @@ export const buildTokenMessage = (
   tokenAmount: bigint,
 ) => {
   return beginCell()
-    .storeBuffer(tokenRecipient)
+    .storeBuffer(tokenRecipient, 32)
     .storeUint(tokenAmount, 256)
     .endCell();
 };
