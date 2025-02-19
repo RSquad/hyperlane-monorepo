@@ -33,7 +33,7 @@ export type TMessage = {
   nonce: number;
   origin: number;
   sender: Buffer;
-  destinationDomain: number;
+  destination: number;
   recipient: Buffer;
   body: Cell;
 };

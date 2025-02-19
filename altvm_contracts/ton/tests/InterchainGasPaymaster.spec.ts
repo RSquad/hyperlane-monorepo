@@ -2,12 +2,12 @@ import { compile } from '@ton/blueprint';
 import { Cell, Dictionary, beginCell, toNano } from '@ton/core';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
-import { randomBytes } from 'crypto';
 
 import {
   InterchainGasPaymaster,
   InterchainGasPaymasterConfig,
 } from '../wrappers/InterchainGasPaymaster';
+import { buildMessage } from '../wrappers/utils/builders';
 import { Errors, OpCodes } from '../wrappers/utils/constants';
 import { TGasConfig } from '../wrappers/utils/types';
 
@@ -74,15 +74,13 @@ describe('InterchainGasPaymaster', () => {
 
   it('should post dispatch', async () => {
     const postDispatchBody = {
-      message: {
-        version: 0,
-        nonce: 0,
-        origin: 0,
-        sender: Buffer.alloc(32),
-        destinationDomain: 0,
-        recipient: Buffer.alloc(32),
-        body: beginCell().storeUint(123, 32).endCell(),
-      },
+      message: buildMessage(
+        0,
+        Buffer.alloc(32),
+        0,
+        Buffer.alloc(32),
+        beginCell().storeUint(123, 32).endCell(),
+      ),
       hookMetadata: {
         variant: 0,
         msgValue: toNano('0.1'),

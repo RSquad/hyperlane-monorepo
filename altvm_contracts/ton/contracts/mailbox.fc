@@ -175,10 +175,10 @@ global int g::query_id;
             cell hook_metadata = in_msg_body~load_maybe_ref();
             int sender_addr = message::unpack::sender_addr(hyp_message);
             
-            slice refund_addr = null?(hook_metadata) ? build_addr(0, sender_addr) : 
+            int refund_addr = null?(hook_metadata) ? sender_addr : 
                 metadata::refund_addr(hook_metadata.begin_parse());
 
-            send_change(refund_addr, 0, g::query_id, send_mode::carry_remaining_balance);
+            send_change(build_addr(0, refund_addr), 0, g::query_id, send_mode::carry_remaining_balance);
         }
 
         return store_globals();
@@ -187,7 +187,6 @@ global int g::query_id;
     if (op == op::process) {
         int sub_op = in_msg_body~load_uint(32);
         if (sub_op == op::process::init) {
-            int block_number = in_msg_body~load_uint(48);
             slice forward_payload = in_msg_body;
             ;; formatted hyperlane message
             slice message = in_msg_body~load_ref().begin_parse();
@@ -214,7 +213,7 @@ global int g::query_id;
 
             cell delivery = begin_cell()
                 .store_uint(sender, 256)
-                .store_uint(block_number, 48)
+                .store_uint(now(), 48)
                 .end_cell();
 
             g::deliveries~udict_set_ref(256, id, delivery);

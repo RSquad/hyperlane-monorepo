@@ -19,7 +19,7 @@ const buildSignedMessage = (
   recipient: Address,
   wallet: ethers.Wallet,
   origin: number = 0,
-  destinationDomain: number = 0,
+  destination: number = 0,
   signature?: { v: number; r: string; s: string },
 ) => {
   const messageToSign = {
@@ -27,7 +27,7 @@ const buildSignedMessage = (
     nonce: 0,
     origin,
     sender: Buffer.from(wallet.address.slice(2).padStart(64, '0'), 'hex'),
-    destinationDomain,
+    destination,
     recipient: recipient.hash,
     body: beginCell().storeUint(123, 32).endCell(),
   };
@@ -50,7 +50,6 @@ const buildSignedMessage = (
       [domainHash, root, index, id],
     ),
   );
-
   const ethSignedMessage = toEthSignedMessageHash(BigInt(digest));
 
   if (!signature) {
