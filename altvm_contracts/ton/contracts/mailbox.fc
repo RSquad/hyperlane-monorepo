@@ -199,7 +199,6 @@ slice metadata::refund_addr(slice metadata) inline {
     if (op == op::process) {
         int sub_op = in_msg_body~load_uint(32);
         if (sub_op == op::process::init) {
-            int block_number = in_msg_body~load_uint(48);
             slice forward_payload = in_msg_body;
             ;; formatted hyperlane message
             slice message = in_msg_body~load_ref().begin_parse();
@@ -226,7 +225,7 @@ slice metadata::refund_addr(slice metadata) inline {
 
             cell delivery = begin_cell()
                 .store_uint(sender, 256)
-                .store_uint(block_number, 48)
+                .store_uint(now(), 48)
                 .end_cell();
 
             g::deliveries~udict_set_ref(256, id, delivery);
