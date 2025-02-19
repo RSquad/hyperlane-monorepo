@@ -17,7 +17,7 @@ export const toEthSignedMessageHash = (hash: bigint) => {
       ['string', 'bytes32'],
       [
         '\x19Ethereum Signed Message:\n32',
-        Buffer.from(hash.toString(16), 'hex'),
+        Buffer.from(hash.toString(16).padStart(64, '0'), 'hex'),
       ],
     ),
   );
@@ -32,7 +32,7 @@ export const messageId = (message: TMessage) => {
         message.nonce,
         message.origin,
         message.sender,
-        message.destinationDomain,
+        message.destination,
         message.recipient,
         writeCellsToBuffer(message.body),
       ],

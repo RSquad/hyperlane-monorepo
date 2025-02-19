@@ -86,3 +86,32 @@ export const buildValidators = (opts: {
 
   return { builder: opts.builder, validators: opts.validators };
 };
+
+export const buildTokenMessage = (
+  tokenRecipient: Buffer,
+  tokenAmount: bigint,
+) => {
+  return beginCell()
+    .storeBuffer(tokenRecipient)
+    .storeUint(tokenAmount, 256)
+    .endCell();
+};
+
+export const buildMessage = (
+  origin: number,
+  sender: Buffer,
+  destination: number,
+  recipient: Buffer,
+  body: Cell,
+  version: number = 3,
+): TMessage => {
+  return {
+    version,
+    nonce: 0,
+    origin,
+    sender,
+    destination,
+    recipient,
+    body,
+  };
+};

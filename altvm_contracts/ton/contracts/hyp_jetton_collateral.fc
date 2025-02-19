@@ -62,7 +62,7 @@
         int recipient_addr = payload~load_uint(256);
         cell hook_metadata = payload~load_maybe_ref();
         cell hook_addr = payload~load_maybe_ref();
-        transfer_remote(destination, recipient_addr, amount, hook_metadata, hook_addr);
+        transfer_remote(destination, recipient_addr, amount, 0, hook_metadata, hook_addr);
         throw(0);
     }
 }

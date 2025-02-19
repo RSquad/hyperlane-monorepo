@@ -13,6 +13,6 @@ cell serialize_dispatch_body(
         .store_uint(destination, 32)
         .store_uint(recipient, 256)
         .store_ref(hyp_message_body)
-        .store_ref(hook_metadata)
+        .store_maybe_ref(hook_metadata)
         .end_cell();
 }

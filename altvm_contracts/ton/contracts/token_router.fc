@@ -102,14 +102,15 @@ int routers::must_get(cell routers, int domain) impure inline {
 () transfer_remote(
     int destination,
     int jetton_recipient,
-    int native_amount,
+    int amount,
+    int reserve_amount,
     cell hook_metadata,
     cell hook_addr
 ) impure inline_ref {
     if (null?(hook_metadata)) {
         hook_metadata = standard_metadata::new(destination, g::msg_sender).end_cell();
     }
-    cell token_message = token_message::new(jetton_recipient, native_amount);
+    cell token_message = token_message::new(jetton_recipient, amount);
     int router_addr = g::routers.routers::must_get(destination);
     cell dispatch_body = serialize_dispatch_body(
         g::query_id, destination, router_addr, token_message, hook_metadata);
@@ -121,6 +122,6 @@ int routers::must_get(cell routers, int domain) impure inline {
         null(),
         dispatch_body
     );
-    raw_reserve(storagefee() + native_amount, reserve_mode::balance_plus_this_amount);
+    raw_reserve(storagefee() + reserve_amount, reserve_mode::balance_plus_this_amount);
     send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
 }

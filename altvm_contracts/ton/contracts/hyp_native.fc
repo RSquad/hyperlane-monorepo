@@ -32,7 +32,7 @@
         cell hook_metadata = in_msg_body~load_maybe_ref();
         cell hook_addr = in_msg_body~load_maybe_ref();
         throw_if(error::msg_value_too_low, g::msg_value < amount + ONE_TON);
-        transfer_remote(destination, recipient_addr, amount, hook_metadata, hook_addr);
+        transfer_remote(destination, recipient_addr, amount, amount, hook_metadata, hook_addr);
         throw(0);
     }
 }

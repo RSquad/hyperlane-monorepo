@@ -6,14 +6,8 @@ import {
   beginCell,
   toNano,
 } from '@ton/core';
-import {
-  Blockchain,
-  SandboxContract,
-  SendMessageResult,
-  TreasuryContract,
-} from '@ton/sandbox';
+import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
-import { FlatTransactionComparable } from '@ton/test-utils';
 
 import { InterchainGasPaymaster } from '../wrappers/InterchainGasPaymaster';
 import {
@@ -21,15 +15,15 @@ import {
   buildTokenMetadataCell,
 } from '../wrappers/JettonMinter';
 import { JettonWalletContract } from '../wrappers/JettonWallet';
-import { MAILBOX_VERSION, Mailbox } from '../wrappers/Mailbox';
+import { Mailbox } from '../wrappers/Mailbox';
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
 import { TokenRouter } from '../wrappers/TokenRouter';
 import {
   buildHookMetadataCell,
-  buildMessageCell,
-  buildMetadataCell,
+  buildMessage,
+  buildTokenMessage,
 } from '../wrappers/utils/builders';
 import {
   METADATA_VARIANT,
@@ -44,32 +38,6 @@ import {
 
 import { expectTransactionFlow } from './utils/expect';
 import { makeRandomBigint } from './utils/generators';
-
-const buildTokenMessage = (tokenRecipient: Buffer, tokenAmount: bigint) => {
-  return beginCell()
-    .storeBuffer(tokenRecipient)
-    .storeUint(tokenAmount, 256)
-    .endCell();
-};
-
-const buildMessage = (
-  origin: number,
-  sender: Buffer,
-  destination: number,
-  recipient: Buffer,
-  body: Cell,
-  version: number = Mailbox.version,
-): TMessage => {
-  return {
-    version,
-    nonce: 0,
-    origin,
-    sender,
-    destination,
-    recipient,
-    body,
-  };
-};
 
 describe('TokenRouter', () => {
   let hypJettonCode: Cell;

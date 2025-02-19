@@ -68,7 +68,7 @@
         cell message = payload~load_ref();
         cell hook_metadata = payload~load_ref();
         cell hook_addr = null();
-        transfer_remote(destination, recipient_addr, amount, hook_metadata, hook_addr);
+        transfer_remote(destination, recipient_addr, amount, 0, hook_metadata, hook_addr);
         throw(0);
     }
 }

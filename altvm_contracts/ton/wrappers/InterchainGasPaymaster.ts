@@ -11,7 +11,6 @@ import {
   Sender,
   Slice,
   TupleItemInt,
-  TupleItemSlice,
   beginCell,
   contractAddress,
 } from '@ton/core';
