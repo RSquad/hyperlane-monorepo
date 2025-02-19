@@ -84,7 +84,7 @@ int routers::must_get(cell routers, int domain) impure inline {
     slice in_msg_body
 ) impure inline {
     if (op == op::get_ism) {
-        in_msg_body.end_parse();
+        
         cell body = begin_cell()
             .store_uint(op::process, 32)
             .store_uint(g::query_id, 64)

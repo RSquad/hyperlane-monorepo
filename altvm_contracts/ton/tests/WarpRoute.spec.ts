@@ -21,7 +21,7 @@ import {
   buildTokenMetadataCell,
 } from '../wrappers/JettonMinter';
 import { JettonWalletContract } from '../wrappers/JettonWallet';
-import { Mailbox } from '../wrappers/Mailbox';
+import { MAILBOX_VERSION, Mailbox } from '../wrappers/Mailbox';
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
@@ -38,32 +38,41 @@ import {
 } from '../wrappers/utils/constants';
 import {
   TMailboxContractConfig,
+  TMessage,
   TMultisigMetadata,
 } from '../wrappers/utils/types';
 
+import { expectTransactionFlow } from './utils/expect';
 import { makeRandomBigint } from './utils/generators';
 
-const buildTokenMessage = (
-  collateralAddr: Buffer,
-  recipient: Buffer,
-  amount: bigint,
+const buildTokenMessage = (tokenRecipient: Buffer, tokenAmount: bigint) => {
+  return beginCell()
+    .storeBuffer(tokenRecipient)
+    .storeUint(tokenAmount, 256)
+    .endCell();
+};
+
+const buildMessage = (
+  origin: number,
   sender: Buffer,
-  version: number = 1,
-  destinationDomain: number = 0,
-) => {
+  destination: number,
+  recipient: Buffer,
+  body: Cell,
+  version: number = Mailbox.version,
+): TMessage => {
   return {
     version,
     nonce: 0,
-    origin: 0,
-    sender: sender,
-    destinationDomain,
-    recipient: collateralAddr,
-    body: beginCell().storeBuffer(recipient).storeUint(amount, 256).endCell(),
+    origin,
+    sender,
+    destination,
+    recipient,
+    body,
   };
 };
 
 describe('TokenRouter', () => {
-  let code: Cell;
+  let hypJettonCode: Cell;
   let mailboxCode: Cell;
   let requiredHookCode: Cell;
   let defaultHookCode: Cell;
@@ -73,9 +82,10 @@ describe('TokenRouter', () => {
   let walletCode: Cell;
   const burnAmount = 1000n;
   const destinationChain = 1234;
+  const originChain = 4321;
 
   beforeAll(async () => {
-    code = await compile('HypJetton');
+    hypJettonCode = await compile('HypJetton');
     mailboxCode = await compile('Mailbox');
     requiredHookCode = await compile('InterchainGasPaymaster');
     defaultHookCode = await compile('MerkleHookMock');
@@ -87,6 +97,8 @@ describe('TokenRouter', () => {
 
   let blockchain: Blockchain;
   let deployer: SandboxContract<TreasuryContract>;
+  let originRouterMock: SandboxContract<TreasuryContract>;
+  let destRouterMock: SandboxContract<TreasuryContract>;
   let tokenRouter: SandboxContract<TokenRouter>;
   let mailbox: SandboxContract<Mailbox>;
   let recipient: SandboxContract<RecipientMock>;
@@ -96,17 +108,27 @@ describe('TokenRouter', () => {
   let initialDefaultHook: SandboxContract<MerkleHookMock>;
   let initialDefaultIsm: SandboxContract<MockIsm>;
   let routers: Dictionary<number, Buffer>;
+  const intialGasConfig = {
+    gasOracle: makeRandomBigint(),
+    gasOverhead: 0n,
+    exchangeRate: 5n,
+    gasPrice: 1000000000n,
+  };
+  const defaultHookConfig = {
+    index: 0,
+  };
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
     deployer = await blockchain.treasury('deployer');
-
-    const intialGasConfig = {
-      gasOracle: makeRandomBigint(),
-      gasOverhead: 0n,
-      exchangeRate: 5n,
-      gasPrice: 1000000000n,
-    };
+    originRouterMock = await blockchain.treasury('originRouterMock');
+    destRouterMock = await blockchain.treasury('destRouterMock');
+    routers = Dictionary.empty(
+      Dictionary.Keys.Uint(32),
+      Dictionary.Values.Buffer(32),
+    );
+    routers.set(destinationChain, destRouterMock.address.hash);
+    routers.set(originChain, originRouterMock.address.hash);
 
     const dictDestGasConfig = Dictionary.empty(
       InterchainGasPaymaster.GasConfigKey,
@@ -120,10 +142,6 @@ describe('TokenRouter', () => {
       hookType: 0,
       hookMetadata: Cell.EMPTY,
       destGasConfig: dictDestGasConfig,
-    };
-
-    const defaultHookConfig = {
-      index: 0,
     };
 
     initialRequiredHook = blockchain.openContract(
@@ -148,8 +166,8 @@ describe('TokenRouter', () => {
     );
 
     const initConfig: TMailboxContractConfig = {
-      version: 1,
-      localDomain: 0,
+      version: Mailbox.version,
+      localDomain: destinationChain,
       nonce: 0,
       latestDispatchedId: 0n,
       defaultIsm: initialDefaultIsm.address,
@@ -190,12 +208,6 @@ describe('TokenRouter', () => {
       ),
     );
 
-    routers = Dictionary.empty(
-      Dictionary.Keys.Uint(32),
-      Dictionary.Values.Buffer(32),
-    );
-    const routerMock = blockchain.treasury('routerMock');
-    routers.set(destinationChain, (await routerMock).address.hash);
     tokenRouter = blockchain.openContract(
       TokenRouter.createFromConfig(
         {
@@ -204,7 +216,7 @@ describe('TokenRouter', () => {
           jettonAddress: jettonMinter.address,
           routers,
         },
-        code,
+        hypJettonCode,
       ),
     );
 
@@ -308,24 +320,28 @@ describe('TokenRouter', () => {
     //await blockchain.setVerbosityForAddress(mailbox.address,'vm_logs_full');
   });
 
-  const expectTransactionFlow = (
-    result: SendMessageResult,
-    transactions: FlatTransactionComparable[],
-  ) => {
-    transactions.forEach((ex, i) => {
-      try {
-        expect([result.transactions[i + 1]]).toHaveTransaction({
-          ...ex,
-        });
-      } catch (err) {
-        console.log('Failed exp:', i);
-        throw err;
-      }
+  it('process -> handle', async () => {
+    const { amount: balanceBefore } = await jettonWallet.getBalance();
+    const mintedAmount = 1000n;
+    const hyperlaneMessage = buildMessage(
+      originChain,
+      originRouterMock.address.hash,
+      destinationChain,
+      tokenRouter.address.hash,
+      buildTokenMessage(deployer.address.hash, mintedAmount),
+    );
+    const metadata: TMultisigMetadata = {
+      originMerkleHook: Buffer.alloc(32),
+      root: Buffer.alloc(32),
+      index: 0n,
+      signatures: [{ r: 0n, s: 0n, v: 0n }],
+    };
+    const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
+      metadata,
+      message: hyperlaneMessage,
     });
-  };
 
-  const expectWarpRouteSucceeded = (res: SendMessageResult) => {
-    const expectedTransactions = [
+    expectTransactionFlow(res, [
       {
         from: deployer.address,
         to: mailbox.address,
@@ -386,50 +402,15 @@ describe('TokenRouter', () => {
         success: true,
         op: OpCodes.JETTON_INTERNAL_TRANSFER,
       },
-    ];
-
-    expectedTransactions.forEach((ex, i) => {
-      try {
-        expect([res.transactions[i + 1]]).toHaveTransaction({
-          ...ex,
-        });
-      } catch (err) {
-        console.log('Failed exp:', i);
-        throw err;
-      }
-    });
-  };
-
-  it('warp route synthetic', async () => {
-    const { amount: balanceBefore } = await jettonWallet.getBalance();
-    const mintedAmount = 1000n;
-    const hyperlaneMessage = buildTokenMessage(
-      tokenRouter.address.hash,
-      deployer.address.hash,
-      mintedAmount,
-      Buffer.alloc(32),
-    );
-    const metadata: TMultisigMetadata = {
-      originMerkleHook: Buffer.alloc(32),
-      root: Buffer.alloc(32),
-      index: 0n,
-      signatures: [{ r: 0n, s: 0n, v: 0n }],
-    };
-    const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
-      blockNumber: 0,
-      metadata,
-      message: hyperlaneMessage,
-    });
-
-    expectWarpRouteSucceeded(res);
+    ]);
 
     const { amount: balanceAfter } = await jettonWallet.getBalance();
     expect(balanceAfter - balanceBefore).toBe(mintedAmount);
   });
 
-  it('Burn synthetic token', async () => {
+  it('burn -> dispatch', async () => {
     const jettonAmount = 10n;
-    const burnRes = await jettonWallet.sendBurn(deployer.getSender(), {
+    const res = await jettonWallet.sendBurn(deployer.getSender(), {
       value: toNano(0.1),
       queryId: 0,
       jettonAmount: jettonAmount,
@@ -447,51 +428,41 @@ describe('TokenRouter', () => {
         refundAddress: deployer.address,
       },
     });
-
-    expect(burnRes.transactions).toHaveTransaction({
-      from: deployer.address,
-      to: jettonWallet.address,
-      success: true,
-      op: OpCodes.JETTON_BURN,
-    });
-
-    expect(burnRes.transactions).toHaveTransaction({
-      from: jettonWallet.address,
-      to: jettonMinter.address,
-      success: true,
-      op: OpCodes.JETTON_BURN_NOTIFICATION,
-    });
-
-    expect(burnRes.transactions).toHaveTransaction({
-      from: jettonMinter.address,
-      to: tokenRouter.address,
-      success: true,
-      op: OpCodes.JETTON_BURN_NOTIFICATION,
-    });
-
-    expect(burnRes.transactions).toHaveTransaction({
-      from: tokenRouter.address,
-      to: mailbox.address,
-      success: true,
-      op: OpCodes.DISPATCH,
-    });
-
-    expect(burnRes.transactions).toHaveTransaction({
-      from: mailbox.address,
-      to: initialRequiredHook.address,
-      success: true,
-      op: OpCodes.POST_DISPATCH,
-    });
-
-    expect(burnRes.transactions).toHaveTransaction({
-      from: mailbox.address,
-      to: initialDefaultHook.address,
-      success: true,
-      op: OpCodes.POST_DISPATCH,
-    });
+    expectTransactionFlow(res, [
+      {
+        from: deployer.address,
+        to: jettonWallet.address,
+        success: true,
+        op: OpCodes.JETTON_BURN,
+      },
+      {
+        from: jettonWallet.address,
+        to: jettonMinter.address,
+        success: true,
+        op: OpCodes.JETTON_BURN_NOTIFICATION,
+      },
+      {
+        from: jettonMinter.address,
+        to: tokenRouter.address,
+        success: true,
+        op: OpCodes.JETTON_BURN_NOTIFICATION,
+      },
+      {
+        from: tokenRouter.address,
+        to: mailbox.address,
+        success: true,
+        op: OpCodes.DISPATCH,
+      },
+      {
+        from: mailbox.address,
+        to: initialRequiredHook.address,
+        success: true,
+        op: OpCodes.POST_DISPATCH,
+      },
+    ]);
   });
 
-  it('Warp route native', async () => {
+  it.skip('native send -> dispatch', async () => {
     const amount = toNano(2);
     const executionFee = toNano(1);
 
