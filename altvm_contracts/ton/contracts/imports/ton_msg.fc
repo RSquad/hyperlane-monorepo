@@ -10,15 +10,14 @@ int gasfee(int gas_used, int is_mc) impure asm "GETGASFEE";
 ;; Answer bit, set in response opcodes to indicate an answer for request.
 const int ANSWER_BIT = 0x80000000;
 
-const int MSG_FEES = 1000000;
-const int FWD_FEES = 2700000;
+const int FWD_FEES = 3000000;
 
 () reserve_original_balance(int value, int required_value) impure inline {
   int gas_fee = gasfee(
     gasconsumed(),
     false ;; NOT a masterchain
   );
-  int min_msg_value = gas_fee + required_value + storagefee() + FWD_FEES + MSG_FEES;
+  int min_msg_value = gas_fee + required_value + storagefee() + FWD_FEES;
   throw_if(error::msg_value_too_low, value < min_msg_value);
   raw_reserve(storagefee(), reserve_mode::balance_plus_this_amount);
 }

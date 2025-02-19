@@ -74,7 +74,7 @@ global slice g::mailbox_addr;
             .store_uint(dest_domain, 32)
             .store_uint(recipient_addr, 256)
             .store_ref(message)
-            .store_ref(hook_metadata)
+            .store_maybe_ref(hook_metadata)
             .end_cell();
 
         builder msg = build_message(
