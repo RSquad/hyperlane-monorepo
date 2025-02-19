@@ -39,7 +39,7 @@ export const OpCodes = {
 };
 
 export const ProcessOpCodes = {
-  VERIFY: 0x77417bcc,
+  VERIFY: 0xb33e03ab,
   DELIVER_MESSAGE: 0x22967489,
 };
 

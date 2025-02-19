@@ -241,7 +241,7 @@ describe('Mailbox', () => {
     };
     const res = await mailbox.sendDispatch(
       deployer.getSender(),
-      toNano('1'),
+      toNano('10'),
       dispatchBody,
     );
     expect(res.transactions).toHaveTransaction({
@@ -252,10 +252,30 @@ describe('Mailbox', () => {
     });
 
     expect(res.transactions).toHaveTransaction({
+      from: initialRequiredHook.address,
+      to: mailbox.address,
+      success: true,
+      op: OpCodes.DISPATCH,
+    });
+
+    expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
       to: initialDefaultHook.address,
       success: true,
       op: OpCodes.POST_DISPATCH,
+    });
+
+    expect(res.transactions).toHaveTransaction({
+      from: initialDefaultHook.address,
+      to: mailbox.address,
+      op: OpCodes.DISPATCH,
+      success: true,
+    });
+
+    expect(res.transactions).toHaveTransaction({
+      from: mailbox.address,
+      to: deployer.address,
+      success: true,
     });
 
     expect(res.externals).toHaveLength(3);

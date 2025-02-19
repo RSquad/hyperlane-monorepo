@@ -5,8 +5,6 @@
 #include "imports/errors.fc";
 #include "imports/hook_types.fc";
 
-const int FWD_FEES = 2700000;
-
 global int g::protocol_fee;
 global int g::max_protocol_fee;
 global int g::collected_fees;

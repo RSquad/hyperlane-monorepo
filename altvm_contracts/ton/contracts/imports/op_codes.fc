@@ -2,9 +2,10 @@
 const int op::dispatch = "op::dispatch"c;
 const int op::dispatch::init = "op::dispatch::init"c;
 const int op::dispatch::default_hook = "op::dispatch::default_hook"c;
+const int op::dispatch::send_change = "op::dispatch::send_change"c;
 const int op::process = "op::process"c;
 const int op::process::init = "op::process::init"c;
-const int op::process::verify = "sub_op == op::process::verify"c;
+const int op::process::verify = "op::process::verify"c;
 const int op::set_default_ism = "op::set_default_ism"c;
 const int op::set_required_hook = "op::set_required_hook"c;
 const int op::set_default_hook = "op::set_default_hook"c;

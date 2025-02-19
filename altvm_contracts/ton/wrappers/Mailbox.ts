@@ -119,7 +119,7 @@ export class Mailbox implements Contract {
         .storeUint(opts.destDomain, 32)
         .storeBuffer(opts.recipientAddr)
         .storeRef(opts.message)
-        .storeRef(buildHookMetadataCell(opts.hookMetadata))
+        .storeMaybeRef(buildHookMetadataCell(opts.hookMetadata))
         .endCell(),
     });
   }
@@ -142,7 +142,7 @@ export class Mailbox implements Contract {
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(OpCodes.PROCESS_INIT, 32)
         .storeRef(buildMessageCell(opts.message))
-        .storeRef(buildMetadataCell(opts.metadata))
+        .storeMaybeRef(buildMetadataCell(opts.metadata))
         .endCell(),
     });
   }

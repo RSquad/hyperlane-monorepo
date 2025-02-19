@@ -5,6 +5,9 @@
 #include "imports/ton_msg.fc";
 #include "imports/events.fc";
 #include "imports/reserve_mode.fc";
+#include "imports/signing_utils.fc";
+#include "imports/hyp_metadata.fc";
+#include "imports/hyp_message.fc";
 
 global slice g::owner;
 global slice g::beneficiary;
@@ -45,12 +48,6 @@ const int MINIMAL_BALANCE = 500000000;
     return (0, 0);
 }
 
-int metadata::unpack::gas_limit(cell c) inline {
-    slice ms = c.begin_parse();
-    ms~skip_bits(16 + 256);
-    return ms~load_uint(256);
-}
-
 int quote_gas_payment(
     int dest_domain,
     int gas_limit
@@ -67,7 +64,7 @@ int quote_gas_payment(
 
 int get_gas_limit(cell hook_metadata) inline {
     cell meta = null?(hook_metadata) ? g::hook_metadata : hook_metadata;
-    return meta.metadata::unpack::gas_limit();
+    return meta.begin_parse().metadata::unpack::gas_limit();
 }
 
 int pay_for_gas(
@@ -107,10 +104,10 @@ int pay_for_gas(
     load_globals();
 
     if (op == op::post_dispatch) {
-        int message_id = in_msg_body~load_uint(256);
-        int dest_domain = in_msg_body~load_uint(32);
-        slice refund_addr = in_msg_body~load_msg_addr();
-        cell hook_metadata = in_msg_body~load_ref();
+        slice hyp_message = in_msg_body~load_ref_slice();
+        cell hook_metadata = in_msg_body~load_maybe_ref();
+        int message_id = message_id(hyp_message);
+        int dest_domain = message::unpack::dest_domain(hyp_message);
 
         int gas_limit = get_gas_limit(hook_metadata);
         int required_payment = pay_for_gas(
@@ -128,7 +125,7 @@ int pay_for_gas(
         
         builder default_hook_msg = build_message(
             msg_sender,
-            msg_value,
+            0,
             true,
             null(),
             body
