@@ -47,7 +47,7 @@ export class JettonWalletContract implements Contract {
   static buildBurnBodyCell(params: {
     amount: bigint;
     responseAddr: Address;
-    destDomain: bigint;
+    destDomain: number;
     recipientAddr: Buffer;
     message: Cell;
     hookMetadata: THookMetadata;
@@ -112,7 +112,7 @@ export class JettonWalletContract implements Contract {
       queryId: number;
       jettonAmount: bigint;
       responseAddress: Address;
-      destDomain: bigint;
+      destDomain: number;
       message: Cell;
       hookMetadata: THookMetadata;
       recipientAddr: Buffer;

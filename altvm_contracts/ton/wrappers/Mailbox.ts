@@ -28,6 +28,8 @@ import {
   TMultisigMetadata,
 } from './utils/types';
 
+export const MAILBOX_VERSION = 3;
+
 export function mailboxConfigToCell(config: TMailboxContractConfig): Cell {
   const hooks = beginCell()
     .storeAddress(config.defaultIsm)
@@ -53,6 +55,7 @@ export class Mailbox implements Contract {
     readonly init?: { code: Cell; data: Cell },
   ) {}
 
+  static version = MAILBOX_VERSION;
   static DeliveryKey: DictionaryKey<bigint> = Dictionary.Keys.BigUint(64);
   static DeliveryValue: DictionaryValue<TDelivery> = {
     serialize: (src: TDelivery, builder: Builder) => {
@@ -126,7 +129,6 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      blockNumber: number;
       metadata: TMultisigMetadata;
       message: TMessage;
       queryId?: number;
@@ -139,7 +141,6 @@ export class Mailbox implements Contract {
         .storeUint(OpCodes.PROCESS, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(OpCodes.PROCESS_INIT, 32)
-        .storeUint(opts.blockNumber, 48)
         .storeRef(buildMessageCell(opts.message))
         .storeMaybeRef(buildMetadataCell(opts.metadata))
         .endCell(),

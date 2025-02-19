@@ -40,3 +40,5 @@ const int op::collect_protocol_fee = "op::collect_protocol_fee"c;
 const int op::set_dest_gas_config = "op::set_dest_gas_config"c;
 const int op::claim = "op::claim"c;
 
+;; Token Router
+const int op::set_router = "op:set_router"c;

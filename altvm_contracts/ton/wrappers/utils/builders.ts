@@ -13,9 +13,9 @@ export const buildMessageCell = (message: TMessage) => {
     .storeUint(message.version, 8)
     .storeUint(message.nonce, 32)
     .storeUint(message.origin, 32)
-    .storeBuffer(message.sender)
-    .storeUint(message.destinationDomain, 32)
-    .storeBuffer(message.recipient)
+    .storeBuffer(message.sender, 32)
+    .storeUint(message.destination, 32)
+    .storeBuffer(message.recipient, 32)
     .storeRef(message.body)
     .endCell();
 };
@@ -25,7 +25,7 @@ export const buildHookMetadataCell = (metadata: THookMetadata) => {
     .storeUint(metadata.variant, 16)
     .storeUint(metadata.msgValue, 256)
     .storeUint(metadata.gasLimit, 256)
-    .storeAddress(metadata.refundAddress)
+    .storeBuffer(metadata.refundAddress.hash, 32)
     .endCell();
 };
 
