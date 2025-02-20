@@ -50,6 +50,7 @@ describe('Mailbox', () => {
   let defaultHookCode: Cell;
   let defaultIsmCode: Cell;
   let recipientCode: Cell;
+  let deliveryCode: Cell;
 
   let hyperlaneMessage: TMessage;
   let hookMetadata: THookMetadata;
@@ -67,6 +68,7 @@ describe('Mailbox', () => {
     defaultHookCode = await compile('MerkleHookMock');
     defaultIsmCode = await compile('MockIsm');
     recipientCode = await compile('RecipientMock');
+    deliveryCode = await compile('Delivery');
   });
 
   let blockchain: Blockchain;
@@ -138,7 +140,11 @@ describe('Mailbox', () => {
       defaultHookAddr: initialDefaultHook.address,
       requiredHookAddr: initialRequiredHook.address,
       owner: deployer.address,
-      deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
+      deliveryCode,
+      processRequests: Dictionary.empty(
+        Mailbox.DeliveryKey,
+        Mailbox.DeliveryValue,
+      ),
     };
     mailbox = blockchain.openContract(
       Mailbox.createFromConfig(initConfig, code),
@@ -211,7 +217,7 @@ describe('Mailbox', () => {
       variant: 0,
       msgValue: toNano('1'),
       gasLimit: 100000000n,
-      refundAddress: deployer.address,
+      refundAddress: deployer.address.hash,
     };
   });
 
@@ -539,12 +545,5 @@ describe('Mailbox', () => {
   it('should return latest dispatched id', async () => {
     const latestDispatchedId = await mailbox.getLatestDispatchedId();
     expect(latestDispatchedId).toStrictEqual(0);
-  });
-
-  it('should return deliveries', async () => {
-    const deliveries = await mailbox.getDeliveries();
-    expect(deliveries).toStrictEqual(
-      Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
-    );
   });
 });

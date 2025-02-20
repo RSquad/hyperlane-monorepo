@@ -18,14 +18,16 @@ import {
   buildHookMetadataCell,
   buildMessageCell,
   buildMetadataCell,
+  readHookMetadataCell,
+  readMessageCell,
 } from './utils/builders';
 import { OpCodes, answer } from './utils/constants';
 import {
-  TDelivery,
   THookMetadata,
   TMailboxContractConfig,
   TMessage,
   TMultisigMetadata,
+  TProcessRequest,
 } from './utils/types';
 
 export const MAILBOX_VERSION = 3;
@@ -42,9 +44,12 @@ export function mailboxConfigToCell(config: TMailboxContractConfig): Cell {
     .storeUint(config.nonce, 32)
     .storeUint(config.latestDispatchedId, 256)
     .storeAddress(config.owner)
-    .storeDict(Dictionary.empty()) // cur recipients dict
-    .storeDict(Dictionary.empty()) // cur isms dict
-    .storeDict(config.deliveries, Mailbox.DeliveryKey, Mailbox.DeliveryValue)
+    .storeRef(config.deliveryCode)
+    .storeDict(
+      config.processRequests,
+      Mailbox.DeliveryKey,
+      Mailbox.DeliveryValue,
+    )
     .storeRef(hooks)
     .endCell();
 }
@@ -57,19 +62,23 @@ export class Mailbox implements Contract {
 
   static version = MAILBOX_VERSION;
   static DeliveryKey: DictionaryKey<bigint> = Dictionary.Keys.BigUint(64);
-  static DeliveryValue: DictionaryValue<TDelivery> = {
-    serialize: (src: TDelivery, builder: Builder) => {
-      const transfer_cell = beginCell()
-        .storeAddress(src.processorAddr)
-        .storeUint(src.blockNumber, 64)
+  static DeliveryValue: DictionaryValue<TProcessRequest> = {
+    serialize: (src: TProcessRequest, builder: Builder) => {
+      const delivery_cell = beginCell()
+        .storeAddress(src.initiator)
+        .storeAddress(src.ism)
+        .storeRef(buildMessageCell(src.message))
+        .storeRef(buildHookMetadataCell(src.metadata))
         .endCell();
-      builder.storeRef(transfer_cell);
+      builder.storeRef(delivery_cell);
     },
-    parse: (src: Slice): TDelivery => {
+    parse: (src: Slice): TProcessRequest => {
       src = src.loadRef().beginParse();
-      const data: TDelivery = {
-        processorAddr: src.loadAddress(),
-        blockNumber: src.loadUintBig(64),
+      const data: TProcessRequest = {
+        initiator: src.loadAddress(),
+        ism: src.loadAddress(),
+        message: readMessageCell(src.loadRef()),
+        metadata: readHookMetadataCell(src.loadRef()),
       };
       return data;
     },
@@ -259,15 +268,6 @@ export class Mailbox implements Contract {
   async getLatestDispatchedId(provider: ContractProvider) {
     const result = await provider.get('get_latest_dispatched_id', []);
     return result.stack.readNumber();
-  }
-
-  async getDeliveries(provider: ContractProvider) {
-    const result = await provider.get('get_deliveries', []);
-    return Dictionary.loadDirect(
-      Mailbox.DeliveryKey,
-      Mailbox.DeliveryValue,
-      result.stack.readCellOpt(),
-    );
   }
 
   async getDefaultIsm(provider: ContractProvider) {

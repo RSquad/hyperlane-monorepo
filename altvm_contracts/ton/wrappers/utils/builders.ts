@@ -1,4 +1,5 @@
-import { Builder, Cell, Dictionary, beginCell } from '@ton/core';
+import { Address, Builder, Cell, Dictionary, beginCell } from '@ton/core';
+import { deserialize } from 'v8';
 
 import { writeCellsToBuffer } from './convert';
 import {
@@ -20,13 +21,35 @@ export const buildMessageCell = (message: TMessage) => {
     .endCell();
 };
 
+export const readMessageCell = (cell: Cell) => {
+  const slice = cell.beginParse();
+  return {
+    version: slice.loadUint(8),
+    nonce: slice.loadUint(32),
+    origin: slice.loadUint(32),
+    sender: slice.loadBuffer(32),
+    destination: slice.loadUint(32),
+    recipient: slice.loadBuffer(32),
+    body: slice.loadRef(),
+  };
+};
 export const buildHookMetadataCell = (metadata: THookMetadata) => {
   return beginCell()
     .storeUint(metadata.variant, 16)
     .storeUint(metadata.msgValue, 256)
     .storeUint(metadata.gasLimit, 256)
-    .storeBuffer(metadata.refundAddress.hash, 32)
+    .storeBuffer(metadata.refundAddress, 32)
     .endCell();
+};
+
+export const readHookMetadataCell = (cell: Cell) => {
+  const slice = cell.beginParse();
+  return {
+    variant: slice.loadUint(16),
+    msgValue: slice.loadUintBig(256),
+    gasLimit: slice.loadUintBig(256),
+    refundAddress: slice.loadBuffer(32),
+  };
 };
 
 export const buildSignatureCell = (signature: TSignature) => {

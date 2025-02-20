@@ -357,11 +357,6 @@ int get_latest_dispatched_id() method_id {
     return g::latest_dispatched_id;
 }
 
-cell get_deliveries() method_id {
-    load_globals();
-    return g::deliveries;
-}
-
 slice get_default_ism() method_id {
     load_globals();
     return g::default_ism_addr;

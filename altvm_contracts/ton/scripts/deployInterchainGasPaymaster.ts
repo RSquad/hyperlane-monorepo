@@ -33,7 +33,7 @@ export async function run(provider: NetworkProvider) {
     variant: Number(process.env.MAILBOX_VERSION),
     msgValue: 1000n,
     gasLimit: 50000n,
-    refundAddress: Address.parse(process.env.TON_ADDRESS!),
+    refundAddress: Address.parse(process.env.TON_ADDRESS!).hash,
   };
 
   const config: InterchainGasPaymasterConfig = {

@@ -5,7 +5,7 @@ export type THookMetadata = {
   variant: number;
   msgValue: bigint;
   gasLimit: bigint;
-  refundAddress: Address;
+  refundAddress: Buffer;
 };
 
 export type TGasConfig = {
@@ -38,9 +38,11 @@ export type TMessage = {
   body: Cell;
 };
 
-export type TDelivery = {
-  processorAddr: Address;
-  blockNumber: bigint;
+export type TProcessRequest = {
+  message: TMessage;
+  metadata: THookMetadata;
+  initiator: Address;
+  ism: Address;
 };
 
 export type TMailboxContractConfig = {
@@ -52,7 +54,8 @@ export type TMailboxContractConfig = {
   defaultHookAddr: Address;
   requiredHookAddr: Address;
   owner: Address;
-  deliveries: Dictionary<bigint, TDelivery>;
+  deliveryCode: Cell;
+  processRequests: Dictionary<bigint, TProcessRequest>;
 };
 
 export type TJettonWalletContractConfig = {

@@ -4,7 +4,10 @@ import * as fs from 'fs';
 
 import * as deployedContracts from '../deployedContracts.json';
 import { Mailbox } from '../wrappers/Mailbox';
-import { TDelivery, TMailboxContractConfig } from '../wrappers/utils/types';
+import {
+  TMailboxContractConfig,
+  TProcessRequest,
+} from '../wrappers/utils/types';
 
 export async function run(provider: NetworkProvider) {
   if (
@@ -19,6 +22,8 @@ export async function run(provider: NetworkProvider) {
   console.log('domain', Number(process.env.DOMAIN!));
   console.log('version', Number(process.env.MAILBOX_VERSION!));
 
+  const deliveryCode = await compile('Delivery');
+
   const config: TMailboxContractConfig = {
     version: Number(process.env.MAILBOX_VERSION!),
     localDomain: Number(process.env.DOMAIN!),
@@ -29,7 +34,11 @@ export async function run(provider: NetworkProvider) {
     requiredHookAddr: Address.parse(
       deployedContracts.interchainGasPaymasterAddress,
     ),
-    deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
+    deliveryCode,
+    processRequests: Dictionary.empty(
+      Mailbox.DeliveryKey,
+      Mailbox.DeliveryValue,
+    ),
     owner: Address.parse(process.env.MAILBOX_OWNER_ADDRESS!),
   };
 
