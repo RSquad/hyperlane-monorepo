@@ -56,7 +56,9 @@
         );
         int amount = in_msg_body~load_coins();
         slice from_address = in_msg_body~load_msg_addr();
+        throw_unless(error::invalid_body, in_msg_body~load_uint(1));
         slice payload = in_msg_body~load_ref_slice();
+        in_msg_body.end_parse();
 
         int destination = payload~load_uint(32);
         int recipient_addr = payload~load_uint(256);

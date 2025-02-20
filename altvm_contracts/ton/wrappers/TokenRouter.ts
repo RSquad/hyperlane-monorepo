@@ -16,7 +16,7 @@ import { THookMetadata } from './utils/types';
 
 export type TokenRouterConfig = {
   ismAddress?: Address;
-  jettonAddress: Address;
+  jettonAddress?: Address;
   mailboxAddress: Address;
   // domain -> router address (h256)
   routers: Dictionary<number, Buffer>;
@@ -25,10 +25,8 @@ export type TokenRouterConfig = {
 };
 
 export function tokenRouterConfigToCell(config: TokenRouterConfig): Cell {
-  const addrNone = beginCell().storeUint(0, 2);
-  const addrStd = beginCell().storeAddress(config.ismAddress);
   return beginCell()
-    .storeBuilder(config.ismAddress ? addrStd : addrNone)
+    .storeAddress(config.ismAddress)
     .storeAddress(config.jettonAddress)
     .storeAddress(config.mailboxAddress)
     .storeDict(config.routers)
@@ -77,6 +75,28 @@ export class TokenRouter implements Contract {
       body: beginCell()
         .storeUint(OpCodes.GET_ISM, 32)
         .storeUint(queryId ?? 0, 64)
+        .endCell(),
+    });
+  }
+
+  async sendSetRouter(
+    provider: ContractProvider,
+    via: Sender,
+    value: bigint,
+    opts: {
+      queryId?: bigint;
+      domain: number;
+      router: Buffer;
+    },
+  ) {
+    await provider.internal(via, {
+      value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(OpCodes.SET_ROUTER, 32)
+        .storeUint(opts.queryId ?? 0, 64)
+        .storeUint(opts.domain, 32)
+        .storeBuffer(opts.router, 32)
         .endCell(),
     });
   }
@@ -132,5 +152,9 @@ export class TokenRouter implements Contract {
         .storeMaybeRef(null)
         .endCell(),
     });
+  }
+
+  async getBalance(provider: ContractProvider) {
+    return (await provider.getState()).balance;
   }
 }

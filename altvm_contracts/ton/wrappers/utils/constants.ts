@@ -35,6 +35,7 @@ export const OpCodes = {
   JETTON_MINT: 0x642b7d07,
   JETTON_TOP_UP: 0xd372158c,
   JETTON_CHANGE_ADMIN: 0x6501f354,
+  SET_ROUTER: 0xca657447,
 };
 
 export const ProcessOpCodes = {
