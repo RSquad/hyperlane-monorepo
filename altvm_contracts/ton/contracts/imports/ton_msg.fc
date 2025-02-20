@@ -88,8 +88,8 @@ builder build_message(
   send_raw_message(log, 0);
 }
 
-() send_answer(int op, int query_id, int value, int required_payment, slice dest, slice body) impure inline {
-    reserve_original_balance(value, required_payment);
+() reserve_and_send_remaining(int op, int query_id, int msg_value, int extra_reserved, slice dest, slice body) impure inline {
+    reserve_original_balance(msg_value, extra_reserved);
     cell body = begin_cell()
         .store_uint(op | ANSWER_BIT, 32)
         .store_uint(query_id, 64)
@@ -98,8 +98,8 @@ builder build_message(
         
     builder answer_msg = build_message(
         dest,
-        required_payment,
-        true,
+        0,
+        false,
         null(),
         body
     );

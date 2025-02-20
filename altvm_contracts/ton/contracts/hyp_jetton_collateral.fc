@@ -12,7 +12,7 @@
     int op, 
     slice in_msg_body
 ) impure inline {
-    if (op == op::handle) {
+    if (op == op::recipient::handle) {
         throw_unless(
             error::unauthorized_sender, 
             equal_slices(g::msg_sender, g::mailbox_addr)

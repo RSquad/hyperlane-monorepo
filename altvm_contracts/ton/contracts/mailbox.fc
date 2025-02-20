@@ -87,7 +87,7 @@ global int g::query_id;
 
     load_globals();
 
-    if (op == op::mailbox::dispatch::init) {
+    if (op == op::mailbox::dispatch) {
         int dest_domain = in_msg_body~load_uint(32);
         int recipient_addr = in_msg_body~load_uint(256);
         cell messageBody = in_msg_body~load_ref();
@@ -104,7 +104,7 @@ global int g::query_id;
         );
         
         cell body = begin_cell()
-            .store_uint(op::hook::post_dispatch::required, 32)
+            .store_uint(op::hook::post_dispatch, 32)
             .store_uint(g::query_id, 64)
             .store_ref(hyperlane_message.end_cell())
             .store_maybe_ref(hook_metadata)
@@ -122,71 +122,68 @@ global int g::query_id;
         return store_globals();
     }
         
-    if(op == op::hook::post_dispatch::required::answer) {
-        throw_unless(
-             error::unauthorized_sender,
-            equal_slices(msg_sender, g::required_hook_addr)
-        );
-
-        cell body = begin_cell()
-            .store_uint(op::hook::post_dispatch::default, 32)
-            .store_uint(g::query_id, 64)
-            .store_slice(in_msg_body)
-            .end_cell();
-            
-        builder default_hook_msg = build_message(
-            g::default_hook_addr,
-            msg_value,
-            true,
-            null(),
-            body
-        );
-
-        send_raw_message(default_hook_msg.end_cell(), send_mode::pay_transfer_fees_separately);
-        return store_globals();          
-    }
-
-    if (op == op::hook::post_dispatch::default::answer) {
+    if(op == op::hook::post_dispatch::answer) {
+        int required_hook? = equal_slices(msg_sender, g::required_hook_addr);
+        int default_hook? = equal_slices(msg_sender, g::default_hook_addr);
         throw_unless(
             error::unauthorized_sender,
-            equal_slices(msg_sender, g::default_hook_addr)
+            required_hook? | default_hook?
         );
 
-        cell hyp_message = in_msg_body~load_ref();
-        cell hook_metadata = in_msg_body~load_maybe_ref();
-        slice ms = hyp_message.begin_parse();
-
-        int id = message_id(ms);
-
-        int dest_domain = message::unpack::dest_domain(ms);
-        int recipient_addr = message::unpack::recipient(ms);
-
-        builder data = begin_cell()
-            .store_uint(id, 256)
-            .store_ref(begin_cell()
-                .store_slice(msg_sender)
-                .store_uint(dest_domain, 32)
-                .store_uint(recipient_addr, 256)
-                .store_ref(hyp_message)
-                .end_cell()
+        if (required_hook?) {
+            cell body = begin_cell()
+                .store_uint(op::hook::post_dispatch, 32)
+                .store_uint(g::query_id, 64)
+                .store_slice(in_msg_body)
+                .end_cell();
+                
+            builder default_hook_msg = build_message(
+                g::default_hook_addr,
+                msg_value,
+                true,
+                null(),
+                body
             );
 
-        send_event(event::dispatch, data);
-        g::latest_dispatched_id = id;
-        g::nonce += 1;
+            send_raw_message(default_hook_msg.end_cell(), send_mode::pay_transfer_fees_separately);
+            return store_globals();
+        } else {
+            cell hyp_message = in_msg_body~load_ref();
+            cell hook_metadata = in_msg_body~load_maybe_ref();
+            slice ms = hyp_message.begin_parse();
 
-        reserve_original_balance(msg_value, 0);
+            int id = message_id(ms);
 
-        int sender_addr = message::unpack::sender_addr(ms);
-            
-        int refund_addr = null?(hook_metadata) ? sender_addr : 
-        metadata::refund_addr(hook_metadata.begin_parse());
+            int dest_domain = message::unpack::dest_domain(ms);
+            int recipient_addr = message::unpack::recipient(ms);
 
-        send_change(build_addr(0, refund_addr), 0, g::query_id, send_mode::carry_remaining_balance);
-        return store_globals();
+            builder data = begin_cell()
+                .store_uint(id, 256)
+                .store_ref(begin_cell()
+                    .store_slice(msg_sender)
+                    .store_uint(dest_domain, 32)
+                    .store_uint(recipient_addr, 256)
+                    .store_ref(hyp_message)
+                    .end_cell()
+                );
+
+            send_event(event::dispatch, data);
+            g::latest_dispatched_id = id;
+            g::nonce += 1;
+
+            reserve_original_balance(msg_value, 0);
+
+            int sender_addr = message::unpack::sender_addr(ms);
+                
+            int refund_addr = null?(hook_metadata) ? sender_addr : 
+            metadata::refund_addr(hook_metadata.begin_parse());
+
+            send_change(build_addr(0, refund_addr), op::mailbox::dispatch, g::query_id, send_mode::carry_remaining_balance);
+            return store_globals();
+        }
     }
 
-    if (op == op::mailbox::process::init) {
+    if (op == op::mailbox::process) {
         slice forward_payload = in_msg_body;
         ;; formatted hyperlane message
         slice message = in_msg_body~load_ref().begin_parse();
@@ -270,7 +267,7 @@ global int g::query_id;
             
         slice recipient_addr = build_addr(0, recipient);
         cell body = begin_cell()
-            .store_uint(op::handle, 32)
+            .store_uint(op::recipient::handle, 32)
             .store_uint(g::query_id, 64)
             .store_uint(origin_domain, 32)
             .store_uint(sender, 256)

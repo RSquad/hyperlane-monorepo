@@ -69,7 +69,7 @@ describe('MerkleHookMock', () => {
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
       to: merkleHookMock.address,
-      op: OpCodes.POST_DISPATCH_REQUIRED,
+      op: OpCodes.POST_DISPATCH,
       success: true,
     });
     expect(res.externals).toHaveLength(1);

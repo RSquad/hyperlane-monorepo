@@ -65,7 +65,7 @@ export class MerkleHookMock implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.POST_DISPATCH_REQUIRED, 32)
+        .storeUint(OpCodes.POST_DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.messageId, 256)
         .storeUint(opts.destDomain, 32)

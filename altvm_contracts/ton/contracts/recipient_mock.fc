@@ -47,7 +47,7 @@ global slice g::ism_addr;
         return store_globals();
     }
 
-    if (op == op::handle) {
+    if (op == op::recipient::handle) {
         int origin_domain = in_msg_body~load_uint(32);
         int sender = in_msg_body~load_uint(256);
         cell message_body = in_msg_body~load_ref();

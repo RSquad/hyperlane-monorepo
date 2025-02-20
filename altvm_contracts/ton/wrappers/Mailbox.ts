@@ -19,7 +19,7 @@ import {
   buildMessageCell,
   buildMetadataCell,
 } from './utils/builders';
-import { OpCodes } from './utils/constants';
+import { OpCodes, answer } from './utils/constants';
 import {
   TDelivery,
   THookMetadata,
@@ -113,7 +113,7 @@ export class Mailbox implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.DISPATCH_INIT, 32)
+        .storeUint(OpCodes.DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.destDomain, 32)
         .storeBuffer(opts.recipientAddr)
@@ -137,7 +137,7 @@ export class Mailbox implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.PROCESS_INIT, 32)
+        .storeUint(OpCodes.PROCESS, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeRef(buildMessageCell(opts.message))
         .storeMaybeRef(buildMetadataCell(opts.metadata))
@@ -145,12 +145,11 @@ export class Mailbox implements Contract {
     });
   }
 
-  async sendProcessWSubOp(
+  async sendIsmVerifyAnswer(
     provider: ContractProvider,
     via: Sender,
     value: bigint,
     opts: {
-      subOp: number;
       metadata: TMultisigMetadata;
       message: TMessage;
       queryId?: number;
@@ -160,9 +159,31 @@ export class Mailbox implements Contract {
       value,
       sendMode: SendMode.PAY_GAS_SEPARATELY,
       body: beginCell()
-        .storeUint(OpCodes.PROCESS_INIT, 32)
+        .storeUint(answer(OpCodes.VERIFY), 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeUint(opts.subOp, 32)
+        .storeBit(false)
+        .storeRef(buildMessageCell(opts.message))
+        .storeRef(buildMetadataCell(opts.metadata))
+        .endCell(),
+    });
+  }
+
+  async sendGetIsmAnswer(
+    provider: ContractProvider,
+    via: Sender,
+    value: bigint,
+    opts: {
+      metadata: TMultisigMetadata;
+      message: TMessage;
+      queryId?: number;
+    },
+  ) {
+    await provider.internal(via, {
+      value,
+      sendMode: SendMode.PAY_GAS_SEPARATELY,
+      body: beginCell()
+        .storeUint(answer(OpCodes.GET_ISM), 32)
+        .storeUint(opts.queryId ?? 0, 64)
         .storeBit(false)
         .storeRef(buildMessageCell(opts.message))
         .storeRef(buildMetadataCell(opts.metadata))

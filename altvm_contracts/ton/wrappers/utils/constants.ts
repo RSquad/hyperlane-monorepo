@@ -1,31 +1,44 @@
+import { crc32 } from 'zlib';
+
 export const METADATA_VARIANT = {
   STANDARD: 1,
 };
+export const ANSWER_BIT: number = 0x80000000;
+
+export const op = (name: string): number => {
+  return crc32(name) & ~ANSWER_BIT;
+};
+
+export const answer = (op: number): number => (op | ANSWER_BIT) >>> 0;
 
 export const OpCodes = {
-  DISPATCH_INIT: 0x884b9dd4,
-  PROCESS_INIT: 0xaced8a23,
-  HANDLE: 0xb99c08d,
-  TRANSFER_REMOTE: 0xdd70fba2,
-  QUOTE_DISPATCH: 0x18bf902,
+  // mailbox
+  DISPATCH: op('op::mailbox::dispatch'),
+  PROCESS: op('op::mailbox::process'),
   SET_DEFAULT_ISM: 0xd44d8496,
   SET_DEFAULT_HOOK: 0x8e6c735b,
   SET_REQUIRED_HOOK: 0x2f5451cc,
-  POST_DISPATCH_REQUIRED: 0x89f4a643,
-  POST_DISPATCH_DEFAULT: 0x8a9fb44c,
+  SET_AUTHORIZED_HOOK: 0x995495a2,
+  // hook
+  QUOTE_DISPATCH: op('op::hook::quote_dispatch'),
+  POST_DISPATCH: op('op::hook::post_dispatch'),
   SET_BENEFICIARY: 0xfc3adbc,
+  // recipient
+  HANDLE: op('op::recipient::handle'),
+  GET_ISM: op('op::recipient::get_ism'),
+  REMOVE_ISM: 0x38552523,
+  // protocol fee hook
   SET_PROTOCOL_FEE: 0xf7240b7a,
   COLLECT_PROTOCOL_FEE: 0xaec506d3,
-  VERIFY: 0x3b3cca17,
+  // ism
+  VERIFY: op('op::ism::verify'),
+  SET_VALIDATORS_AND_THRESHOLD: 0x4dad45ea,
   SET_ISM: 0x9b6299a8,
-  REMOVE_ISM: 0x38552523,
-  SET_AUTHORIZED_HOOK: 0x995495a2,
+  // validator announce
   ANNOUNCE: 0x980b3d44,
-  GET_ISM: 0x8f32175,
   CLAIM: 0x13a3ca6,
   TRANSFER_OWNERSHIP: 0x295e75a9,
   SET_DEST_GAS_CONFIG: 0x301bf43f,
-  SET_VALIDATORS_AND_THRESHOLD: 0x4dad45ea,
   JETTON_TRANSFER: 0xf8a7ea5,
   JETTON_TRANSFER_NOTIFICATION: 0x7362d09c,
   JETTON_INTERNAL_TRANSFER: 0x178d4519,
@@ -35,12 +48,8 @@ export const OpCodes = {
   JETTON_MINT: 0x642b7d07,
   JETTON_TOP_UP: 0xd372158c,
   JETTON_CHANGE_ADMIN: 0x6501f354,
-  SET_ROUTER: 0xca657447,
-};
-
-export const ProcessOpCodes = {
-  VERIFY: 0xb33e03ab,
-  DELIVER_MESSAGE: 0x22967489,
+  TRANSFER_REMOTE: op('op::transfer_remote'),
+  SET_ROUTER: op('op:set_router'),
 };
 
 export const Errors = {
@@ -62,5 +71,3 @@ export const Errors = {
   EXCEEDS_MAX_PROTOCOL_FEE: 116,
   INSUFFICIENT_PROTOCOL_FEE: 117,
 };
-
-export const ANSWER_BIT = 0x80000000;

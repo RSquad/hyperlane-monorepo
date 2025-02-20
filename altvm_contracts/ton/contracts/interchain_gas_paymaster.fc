@@ -85,7 +85,7 @@ int pay_for_gas(
     return required_payment;
 }
 
-() post_dispatch(slice s, int op, int query_id, int value, slice dest) inline {
+() post_dispatch(slice s, int query_id, int msg_value, slice dest) impure inline {
     slice body = s;
     slice hyp_message = s~load_ref_slice();
     cell hook_metadata = s~load_maybe_ref();
@@ -98,10 +98,10 @@ int pay_for_gas(
         dest_domain,
         gas_limit
     );
-    send_answer(
-        op,
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
         query_id,
-        value,
+        msg_value,
         required_payment,
         dest,
         body
@@ -126,21 +126,9 @@ int pay_for_gas(
 
     load_globals();
 
-    if (op == op::hook::post_dispatch::required) {
+    if (op == op::hook::post_dispatch) {
         post_dispatch(
             in_msg_body,
-            op,
-            query_id,
-            msg_value,
-            msg_sender
-        );
-        return ();
-    }
-
-    if (op == op::hook::post_dispatch::default) {
-        post_dispatch(
-            in_msg_body,
-            op,
             query_id,
             msg_value,
             msg_sender

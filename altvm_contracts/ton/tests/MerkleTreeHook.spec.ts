@@ -1,10 +1,11 @@
 import { compile } from '@ton/blueprint';
-import { Cell, Dictionary, toNano } from '@ton/core';
+import { Cell, Dictionary, beginCell, toNano } from '@ton/core';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
 import { utils } from 'ethers';
 
 import { MerkleTreeHook } from '../wrappers/MerkleTreeHook';
+import { buildMessage } from '../wrappers/utils/builders';
 import { OpCodes } from '../wrappers/utils/constants';
 
 describe('MerkleTreeHook', () => {
@@ -61,9 +62,7 @@ describe('MerkleTreeHook', () => {
         deployer.getSender(),
         toNano('0.1'),
         {
-          messageId,
-          destDomain: 0,
-          refundAddr: deployer.address,
+          message: buildMessage(),
           hookMetadata: {
             variant: 0,
             msgValue: toNano('0.1'),
@@ -76,7 +75,7 @@ describe('MerkleTreeHook', () => {
       expect(res.transactions).toHaveTransaction({
         from: deployer.address,
         to: merkleTreeHook.address,
-        op: OpCodes.POST_DISPATCH_REQUIRED,
+        op: OpCodes.POST_DISPATCH,
         success: true,
       });
       expect(res.externals).toHaveLength(1);
@@ -135,14 +134,17 @@ describe('MerkleTreeHook', () => {
     ];
 
     for (let i = 0; i < leaves.length; i++) {
-      let messageId = BigInt(utils.hashMessage(leaves[i]));
       const res = await merkleTreeHook.sendPostDispatch(
         deployer.getSender(),
         toNano('0.1'),
         {
-          messageId,
-          destDomain: 0,
-          refundAddr: deployer.address,
+          message: buildMessage(
+            1,
+            Buffer.alloc(32),
+            0,
+            deployer.address.hash,
+            beginCell().storeUint(123, 32).endCell(),
+          ),
           hookMetadata: {
             variant: 0,
             msgValue: toNano('0.1'),
@@ -155,7 +157,7 @@ describe('MerkleTreeHook', () => {
       expect(res.transactions).toHaveTransaction({
         from: deployer.address,
         to: merkleTreeHook.address,
-        op: OpCodes.POST_DISPATCH_REQUIRED,
+        op: OpCodes.POST_DISPATCH,
         success: true,
       });
       expect(res.externals).toHaveLength(1);

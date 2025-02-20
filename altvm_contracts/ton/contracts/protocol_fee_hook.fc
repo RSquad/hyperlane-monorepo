@@ -31,7 +31,7 @@ global slice g::owner;
     g::owner = ds~load_msg_addr();
 }
 
-() post_dispatch(slice s, int op, int query_id, int value, slice dest) impure inline {
+() post_dispatch(int query_id, slice s, int msg_value, slice dest) impure inline {
     int gas_fee = gasfee(
         gasconsumed() + 
         10000,
@@ -43,10 +43,10 @@ global slice g::owner;
     );
     g::collected_fees += g::protocol_fee;
 
-    send_answer(
-        op,
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
         query_id,
-        value,
+        msg_value,
         g::protocol_fee,
         dest,
         s
@@ -69,21 +69,11 @@ global slice g::owner;
 
     load_globals();
 
-    if (op == op::hook::post_dispatch::required) {
+    if (op == op::hook::post_dispatch) {
         post_dispatch(
-            in_msg_body,
-            op::mailbox::post_dispatch::required::answer,
             query_id,
-            msg_sender
-        );
-        return store_globals();
-    }
-
-    if (op == op::hook::post_dispatch::default) {
-        post_dispatch(
             in_msg_body,
-            op::mailbox::post_dispatch::default::answer,
-            query_id,
+            msg_value,
             msg_sender
         );
         return store_globals();

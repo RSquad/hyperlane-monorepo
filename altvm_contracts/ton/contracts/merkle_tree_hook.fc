@@ -78,11 +78,12 @@ int root_w_ctx(cell zeroes) impure inline {
     return current;
 }
 
-() post_dispatch(slice s, int op, int query_id, int value, slice dest) impure inline {
+() post_dispatch(slice s, int query_id, int value, slice dest) impure inline {
     slice body = s;
     slice hyp_message = s~load_ref_slice();
 
-    insert_into_tree(message_id(hyp_message));
+    int message_id = message_id(hyp_message);
+    insert_into_tree(message_id);
 
     builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
     send_event(
@@ -90,8 +91,8 @@ int root_w_ctx(cell zeroes) impure inline {
         data
     );
 
-    send_answer(
-        op,
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
         query_id,
         value,
         0,
@@ -116,21 +117,9 @@ int root_w_ctx(cell zeroes) impure inline {
 
     load_globals();
 
-    if (op == op::hook::post_dispatch::required) {
+    if (op == op::hook::post_dispatch) {
         post_dispatch(
             in_msg_body,
-            op,
-            query_id,
-            msg_value,
-            msg_sender
-        );
-        return store_globals();
-    }
-
-    if (op == op::hook::post_dispatch::default) {
-        post_dispatch(
-            in_msg_body,
-            op,
             query_id,
             msg_value,
             msg_sender
