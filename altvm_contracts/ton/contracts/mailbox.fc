@@ -15,9 +15,8 @@ global slice g::default_ism_addr;
 global slice g::default_hook_addr;
 global slice g::required_hook_addr;
 global slice g::owner_addr;
-global cell g::deliveries; ;; dict
-global cell g::cur_recipients; ;; dict
-global cell g::cur_isms; ;; dict
+global cell g::delivery_code;
+global cell g::process_requests;
 
 ;; Global runtime var
 global int g::query_id;
@@ -29,9 +28,8 @@ global int g::query_id;
     g::nonce = ds~load_uint(32);
     g::latest_dispatched_id = ds~load_uint(256);
     g::owner_addr = ds~load_msg_addr();
-    g::deliveries = ds~load_dict();
-    g::cur_recipients = ds~load_dict();
-    g::cur_isms = ds~load_dict();
+    g::delivery_code = ds~load_ref();
+    g::process_requests = ds~load_dict();
     slice ds = ds~load_ref().begin_parse();
     g::default_ism_addr = ds~load_msg_addr();
     g::default_hook_addr = ds~load_msg_addr();
@@ -50,9 +48,8 @@ global int g::query_id;
         .store_uint(g::nonce, 32)
         .store_uint(g::latest_dispatched_id, 256)
         .store_slice(g::owner_addr)
-        .store_dict(g::deliveries)
-        .store_dict(g::cur_recipients)
-        .store_dict(g::cur_isms)
+        .store_ref(g::delivery_code)
+        .store_dict(g::process_requests)
         .store_ref(addr_cell)
         .end_cell();
     set_data(data);
@@ -70,6 +67,39 @@ global int g::query_id;
     );
     return (addr_dict, ());
 }
+
+() using::delivery::deploy(
+  int message_id
+) impure inline {
+  cell delivery_data = delivery::build_initial_data(message_id);
+  return delivery::deploy(
+    0,
+    send_mode::carry_remaining_value,
+    g::query_id,
+    g::delivery_code,
+    delivery_data,
+    my_address()
+  );
+}
+
+;; () handle_bounced_msg(slice in_msg_body) impure inline {
+;;   in_msg_body~skip_bits(32); ;; 0xFFFFFFFF
+;;   int op = in_msg_body~load_uint(32);
+
+;;   load_globals();
+;;   int query_id = in_msg_body~load_uint(64);
+;;   slice response_address = message::unpack::sender_addr(hyp_message);
+
+;;   send_change_with_payload(
+;;     response_address,
+;;     op::teleport::transfer_btc,
+;;     query_id,
+;;     send_mode::carry_remaining_value,
+;;     begin_cell().store_uint(error::mailbox_bounced, 32).store_uint(op, 32)
+;;   );
+
+;;   store_globals();
+;; }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
@@ -245,6 +275,7 @@ global int g::query_id;
         builder verify_msg = build_message(ism_addr, 0, true, null(), verify_body);
         send_raw_message(verify_msg.end_cell(), send_mode::carry_remaining_value);
         return store_globals();
+    }
     }
 
     if (op == op::ism::verify::answer) {

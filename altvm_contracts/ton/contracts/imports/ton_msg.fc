@@ -144,3 +144,4 @@ slice build_addr(int wc, int addr256) inline {
   builder msg_b = build_message(dest_address, value, bounce?, state_init, body);
   send_raw_message(msg_b.end_cell(), mode);
 }
+
