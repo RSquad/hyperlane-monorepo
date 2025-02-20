@@ -23,7 +23,6 @@ import { JettonWalletContract } from '../wrappers/JettonWallet';
 import { Mailbox } from '../wrappers/Mailbox';
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
-import { RecipientMock } from '../wrappers/RecipientMock';
 import { TokenRouter } from '../wrappers/TokenRouter';
 import {
   buildHookMetadataCell,
@@ -590,5 +589,88 @@ describe('TokenRouter', () => {
         },
       ]);
     });
+  });
+
+  describe('hyp_jetton_collateral', () => {
+    const amount = toNano(1000);
+    beforeEach(async () => {
+      await blockchain.loadFrom(snapshot);
+      tokenRouter = blockchain.openContract(
+        TokenRouter.createFromConfig(
+          {
+            jettonAddress: jettonMinter.address,
+            ownerAddress: deployer.address,
+            mailboxAddress: mailbox.address,
+            routers,
+          },
+          hypJettonCollateralCode,
+        ),
+      );
+
+      await tokenRouter.sendDeploy(deployer.getSender(), toNano('0.05'));
+
+      await jettonMinter.sendMint(deployer.getSender(), {
+        toAddress: deployer.address,
+        responseAddress: deployer.address,
+        jettonAmount: amount,
+        queryId: 0,
+        value: toNano(0.1),
+      });
+    });
+
+    it('transfer token -> dispatch', async () => {
+      const refundAddress = await blockchain.treasury('refundAddress');
+      const res = await jettonWallet.sendTransfer(deployer.getSender(), {
+        value: toNano(1.1),
+        toAddress: tokenRouter.address,
+        queryId: 0,
+        jettonAmount: amount,
+        notify: {
+          value: toNano(1),
+          payload: beginCell()
+            .storeUint(originChain, 32)
+            .storeBuffer(recipient.address.hash, 32)
+            .storeMaybeRef(
+              buildHookMetadataCell({
+                variant: METADATA_VARIANT.STANDARD,
+                msgValue: 0n,
+                gasLimit: 1000000000n,
+                refundAddress: refundAddress.address,
+              }),
+            )
+            .storeMaybeRef(null)
+            .endCell(),
+        },
+      });
+
+      const tokenRouterWallet = blockchain.openContract(
+        JettonWalletContract.createFromAddress(
+          await jettonMinter.getWalletAddress(tokenRouter.address),
+        ),
+      );
+
+      expectTransactionFlow(res, [
+        {
+          from: deployer.address,
+          to: jettonWallet.address,
+          success: true,
+          op: OpCodes.JETTON_TRANSFER,
+        },
+        {
+          from: jettonWallet.address,
+          to: tokenRouterWallet.address,
+          success: true,
+          op: OpCodes.JETTON_INTERNAL_TRANSFER,
+        },
+        {
+          from: tokenRouterWallet.address,
+          to: tokenRouter.address,
+          success: true,
+          op: OpCodes.JETTON_TRANSFER_NOTIFICATION,
+        },
+      ]);
+    });
+
+    it.todo('process -> handle (transfer token)');
   });
 });

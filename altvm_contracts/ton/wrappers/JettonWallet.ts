@@ -85,7 +85,11 @@ export class JettonWalletContract implements Contract {
       toAddress: Address;
       queryId: number;
       jettonAmount: bigint;
-      ethAddress: bigint;
+      responseAddress?: Address;
+      notify?: {
+        payload: Cell;
+        value: bigint;
+      };
     },
   ) {
     await provider.internal(via, {
@@ -96,10 +100,10 @@ export class JettonWalletContract implements Contract {
         .storeUint(opts.queryId, 64)
         .storeCoins(opts.jettonAmount)
         .storeAddress(opts.toAddress)
-        .storeAddress(via.address)
+        .storeAddress(opts.responseAddress)
         .storeMaybeRef(null) // custom payload
-        .storeCoins(0)
-        .storeMaybeRef(null) // forward payload
+        .storeCoins(opts.notify?.value ?? 0)
+        .storeMaybeRef(opts.notify?.payload) // forward payload
         .endCell(),
     });
   }
