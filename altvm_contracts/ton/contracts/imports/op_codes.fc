@@ -32,6 +32,7 @@ const int op::hook::post_dispatch = "op::hook::post_dispatch"c & (~ ANSWER_BIT);
 const int op::hook::post_dispatch::answer = op::hook::post_dispatch | ANSWER_BIT;
 const int op::set_beneficiary = "op::set_beneficiary"c;
 const int op::transfer_ownership = "op::transfer_ownership"c;
+const int op::merkle_test = "op::merkle_test"c;
 
 ;; protocol fee hook
 const int op::set_protocol_fee = "op::set_protocol_fee"c;

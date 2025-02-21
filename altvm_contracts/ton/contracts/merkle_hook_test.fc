@@ -7,14 +7,12 @@
 #include "imports/merkle.fc";
 
 global int g::count;
-global slice g::mailbox_addr;
 global cell g::tree;
 
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
         .store_uint(g::count, 256)
-        .store_slice(g::mailbox_addr)
         .store_dict(g::tree)
         .end_cell();
     set_data(data);
@@ -23,34 +21,7 @@ global cell g::tree;
 () load_globals() impure inline_ref {
     slice ds = get_data().begin_parse();
     g::count = ds~load_uint(256);
-    g::mailbox_addr = ds~load_msg_addr();
     g::tree = ds~load_dict();
-}
-
-() post_dispatch(slice s, int query_id, int value, slice dest) impure inline {
-    slice body = s;
-    slice hyp_message = s~load_ref_slice();
-
-    int message_id = message_id(hyp_message);
-    (int count, cell tree) = insert_into_tree(message_id, g::count, g::tree);
-
-    g::count = count;
-    g::tree = tree;
-
-    builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
-    send_event(
-        event::inserted_into_tree,
-        data
-    );
-
-    reserve_and_send_remaining(
-        op::hook::post_dispatch,
-        query_id,
-        value,
-        0,
-        dest,
-        body
-    );
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -69,13 +40,14 @@ global cell g::tree;
 
     load_globals();
 
-    if (op == op::hook::post_dispatch) {
-        post_dispatch(
-            in_msg_body,
-            query_id,
-            msg_value,
-            msg_sender
-        );
+    if(op == op::merkle_test) {
+        int message_id = in_msg_body~load_uint(256);
+
+        (int count, cell tree) = insert_into_tree(message_id, g::count, g::tree);
+
+        g::count = count;
+        g::tree = tree;
+
         return store_globals();
     }
 
@@ -103,9 +75,4 @@ int get_count() method_id {
 int get_root() method_id {
     load_globals();
     return root();
-}
-
-(int, int) get_latest_checkpoint() method_id {
-    load_globals();
-    return (root(), g::count - 1);
 }

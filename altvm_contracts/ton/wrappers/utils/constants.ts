@@ -50,6 +50,7 @@ export const OpCodes = {
   JETTON_CHANGE_ADMIN: 0x6501f354,
   TRANSFER_REMOTE: op('op::transfer_remote'),
   SET_ROUTER: op('op:set_router'),
+  MERKLE_TEST: op('op::merkle_test'),
 };
 
 export const Errors = {
