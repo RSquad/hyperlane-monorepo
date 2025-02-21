@@ -33,11 +33,10 @@ import {
   Errors,
   METADATA_VARIANT,
   OpCodes,
-  ProcessOpCodes,
+  answer,
 } from '../wrappers/utils/constants';
 import {
   TMailboxContractConfig,
-  TMessage,
   TMultisigMetadata,
 } from '../wrappers/utils/types';
 
@@ -52,7 +51,6 @@ describe('TokenRouter', () => {
   let requiredHookCode: Cell;
   let defaultHookCode: Cell;
   let mockIsmCode: Cell;
-  let recipientCode: Cell;
   let minterCode: Cell;
   let walletCode: Cell;
   const burnAmount = 10000000000n;
@@ -316,13 +314,7 @@ describe('TokenRouter', () => {
           from: tokenRouter.address,
           to: mailbox.address,
           success: true,
-          op: OpCodes.PROCESS,
-          body: (x: Cell | undefined): boolean => {
-            if (!x) return false;
-            const s = x!.beginParse();
-            s.skip(32 + 64);
-            return s.loadUint(32) == ProcessOpCodes.VERIFY;
-          },
+          op: answer(OpCodes.GET_ISM),
         },
         {
           from: mailbox.address,
@@ -334,13 +326,7 @@ describe('TokenRouter', () => {
           from: initialDefaultIsm.address,
           to: mailbox.address,
           success: true,
-          op: OpCodes.PROCESS,
-          body: (x: Cell | undefined): boolean => {
-            if (!x) return false;
-            const s = x!.beginParse();
-            s.skip(32 + 64);
-            return s.loadUint(32) == ProcessOpCodes.DELIVER_MESSAGE;
-          },
+          op: answer(OpCodes.VERIFY),
         },
         {
           from: mailbox.address,
@@ -503,7 +489,6 @@ describe('TokenRouter', () => {
           body: beginCell()
             .storeUint(OpCodes.DISPATCH, 32)
             .storeUint(0, 64)
-            .storeUint(OpCodes.DISPATCH_INIT, 32)
             .storeUint(destinationChain, 32)
             .storeBuffer(routers.get(destinationChain)!, 32)
             .storeRef(

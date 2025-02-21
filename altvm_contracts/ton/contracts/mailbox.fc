@@ -5,7 +5,7 @@
 #include "imports/events.fc";
 #include "imports/signing_utils.fc";
 #include "imports/hyp_message.fc";
-#include "imports/hyp_metadata.fc";
+#include "imports/metadata.fc";
 
 global int g::version;
 global int g::local_domain;
@@ -87,70 +87,56 @@ global int g::query_id;
 
     load_globals();
 
-    if (op == op::dispatch) {
-        int sub_op = in_msg_body~load_uint(32);
-        if (sub_op == op::dispatch::init) {
-            int dest_domain = in_msg_body~load_uint(32);
-            int recipient_addr = in_msg_body~load_uint(256);
-            cell messageBody = in_msg_body~load_ref();
-            cell hook_metadata = in_msg_body~load_maybe_ref();
+    if (op == op::mailbox::dispatch) {
+        int dest_domain = in_msg_body~load_uint(32);
+        int recipient_addr = in_msg_body~load_uint(256);
+        cell messageBody = in_msg_body~load_ref();
+        cell hook_metadata = in_msg_body~load_maybe_ref();
 
-            builder hyperlane_message = hyperlane::message::build(
-                g::version,
-                g::nonce,
-                g::local_domain,
-                msg_sender,
-                dest_domain,
-                recipient_addr,
-                messageBody
-            );
-
-            int id = message_id(hyperlane_message.end_cell().begin_parse());
-
-            builder data = begin_cell()
-                .store_uint(id, 256)
-                .store_ref(begin_cell()
-                    .store_slice(msg_sender)
-                    .store_uint(dest_domain, 32)
-                    .store_uint(recipient_addr, 256)
-                    .store_ref(hyperlane_message.end_cell())
-                    .end_cell()
-                );
-
-            send_event(event::dispatch, data);
-            g::latest_dispatched_id = id;
-            g::nonce += 1;
+        builder hyperlane_message = hyperlane::message::build(
+            g::version,
+            g::nonce,
+            g::local_domain,
+            msg_sender,
+            dest_domain,
+            recipient_addr,
+            messageBody
+        );
         
-            cell body = begin_cell()
-                .store_uint(op::post_dispatch, 32)
-                .store_uint(g::query_id, 64)
-                .store_ref(hyperlane_message.end_cell())
-                .store_maybe_ref(hook_metadata)
-                .end_cell();
+        cell body = begin_cell()
+            .store_uint(op::hook::post_dispatch, 32)
+            .store_uint(g::query_id, 64)
+            .store_ref(hyperlane_message.end_cell())
+            .store_maybe_ref(hook_metadata)
+            .end_cell();
 
-            builder post_dispatch_msg = build_message(
-                g::required_hook_addr,
-                msg_value,
-                true,
-                null(),
-                body
-            );
+        builder post_dispatch_msg = build_message(
+            g::required_hook_addr,
+            msg_value,
+            true,
+            null(),
+            body
+        );
 
-            send_raw_message(post_dispatch_msg.end_cell(), send_mode::pay_transfer_fees_separately);
-        }
+        send_raw_message(post_dispatch_msg.end_cell(), send_mode::pay_transfer_fees_separately);
+        return store_globals();
+    }
         
-        if(sub_op == op::dispatch::default_hook) {
-            throw_unless(
-                error::unauthorized_sender,
-                equal_slices(msg_sender, g::required_hook_addr)
-            );
+    if(op == op::hook::post_dispatch::answer) {
+        int required_hook? = equal_slices(msg_sender, g::required_hook_addr);
+        int default_hook? = equal_slices(msg_sender, g::default_hook_addr);
+        throw_unless(
+            error::unauthorized_sender,
+            required_hook? | default_hook?
+        );
 
+        if (required_hook?) {
             cell body = begin_cell()
-                .store_uint(op::post_dispatch, 32)
+                .store_uint(op::hook::post_dispatch, 32)
                 .store_uint(g::query_id, 64)
                 .store_slice(in_msg_body)
                 .end_cell();
-            
+                
             builder default_hook_msg = build_message(
                 g::default_hook_addr,
                 msg_value,
@@ -160,132 +146,140 @@ global int g::query_id;
             );
 
             send_raw_message(default_hook_msg.end_cell(), send_mode::pay_transfer_fees_separately);
-            
-        }
+            return store_globals();
+        } else {
+            cell hyp_message = in_msg_body~load_ref();
+            cell hook_metadata = in_msg_body~load_maybe_ref();
+            slice ms = hyp_message.begin_parse();
 
-        if (sub_op == op::dispatch::send_change) {
-            throw_unless(
-                error::unauthorized_sender,
-                equal_slices(msg_sender, g::default_hook_addr)
-            );
+            int id = message_id(ms);
+
+            int dest_domain = message::unpack::dest_domain(ms);
+            int recipient_addr = message::unpack::recipient(ms);
+
+            builder data = begin_cell()
+                .store_uint(id, 256)
+                .store_ref(begin_cell()
+                    .store_slice(msg_sender)
+                    .store_uint(dest_domain, 32)
+                    .store_uint(recipient_addr, 256)
+                    .store_ref(hyp_message)
+                    .end_cell()
+                );
+
+            send_event(event::dispatch, data);
+            g::latest_dispatched_id = id;
+            g::nonce += 1;
 
             reserve_original_balance(msg_value, 0);
 
-            slice hyp_message = in_msg_body~load_ref_slice();
-            cell hook_metadata = in_msg_body~load_maybe_ref();
-            int sender_addr = message::unpack::sender_addr(hyp_message);
-            
+            int sender_addr = message::unpack::sender_addr(ms);
+                
             int refund_addr = null?(hook_metadata) ? sender_addr : 
-                metadata::refund_addr(hook_metadata.begin_parse());
+            metadata::refund_addr(hook_metadata.begin_parse());
 
-            send_change(build_addr(0, refund_addr), 0, g::query_id, send_mode::carry_remaining_balance);
+            send_change(build_addr(0, refund_addr), op::mailbox::dispatch, g::query_id, send_mode::carry_remaining_balance);
+            return store_globals();
         }
+    }
 
+    if (op == op::mailbox::process) {
+        slice forward_payload = in_msg_body;
+        ;; formatted hyperlane message
+        slice message = in_msg_body~load_ref().begin_parse();
+        (
+            int id,
+            int version,
+            int nonce, 
+            int origin_domain, 
+            int sender,
+            int dest_domain,
+            int recipient,
+            cell body
+        ) = hyperlane::message::unpack(message);
+
+        ;; check if message has right version
+        throw_unless(error::wrong_mailbox_version, version == g::version);
+
+        ;; check if message has right destination domain
+        throw_unless(error::wrong_dest_domain, dest_domain == g::local_domain);
+
+        ;; check if message was delivered
+        (_, int found?) = g::deliveries.udict_get_ref?(256, id);
+        throw_if(error::message_delivered, found?);
+
+        cell delivery = begin_cell()
+            .store_uint(sender, 256)
+            .store_uint(now(), 48)
+            .end_cell();
+
+        g::deliveries~udict_set_ref(256, id, delivery);
+
+        ;; get recepient ism 
+        slice recipient_addr = build_addr(0, recipient);
+        g::cur_recipients~udict_set(64, g::query_id, recipient_addr);
+        cell get_ism_body = begin_cell()
+            .store_uint(op::recipient::get_ism, 32)
+            .store_uint(g::query_id, 64)
+            .store_slice(forward_payload)
+            .end_cell();
+        builder get_ism_msg = build_message(recipient_addr, 0, true, null(), get_ism_body);
+        send_raw_message(get_ism_msg.end_cell(), send_mode::carry_remaining_value);
         return store_globals();
     }
 
-    if (op == op::process) {
-        int sub_op = in_msg_body~load_uint(32);
-        if (sub_op == op::process::init) {
-            slice forward_payload = in_msg_body;
-            ;; formatted hyperlane message
-            slice message = in_msg_body~load_ref().begin_parse();
-            (
-                int id,
-                int version,
-                int nonce, 
-                int origin_domain, 
-                int sender,
-                int dest_domain,
-                int recipient,
-                cell body
-            ) = hyperlane::message::unpack(message);
-
-            ;; check if message has right version
-            throw_unless(error::wrong_mailbox_version, version == g::version);
-
-            ;; check if message has right destination domain
-            throw_unless(error::wrong_dest_domain, dest_domain == g::local_domain);
-
-            ;; check if message was delivered
-            (_, int found?) = g::deliveries.udict_get_ref?(256, id);
-            throw_if(error::message_delivered, found?);
-
-            cell delivery = begin_cell()
-                .store_uint(sender, 256)
-                .store_uint(now(), 48)
-                .end_cell();
-
-            g::deliveries~udict_set_ref(256, id, delivery);
-
-            ;; get recepient ism 
-            slice recipient_addr = build_addr(0, recipient);
-            g::cur_recipients~udict_set(64, g::query_id, recipient_addr);
-            cell get_ism_body = begin_cell()
-                .store_uint(op::get_ism, 32)
-                .store_uint(g::query_id, 64)
-                .store_slice(forward_payload)
-                .end_cell();
-            builder get_ism_msg = build_message(recipient_addr, 0, true, null(), get_ism_body);
-            send_raw_message(get_ism_msg.end_cell(), send_mode::carry_remaining_value);
-            return store_globals();
-        }
-
-        if(sub_op == op::process::verify) {
-            g::cur_recipients~authorize(msg_sender);
-            ;; verify message
-            slice recipient_ism_addr = in_msg_body~load_msg_addr();
-            cell message = in_msg_body~load_ref();
-            cell metadata = in_msg_body~load_maybe_ref();
-            cell verify_body = begin_cell()
-                .store_uint(op::verify, 32)
-                .store_uint(g::query_id, 64)
-                .store_ref(message)
-                .store_maybe_ref(metadata)
-                .end_cell();
-            slice ism_addr = recipient_ism_addr.preload_uint(2) == 0 ? g::default_ism_addr : recipient_ism_addr ;
-            g::cur_isms~udict_set(64, g::query_id, ism_addr);
-            builder verify_msg = build_message(ism_addr, 0, true, null(), verify_body);
-            send_raw_message(verify_msg.end_cell(), send_mode::carry_remaining_value);
-            return store_globals();
-        }
-
-        if (sub_op == op::process::deliver_message) {
-            g::cur_isms~authorize(msg_sender);
-
-            int verified? = in_msg_body~load_int(1);
-            throw_unless(error::message_verification_failed, verified?);
-            slice message = in_msg_body~load_ref().begin_parse();
-
-            
-            (
-                _,
-                _,
-                _, 
-                int origin_domain, 
-                int sender,
-                int dest_domain,
-                int recipient,
-                cell message_body
-            ) = hyperlane::message::unpack(message);
-            
-            slice recipient_addr = build_addr(0, recipient);
-            cell body = begin_cell()
-                .store_uint(op::handle, 32)
-                .store_uint(g::query_id, 64)
-                .store_uint(origin_domain, 32)
-                .store_uint(sender, 256)
-                .store_ref(message_body)
-                .end_cell();
-
-
-            ;; deliver message (send msg with handle opcode)
-            builder msg = build_message(recipient_addr, 0, true, null(), body);
-            send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
-            return store_globals();
-        }
-        throw(error::unknown_sub_op);
+    if(op == op::recipient::get_ism::answer) {
+        g::cur_recipients~authorize(msg_sender);
+        ;; verify message
+        slice recipient_ism_addr = in_msg_body~load_msg_addr();
+        cell message = in_msg_body~load_ref();
+        cell metadata = in_msg_body~load_maybe_ref();
+        cell verify_body = begin_cell()
+            .store_uint(op::ism::verify, 32)
+            .store_uint(g::query_id, 64)
+            .store_ref(message)
+            .store_maybe_ref(metadata)
+            .end_cell();
+        slice ism_addr = recipient_ism_addr.preload_uint(2) == 0 ? g::default_ism_addr : recipient_ism_addr ;
+        g::cur_isms~udict_set(64, g::query_id, ism_addr);
+        builder verify_msg = build_message(ism_addr, 0, true, null(), verify_body);
+        send_raw_message(verify_msg.end_cell(), send_mode::carry_remaining_value);
+        return store_globals();
     }
+
+    if (op == op::ism::verify::answer) {
+        g::cur_isms~authorize(msg_sender);
+
+        int verified? = in_msg_body~load_int(1);
+        throw_unless(error::message_verification_failed, verified?);
+        slice message = in_msg_body~load_ref().begin_parse();
+            
+        (
+            _,
+            _,
+            _, 
+            int origin_domain, 
+            int sender,
+            int dest_domain,
+            int recipient,
+            cell message_body
+        ) = hyperlane::message::unpack(message);
+            
+        slice recipient_addr = build_addr(0, recipient);
+        cell body = begin_cell()
+            .store_uint(op::recipient::handle, 32)
+            .store_uint(g::query_id, 64)
+            .store_uint(origin_domain, 32)
+            .store_uint(sender, 256)
+            .store_ref(message_body)
+            .end_cell();
+
+        ;; deliver message (send msg with handle opcode)
+        builder msg = build_message(recipient_addr, 0, true, null(), body);
+        send_raw_message(msg.end_cell(), send_mode::carry_remaining_value);
+        return store_globals();
+    }
+
 
     if (op == op::set_default_ism) {
         throw_unless(

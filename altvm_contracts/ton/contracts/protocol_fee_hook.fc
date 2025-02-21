@@ -31,6 +31,28 @@ global slice g::owner;
     g::owner = ds~load_msg_addr();
 }
 
+() post_dispatch(int query_id, slice s, int msg_value, slice dest) impure inline {
+    int gas_fee = gasfee(
+        gasconsumed() + 
+        10000,
+        false
+    );
+    throw_if(
+        error::msg_value_too_low,
+        msg_value < g::protocol_fee + gas_fee + storagefee() + FWD_FEES
+    );
+    g::collected_fees += g::protocol_fee;
+
+    reserve_and_send_remaining(
+        op::hook::post_dispatch,
+        query_id,
+        msg_value,
+        g::protocol_fee,
+        dest,
+        s
+    );
+}
+
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
     if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
         return ();
@@ -47,37 +69,13 @@ global slice g::owner;
 
     load_globals();
 
-    if(op == op::post_dispatch) {
-        int gas_fee = gasfee(
-            gasconsumed() + 
-            10000,
-            false
+    if (op == op::hook::post_dispatch) {
+        post_dispatch(
+            query_id,
+            in_msg_body,
+            msg_value,
+            msg_sender
         );
-        throw_if(
-            error::msg_value_too_low,
-            msg_value < g::protocol_fee + gas_fee + storagefee() + FWD_FEES
-        );
-        cell body = begin_cell()
-            .store_uint(op::dispatch, 32)
-            .store_uint(query_id, 64)
-            .store_uint(op::dispatch::default_hook, 32)
-            .store_slice(in_msg_body)
-            .end_cell();
-
-        builder dafault_hook_msg = build_message(
-            msg_sender,
-            0,
-            true,
-            null(),
-            body
-        );
-
-        g::collected_fees += g::protocol_fee;
-
-        raw_reserve(storagefee() + g::protocol_fee, reserve_mode::balance_plus_this_amount);
-
-        send_raw_message(dafault_hook_msg.end_cell(), send_mode::carry_remaining_balance);
-
         return store_globals();
     }
 

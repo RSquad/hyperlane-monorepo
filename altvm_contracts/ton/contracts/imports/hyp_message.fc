@@ -36,6 +36,11 @@ int message::unpack::sender_addr(slice message) inline {
     return message~load_uint(256);
 }
 
+int message::unpack::recipient(slice message) inline {
+    message~skip_bits(8 + 32 + 32 + 256 + 32);
+    return message~load_uint(256);
+}
+
 int message::unpack::dest_domain(slice message) inline {
     message~skip_bits(8 + 32 + 32 + 256);
     return message~load_uint(32);

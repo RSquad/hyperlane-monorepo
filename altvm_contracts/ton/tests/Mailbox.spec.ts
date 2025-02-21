@@ -16,7 +16,7 @@ import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
 import { buildMessage } from '../wrappers/utils/builders';
-import { Errors, OpCodes, ProcessOpCodes } from '../wrappers/utils/constants';
+import { Errors, OpCodes, answer } from '../wrappers/utils/constants';
 import {
   THookMetadata,
   TMailboxContractConfig,
@@ -251,7 +251,7 @@ describe('Mailbox', () => {
       from: initialRequiredHook.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.DISPATCH,
+      op: answer(OpCodes.POST_DISPATCH),
     });
 
     expect(res.transactions).toHaveTransaction({
@@ -264,7 +264,7 @@ describe('Mailbox', () => {
     expect(res.transactions).toHaveTransaction({
       from: initialDefaultHook.address,
       to: mailbox.address,
-      op: OpCodes.DISPATCH,
+      op: answer(OpCodes.POST_DISPATCH),
       success: true,
     });
 
@@ -275,14 +275,15 @@ describe('Mailbox', () => {
     });
 
     expect(res.externals).toHaveLength(3);
+
     expect(res.externals[0].info.src.toString()).toStrictEqual(
-      mailbox.address.toString(),
-    );
-    expect(res.externals[1].info.src.toString()).toStrictEqual(
       initialRequiredHook.address.toString(),
     );
-    expect(res.externals[2].info.src.toString()).toStrictEqual(
+    expect(res.externals[1].info.src.toString()).toStrictEqual(
       initialDefaultHook.address.toString(),
+    );
+    expect(res.externals[2].info.src.toString()).toStrictEqual(
+      mailbox.address.toString(),
     );
 
     const logBody = res.externals[0].body;
@@ -315,7 +316,7 @@ describe('Mailbox', () => {
       from: recipient.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.PROCESS,
+      op: answer(OpCodes.GET_ISM),
     });
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
@@ -327,7 +328,7 @@ describe('Mailbox', () => {
       from: initialDefaultIsm.address,
       to: mailbox.address,
       success: true,
-      op: OpCodes.PROCESS,
+      op: answer(OpCodes.VERIFY),
     });
     expect(res.transactions).toHaveTransaction({
       from: mailbox.address,
@@ -466,11 +467,10 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong sender on verify', async () => {
-    const res = await mailbox.sendProcessWSubOp(
+    const res = await mailbox.sendGetIsmAnswer(
       deployer.getSender(),
       toNano('0.1'),
       {
-        subOp: ProcessOpCodes.VERIFY,
         metadata: {
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
@@ -489,11 +489,10 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong sender on deliver message', async () => {
-    const res = await mailbox.sendProcessWSubOp(
+    const res = await mailbox.sendIsmVerifyAnswer(
       deployer.getSender(),
       toNano('0.1'),
       {
-        subOp: ProcessOpCodes.DELIVER_MESSAGE,
         metadata: {
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
