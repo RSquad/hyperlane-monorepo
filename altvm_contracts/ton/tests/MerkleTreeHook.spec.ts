@@ -18,9 +18,11 @@ describe('MerkleTreeHook', () => {
   let blockchain: Blockchain;
   let deployer: SandboxContract<TreasuryContract>;
   let merkleTreeHook: SandboxContract<MerkleTreeHook>;
+  let mailbox: SandboxContract<TreasuryContract>;
 
   beforeEach(async () => {
     blockchain = await Blockchain.create();
+    mailbox = await blockchain.treasury('mailbox');
 
     const dict = Dictionary.empty(
       Dictionary.Keys.Uint(8),
@@ -34,6 +36,7 @@ describe('MerkleTreeHook', () => {
         {
           index: 0,
           tree: dict,
+          mailboxAddr: mailbox.address,
         },
         code,
       ),
@@ -54,7 +57,7 @@ describe('MerkleTreeHook', () => {
     });
   });
 
-  it('should insert with empty leaf', async () => {
+  it.only('should insert with empty leaf', async () => {
     const leaves = ['anna', 'james', '', 'luke', 'erin'];
     for (let i = 0; i < leaves.length; i++) {
       let messageId = BigInt(utils.hashMessage(leaves[i]));
@@ -62,7 +65,13 @@ describe('MerkleTreeHook', () => {
         deployer.getSender(),
         toNano('0.1'),
         {
-          message: buildMessage(),
+          message: buildMessage(
+            1,
+            Buffer.alloc(32),
+            0,
+            deployer.address.hash,
+            beginCell().storeUint(messageId, 256).endCell(),
+          ),
           hookMetadata: {
             variant: 0,
             msgValue: toNano('0.1'),

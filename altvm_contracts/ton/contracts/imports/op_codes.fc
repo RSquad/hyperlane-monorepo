@@ -43,5 +43,5 @@ const int op::claim = "op::claim"c;
 
 ;; Token Router
 
-const int op::transfer_remote = "op::transfer_remote"c;
+const int op::transfer_remote = "op::transfer_remote"c & (~ ANSWER_BIT);
 const int op::set_router = "op:set_router"c;

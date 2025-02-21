@@ -489,7 +489,6 @@ describe('TokenRouter', () => {
           body: beginCell()
             .storeUint(OpCodes.DISPATCH, 32)
             .storeUint(0, 64)
-            .storeUint(OpCodes.DISPATCH, 32)
             .storeUint(destinationChain, 32)
             .storeBuffer(routers.get(destinationChain)!, 32)
             .storeRef(
