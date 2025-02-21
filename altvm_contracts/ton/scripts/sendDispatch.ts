@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { Mailbox } from '../wrappers/Mailbox';
+import { buildMessage, buildMessageCell } from '../wrappers/utils/builders';
 import { THookMetadata } from '../wrappers/utils/types';
 
 function loadDeployedContracts(domain: number) {
@@ -32,26 +33,19 @@ export async function run(provider: NetworkProvider) {
     Mailbox.createFromAddress(Address.parse(deployedContracts.mailboxAddress)),
   );
 
-  const wallet = ethers.Wallet.createRandom();
-
-  const destAddr = Buffer.from(
-    wallet.address.slice(2).padStart(64, '0'),
-    'hex',
-  );
   const destAddrTon = Address.parse(deployedContracts.recipientAddress).hash;
 
   const hookMetadata: THookMetadata = {
     variant: 0,
     msgValue: 1000n,
     gasLimit: 50000n,
-    refundAddress: Address.parse(process.env.TON_ADDRESS!),
+    refundAddress: provider.sender().address!,
   };
 
-  await mailbox.sendDispatch(provider.sender(), toNano('0.15'), {
+  await mailbox.sendDispatch(provider.sender(), toNano('0.5'), {
     destDomain: targetDomain,
     recipientAddr: destAddrTon,
-    message: beginCell().storeUint(111, 32).endCell(),
+    message: beginCell().storeStringTail('Hello, world!').endCell(),
     hookMetadata,
-    requiredValue: toNano('0.1'),
   });
 }
