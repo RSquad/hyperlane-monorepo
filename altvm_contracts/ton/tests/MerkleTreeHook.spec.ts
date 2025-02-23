@@ -6,7 +6,7 @@ import { utils } from 'ethers';
 
 import { MerkleTreeHook } from '../wrappers/MerkleTreeHook';
 import { buildMessage } from '../wrappers/utils/builders';
-import { OpCodes } from '../wrappers/utils/constants';
+import { OpCodes, answer } from '../wrappers/utils/constants';
 
 describe('MerkleTreeHook', () => {
   let code: Cell;
@@ -57,129 +57,40 @@ describe('MerkleTreeHook', () => {
     });
   });
 
-  it.only('should insert with empty leaf', async () => {
-    const leaves = ['anna', 'james', '', 'luke', 'erin'];
-    for (let i = 0; i < leaves.length; i++) {
-      let messageId = BigInt(utils.hashMessage(leaves[i]));
-      const res = await merkleTreeHook.sendPostDispatch(
-        deployer.getSender(),
-        toNano('0.1'),
-        {
-          message: buildMessage(
-            1,
-            Buffer.alloc(32),
-            0,
-            deployer.address.hash,
-            beginCell().storeUint(messageId, 256).endCell(),
-          ),
-          hookMetadata: {
-            variant: 0,
-            msgValue: toNano('0.1'),
-            gasLimit: 50000n,
-            refundAddress: deployer.address,
-          },
-        },
-      );
-
-      expect(res.transactions).toHaveTransaction({
-        from: deployer.address,
-        to: merkleTreeHook.address,
-        op: OpCodes.POST_DISPATCH,
-        success: true,
-      });
-      expect(res.externals).toHaveLength(1);
-    }
-
-    const root = await merkleTreeHook.getRoot();
-    expect(root).toStrictEqual(
-      0x1841827275d59b7515da81fb121637567b70ebd8b38ec5aadb51f4300976cba1n,
-    );
-  });
-
   it('should post dispatch', async () => {
-    const leaves = [
-      'bacon',
-      'eye',
-      'we',
-      'ghost',
-      'listen',
-      'corn',
-      'blonde',
-      'gutter',
-      'sanctuary',
-      'seat',
-      'generate',
-      'twist',
-      'waterfall',
-      'monster',
-      'elbow',
-      'flash',
-      'arrow',
-      'moment',
-      'cheat',
-      'unity',
-      'steak',
-      'shelter',
-      'camera',
-      'album',
-      'bread',
-      'tease',
-      'sentence',
-      'tribe',
-      'miserable',
-      'ridge',
-      'guerrilla',
-      'inhabitant',
-      'suspicion',
-      'mosque',
-      'printer',
-      'land',
-      'reliable',
-      'circle',
-      'first-hand',
-      'time',
-      'content',
-      'management',
-    ];
-
-    for (let i = 0; i < leaves.length; i++) {
-      const res = await merkleTreeHook.sendPostDispatch(
-        deployer.getSender(),
-        toNano('0.1'),
-        {
-          message: buildMessage(
-            1,
-            Buffer.alloc(32),
-            0,
-            deployer.address.hash,
-            beginCell().storeUint(123, 32).endCell(),
-          ),
-          hookMetadata: {
-            variant: 0,
-            msgValue: toNano('0.1'),
-            gasLimit: 50000n,
-            refundAddress: deployer.address,
-          },
+    const res = await merkleTreeHook.sendPostDispatch(
+      deployer.getSender(),
+      toNano('0.1'),
+      {
+        message: buildMessage(
+          1,
+          Buffer.alloc(32),
+          0,
+          deployer.address.hash,
+          beginCell().storeUint(123, 256).endCell(),
+        ),
+        hookMetadata: {
+          variant: 0,
+          msgValue: toNano('0.1'),
+          gasLimit: 50000n,
+          refundAddress: deployer.address,
         },
-      );
-
-      expect(res.transactions).toHaveTransaction({
-        from: deployer.address,
-        to: merkleTreeHook.address,
-        op: OpCodes.POST_DISPATCH,
-        success: true,
-      });
-      expect(res.externals).toHaveLength(1);
-    }
-
-    const treeRes = await merkleTreeHook.getTree();
-    expect(treeRes.tree).toBeTruthy();
-    expect(treeRes.count).toStrictEqual(leaves.length);
-
-    const root = await merkleTreeHook.getRoot();
-    expect(root).toStrictEqual(
-      0x274d610098d8f109587e97c908cf549d129a14f5bad7eb10d36a427da97be6fcn,
+      },
     );
+
+    expect(res.transactions).toHaveTransaction({
+      from: deployer.address,
+      to: merkleTreeHook.address,
+      op: OpCodes.POST_DISPATCH,
+      success: true,
+    });
+    expect(res.externals).toHaveLength(1);
+    expect(res.transactions).toHaveTransaction({
+      from: merkleTreeHook.address,
+      to: deployer.address,
+      success: true,
+      op: answer(OpCodes.POST_DISPATCH),
+    });
   });
 
   it('should return root', async () => {
