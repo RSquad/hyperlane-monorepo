@@ -7,12 +7,9 @@ import {
   Sender,
   beginCell,
   contractAddress,
-  fromNano,
 } from '@ton/core';
 
-import { buildHookMetadataCell, buildMessageCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
-import { THookMetadata, TMessage } from './utils/types';
 
 export type ProtocolFeeHookConfig = {
   protocolFee: bigint;
@@ -67,8 +64,8 @@ export class ProtocolFeeHook implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      message: TMessage;
-      hookMetadata: THookMetadata;
+      message: Cell;
+      hookMetadata?: Cell;
       queryId?: number;
     },
   ) {
@@ -78,8 +75,8 @@ export class ProtocolFeeHook implements Contract {
       body: beginCell()
         .storeUint(OpCodes.POST_DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeRef(buildHookMetadataCell(opts.hookMetadata))
-        .storeRef(buildMessageCell(opts.message))
+        .storeRef(opts.message)
+        .storeMaybeRef(opts.hookMetadata)
         .endCell(),
     });
   }

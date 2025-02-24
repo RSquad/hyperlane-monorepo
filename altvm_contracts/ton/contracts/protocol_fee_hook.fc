@@ -31,26 +31,16 @@ global slice g::owner;
     g::owner = ds~load_msg_addr();
 }
 
-() post_dispatch(int query_id, slice s, int msg_value, slice dest) impure inline {
-    int gas_fee = gasfee(
-        gasconsumed() + 
-        10000,
-        false
-    );
-    throw_if(
-        error::msg_value_too_low,
-        msg_value < g::protocol_fee + gas_fee + storagefee() + FWD_FEES
-    );
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
     g::collected_fees += g::protocol_fee;
-
     reserve_and_send_remaining(
         op::hook::post_dispatch,
         query_id,
-        msg_value,
         g::protocol_fee,
-        dest,
-        s
+        msg_sender,
+        msg_body
     );
+    validate_msg_value(msg_value, g::protocol_fee);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {

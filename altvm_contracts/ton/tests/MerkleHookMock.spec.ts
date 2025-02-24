@@ -5,6 +5,7 @@ import '@ton/test-utils';
 
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { OpCodes } from '../wrappers/utils/constants';
+import { HookMetadata, HypMessage } from '../wrappers/utils/types';
 
 describe('MerkleHookMock', () => {
   let code: Cell;
@@ -54,15 +55,12 @@ describe('MerkleHookMock', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
-        messageId: 1n,
-        destDomain: 0,
-        refundAddr: deployer.address,
-        hookMetadata: {
-          variant: 0,
-          msgValue: toNano('0.1'),
-          gasLimit: 50000n,
-          refundAddress: deployer.address,
-        },
+        message: new HypMessage()
+          .overrideRecipient(deployer.address.hash)
+          .toCell(),
+        hookMetadata: new HookMetadata()
+          .overrideRefundAddr(deployer.address.hash)
+          .toCell(),
       },
     );
 

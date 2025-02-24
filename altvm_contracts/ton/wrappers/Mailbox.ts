@@ -14,19 +14,9 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import {
-  buildHookMetadataCell,
-  buildMessageCell,
-  buildMetadataCell,
-} from './utils/builders';
+import { readHookMetadataCell, readMessageCell } from './utils/builders';
 import { OpCodes, answer } from './utils/constants';
-import {
-  TDelivery,
-  THookMetadata,
-  TMailboxContractConfig,
-  TMessage,
-  TMultisigMetadata,
-} from './utils/types';
+import { TMailboxContractConfig, TProcessRequest } from './utils/types';
 
 export const MAILBOX_VERSION = 3;
 
@@ -42,10 +32,13 @@ export function mailboxConfigToCell(config: TMailboxContractConfig): Cell {
     .storeUint(config.nonce, 32)
     .storeUint(config.latestDispatchedId, 256)
     .storeAddress(config.owner)
-    .storeDict(Dictionary.empty()) // cur recipients dict
-    .storeDict(Dictionary.empty()) // cur isms dict
-    .storeDict(config.deliveries, Mailbox.DeliveryKey, Mailbox.DeliveryValue)
+    .storeRef(config.deliveryCode)
     .storeRef(hooks)
+    .storeDict(
+      config.processRequests,
+      Mailbox.DeliveryKey,
+      Mailbox.DeliveryValue,
+    )
     .endCell();
 }
 
@@ -57,19 +50,23 @@ export class Mailbox implements Contract {
 
   static version = MAILBOX_VERSION;
   static DeliveryKey: DictionaryKey<bigint> = Dictionary.Keys.BigUint(64);
-  static DeliveryValue: DictionaryValue<TDelivery> = {
-    serialize: (src: TDelivery, builder: Builder) => {
-      const transfer_cell = beginCell()
-        .storeAddress(src.processorAddr)
-        .storeUint(src.blockNumber, 64)
+  static DeliveryValue: DictionaryValue<TProcessRequest> = {
+    serialize: (src: TProcessRequest, builder: Builder) => {
+      const delivery_cell = beginCell()
+        .storeAddress(src.initiator)
+        .storeAddress(src.ism)
+        .storeRef(src.message.toCell())
+        .storeRef(src.metadata.toCell())
         .endCell();
-      builder.storeRef(transfer_cell);
+      builder.storeRef(delivery_cell);
     },
-    parse: (src: Slice): TDelivery => {
+    parse: (src: Slice): TProcessRequest => {
       src = src.loadRef().beginParse();
-      const data: TDelivery = {
-        processorAddr: src.loadAddress(),
-        blockNumber: src.loadUintBig(64),
+      const data: TProcessRequest = {
+        initiator: src.loadAddress(),
+        ism: src.loadAddress(),
+        message: readMessageCell(src.loadRef()),
+        metadata: readHookMetadataCell(src.loadRef()),
       };
       return data;
     },
@@ -104,8 +101,8 @@ export class Mailbox implements Contract {
     opts: {
       destDomain: number;
       recipientAddr: Buffer;
-      message: Cell;
-      hookMetadata: THookMetadata;
+      messageBody: Cell;
+      hookMetadata?: Cell;
       queryId?: number;
     },
   ) {
@@ -116,9 +113,9 @@ export class Mailbox implements Contract {
         .storeUint(OpCodes.DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.destDomain, 32)
-        .storeBuffer(opts.recipientAddr)
-        .storeRef(opts.message)
-        .storeMaybeRef(buildHookMetadataCell(opts.hookMetadata))
+        .storeBuffer(opts.recipientAddr, 32)
+        .storeRef(opts.messageBody)
+        .storeMaybeRef(opts.hookMetadata)
         .endCell(),
     });
   }
@@ -128,8 +125,8 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      metadata: TMultisigMetadata;
-      message: TMessage;
+      metadata: Cell;
+      message: Cell;
       queryId?: number;
     },
   ) {
@@ -139,8 +136,8 @@ export class Mailbox implements Contract {
       body: beginCell()
         .storeUint(OpCodes.PROCESS, 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeRef(buildMessageCell(opts.message))
-        .storeMaybeRef(buildMetadataCell(opts.metadata))
+        .storeRef(opts.message)
+        .storeRef(opts.metadata)
         .endCell(),
     });
   }
@@ -150,8 +147,8 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      metadata: TMultisigMetadata;
-      message: TMessage;
+      metadata: Cell;
+      message: Cell;
       queryId?: number;
     },
   ) {
@@ -162,8 +159,8 @@ export class Mailbox implements Contract {
         .storeUint(answer(OpCodes.VERIFY), 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeBit(false)
-        .storeRef(buildMessageCell(opts.message))
-        .storeRef(buildMetadataCell(opts.metadata))
+        .storeRef(opts.message)
+        .storeRef(opts.metadata)
         .endCell(),
     });
   }
@@ -173,8 +170,9 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      metadata: TMultisigMetadata;
-      message: TMessage;
+      metadata: Cell;
+      message: Cell;
+      ismAddress?: Address;
       queryId?: number;
     },
   ) {
@@ -184,9 +182,7 @@ export class Mailbox implements Contract {
       body: beginCell()
         .storeUint(answer(OpCodes.GET_ISM), 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeBit(false)
-        .storeRef(buildMessageCell(opts.message))
-        .storeRef(buildMetadataCell(opts.metadata))
+        .storeAddress(opts.ismAddress)
         .endCell(),
     });
   }
@@ -251,37 +247,41 @@ export class Mailbox implements Contract {
     });
   }
 
+  async getStorage(provider: ContractProvider): Promise<Slice> {
+    const result = await provider.get('get_storage', []);
+    return result.stack.readCell().beginParse();
+  }
+
   async getLocalDomain(provider: ContractProvider) {
-    const result = await provider.get('get_local_domain', []);
-    return result.stack.readNumber();
+    const data = await this.getStorage(provider);
+    return data.skip(8).loadUint(32);
   }
 
   async getLatestDispatchedId(provider: ContractProvider) {
-    const result = await provider.get('get_latest_dispatched_id', []);
-    return result.stack.readNumber();
-  }
-
-  async getDeliveries(provider: ContractProvider) {
-    const result = await provider.get('get_deliveries', []);
-    return Dictionary.loadDirect(
-      Mailbox.DeliveryKey,
-      Mailbox.DeliveryValue,
-      result.stack.readCellOpt(),
-    );
+    const data = await this.getStorage(provider);
+    return data.skip(8 + 32 + 32).loadUintBig(256);
   }
 
   async getDefaultIsm(provider: ContractProvider) {
-    const result = await provider.get('get_default_ism', []);
-    return result.stack.readAddress();
+    const data = await this.getStorage(provider);
+    data.loadRef();
+    return data.loadRef().beginParse().loadAddress();
   }
 
   async getDefaultHook(provider: ContractProvider) {
-    const result = await provider.get('get_default_hook', []);
-    return result.stack.readAddress();
+    const data = await this.getStorage(provider);
+    data.loadRef();
+    const s = data.loadRef().beginParse();
+    s.loadAddress();
+    return s.loadAddress();
   }
 
   async getRequiredHook(provider: ContractProvider) {
-    const result = await provider.get('get_required_hook', []);
-    return result.stack.readAddress();
+    const data = await this.getStorage(provider);
+    data.loadRef();
+    const s = data.loadRef().beginParse();
+    s.loadAddress();
+    s.loadAddress();
+    return s.loadAddress();
   }
 }

@@ -2,11 +2,10 @@ import { compile } from '@ton/blueprint';
 import { Cell, Dictionary, beginCell, toNano } from '@ton/core';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
-import { utils } from 'ethers';
 
 import { MerkleTreeHook } from '../wrappers/MerkleTreeHook';
-import { buildMessage } from '../wrappers/utils/builders';
 import { OpCodes, answer } from '../wrappers/utils/constants';
+import { HookMetadata, HypMessage } from '../wrappers/utils/types';
 
 describe('MerkleTreeHook', () => {
   let code: Cell;
@@ -62,19 +61,17 @@ describe('MerkleTreeHook', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
-        message: buildMessage(
-          1,
-          Buffer.alloc(32),
-          0,
-          deployer.address.hash,
-          beginCell().storeUint(123, 256).endCell(),
-        ),
-        hookMetadata: {
+        message: new HypMessage()
+          .overrideOrigin(1)
+          .overrideDest(0)
+          .overrideRecipient(deployer.address.hash)
+          .toCell(),
+        hookMetadata: HookMetadata.fromObj({
           variant: 0,
           msgValue: toNano('0.1'),
           gasLimit: 50000n,
-          refundAddress: deployer.address,
-        },
+          refundAddress: deployer.address.hash,
+        }).toCell(),
       },
     );
 

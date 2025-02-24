@@ -16,7 +16,7 @@ global cell g::dest_gas_config;
 global cell g::hook_metadata;
 
 const int TOKEN_EXCHANGE_RATE_SCALE = 10000000000;
-const int MINIMAL_BALANCE = 500000000;
+const int MINIMAL_BALANCE = 100000000;
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
@@ -85,11 +85,11 @@ int pay_for_gas(
     return required_payment;
 }
 
-() post_dispatch(slice s, int query_id, int msg_value, slice dest) impure inline {
-    slice body = s;
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    slice s = msg_body;
     slice hyp_message = s~load_ref_slice();
     cell hook_metadata = s~load_maybe_ref();
-    int message_id = message_id(hyp_message);
+    int message_id = build_message_id(hyp_message);
     int dest_domain = message::unpack::dest_domain(hyp_message);
 
     int gas_limit = get_gas_limit(hook_metadata);
@@ -101,11 +101,11 @@ int pay_for_gas(
     reserve_and_send_remaining(
         op::hook::post_dispatch,
         query_id,
-        msg_value,
         required_payment,
-        dest,
-        body
+        msg_sender,
+        msg_body
     );
+    validate_msg_value(msg_value, required_payment);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -122,14 +122,12 @@ int pay_for_gas(
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
-    slice body = in_msg_body;
-
     load_globals();
 
     if (op == op::hook::post_dispatch) {
         post_dispatch(
-            in_msg_body,
             query_id,
+            in_msg_body,
             msg_value,
             msg_sender
         );
@@ -148,9 +146,9 @@ int pay_for_gas(
         throw_unless(
             error::unauthorized_sender,
             equal_slices(msg_sender, g::owner));
-        raw_reserve(storagefee() + MINIMAL_BALANCE, reserve_mode::at_most_this_amount);
+        raw_reserve(MINIMAL_BALANCE, reserve_mode::at_most_this_amount);
         send_change(g::beneficiary, op, query_id, send_mode::carry_remaining_balance);
-        return store_globals();
+        return ();
     }
 
     if(op == op::set_dest_gas_config) {
@@ -161,7 +159,6 @@ int pay_for_gas(
         cell gas_config = in_msg_body~load_ref();
 
         g::dest_gas_config~udict_set_ref(32, dest_domain, gas_config);
-        
         return store_globals();
     }
 

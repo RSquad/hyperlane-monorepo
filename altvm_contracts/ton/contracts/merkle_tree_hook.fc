@@ -27,15 +27,12 @@ global cell g::tree;
     g::tree = ds~load_dict();
 }
 
-() post_dispatch(slice s, int query_id, int value, slice dest) impure inline {
-    slice body = s;
+() post_dispatch(int query_id, slice msg_body, int msg_value, slice msg_sender) impure inline {
+    slice s = msg_body;
     slice hyp_message = s~load_ref_slice();
 
-    int message_id = message_id(hyp_message);
-    (int count, cell tree) = insert_into_tree(message_id, g::count, g::tree);
-
-    g::count = count;
-    g::tree = tree;
+    int message_id = build_message_id(hyp_message);
+    (g::count, g::tree) = insert_into_tree(message_id, g::count, g::tree);
 
     builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
     send_event(
@@ -46,11 +43,11 @@ global cell g::tree;
     reserve_and_send_remaining(
         op::hook::post_dispatch,
         query_id,
-        value,
         0,
-        dest,
-        body
+        msg_sender,
+        msg_body
     );
+    validate_msg_value(msg_value, 0);
 }
 
 () recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
@@ -71,8 +68,8 @@ global cell g::tree;
 
     if (op == op::hook::post_dispatch) {
         post_dispatch(
-            in_msg_body,
             query_id,
+            in_msg_body,
             msg_value,
             msg_sender
         );

@@ -10,9 +10,7 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import { buildHookMetadataCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
-import { THookMetadata } from './utils/types';
 
 export type TokenRouterConfig = {
   ismAddress?: Address;
@@ -134,7 +132,7 @@ export class TokenRouter implements Contract {
       destination: number;
       recipient: Buffer;
       amount: bigint;
-      hookMetadata?: THookMetadata;
+      hookMetadata?: Cell;
     },
   ) {
     await provider.internal(via, {
@@ -146,9 +144,7 @@ export class TokenRouter implements Contract {
         .storeUint(opts.destination, 32)
         .storeBuffer(opts.recipient, 32)
         .storeUint(opts.amount, 256)
-        .storeMaybeRef(
-          opts.hookMetadata ? buildHookMetadataCell(opts.hookMetadata!) : null,
-        )
+        .storeMaybeRef(opts.hookMetadata)
         .storeMaybeRef(null)
         .endCell(),
     });

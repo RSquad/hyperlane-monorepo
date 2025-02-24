@@ -8,8 +8,7 @@ import {
   InterchainGasPaymaster,
   InterchainGasPaymasterConfig,
 } from '../wrappers/InterchainGasPaymaster';
-import { buildHookMetadataCell } from '../wrappers/utils/builders';
-import { THookMetadata } from '../wrappers/utils/types';
+import { HookMetadata } from '../wrappers/utils/types';
 
 export async function run(provider: NetworkProvider) {
   console.log('domain', Number(process.env.DOMAIN!));
@@ -29,19 +28,19 @@ export async function run(provider: NetworkProvider) {
   );
   dictDestGasConfig.set(0, intialGasConfig);
 
-  const hookMetadata: THookMetadata = {
+  const hookMetadata = HookMetadata.fromObj({
     variant: Number(process.env.MAILBOX_VERSION),
     msgValue: 1000n,
     gasLimit: 50000n,
-    refundAddress: Address.parse(process.env.TON_ADDRESS!),
-  };
+    refundAddress: Address.parse(process.env.TON_ADDRESS!).hash,
+  });
 
   const config: InterchainGasPaymasterConfig = {
     owner: Address.parse(process.env.TON_ADDRESS!),
     beneficiary: Address.parse(process.env.TON_ADDRESS!),
     hookType: 0,
     destGasConfig: dictDestGasConfig,
-    hookMetadata: buildHookMetadataCell(hookMetadata),
+    hookMetadata: hookMetadata.toCell(),
   };
   const interchainGasPaymaster = provider.open(
     InterchainGasPaymaster.createFromConfig(
