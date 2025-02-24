@@ -393,8 +393,14 @@ mod test {
         env_logger::init();
 
         use crate::ton::run_ton_to_evm;
+        use crate::ton::warp_route::run_ton_to_ton_warp_route;
+        let test_case = env::var("TEST_CASE").expect("A required parameter is missing TEST_CASE");
 
-        run_ton_to_evm()
-        // run_ton_to_ton()
+        match test_case.as_str() {
+            "ton_to_ton" => run_ton_to_ton(),
+            "ton_to_evm" => run_ton_to_evm(),
+            "ton_warp_route" => run_ton_to_ton_warp_route(),
+            _ => panic!("Unknown TEST_CASE: {}", test_case),
+        }
     }
 }

@@ -19,7 +19,7 @@ use crate::{
 use crate::ton::TonHyperlaneStack;
 
 #[allow(dead_code)]
-fn run_ton_to_ton_warp_route() {
+pub fn run_ton_to_ton_warp_route() {
     info!("Start run_locally() for Ton");
     let domains: Vec<u32> = env::var("DOMAINS")
         .expect("DOMAINS env variable is missing")
