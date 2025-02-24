@@ -93,7 +93,7 @@ int digest(
         cell message = in_msg_body~load_ref();
         cell metadata = in_msg_body~load_ref();
         slice message_slice = message.begin_parse();
-        int id = message_id(message_slice);
+        int id = build_message_id(message_slice);
         
         message_slice~skip_bits(8 + 32); ;; skip bits to origin domain
         int origin_domain = message_slice~load_uint(32);

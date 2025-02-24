@@ -66,7 +66,7 @@ global int g::index;
             msg_value,
             msg_sender
         );
-        return store_globals();
+        validate_msg_value(msg_value, 0);
     }
 
     throw(error::unknown_op);
