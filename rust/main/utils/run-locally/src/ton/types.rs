@@ -204,7 +204,7 @@ pub fn generate_evm_to_ton_config(
     Ok(ton_chains)
 }
 
-fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
+pub fn read_deployed_contracts(domain: &str) -> BTreeMap<String, String> {
     use serde_json::Value;
     use std::path::Path;
 
