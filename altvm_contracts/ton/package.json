@@ -20,6 +20,7 @@
     "deploy:va": "npx blueprint run deployValidatorAnnounce --mnemonic --testnet",
     "deploy:mth": "npx blueprint run deployMerkleTreeHook --mnemonic --testnet",
     "deploy:all": "npm run deploy:msig && npm run deploy:igp && npm run deploy:mth && npm run deploy:rcpnt && npm run deploy:mbox && npm run deploy:va",
+    "deploy:warp": "npx blueprint run deployWarpRoute --mnemonic --testnet",
     "send:process": "npx blueprint run sendProcess --mnemonic --testnet",
     "send:pd": "npx blueprint run sendPostDispatch --mnemonic --testnet",
     "send:setv": "npx blueprint run sendSetValidatorsAndThreshold --mnemonic --testnet",
