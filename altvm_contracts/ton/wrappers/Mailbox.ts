@@ -33,12 +33,12 @@ export function mailboxConfigToCell(config: TMailboxContractConfig): Cell {
     .storeUint(config.latestDispatchedId, 256)
     .storeAddress(config.owner)
     .storeRef(config.deliveryCode)
+    .storeRef(hooks)
     .storeDict(
       config.processRequests,
       Mailbox.DeliveryKey,
       Mailbox.DeliveryValue,
     )
-    .storeRef(hooks)
     .endCell();
 }
 
@@ -172,6 +172,7 @@ export class Mailbox implements Contract {
     opts: {
       metadata: Cell;
       message: Cell;
+      ismAddress?: Address;
       queryId?: number;
     },
   ) {
@@ -181,9 +182,7 @@ export class Mailbox implements Contract {
       body: beginCell()
         .storeUint(answer(OpCodes.GET_ISM), 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeBit(false)
-        .storeRef(opts.message)
-        .storeRef(opts.metadata)
+        .storeAddress(opts.ismAddress)
         .endCell(),
     });
   }
@@ -248,28 +247,41 @@ export class Mailbox implements Contract {
     });
   }
 
+  async getStorage(provider: ContractProvider): Promise<Slice> {
+    const result = await provider.get('get_storage', []);
+    return result.stack.readCell().beginParse();
+  }
+
   async getLocalDomain(provider: ContractProvider) {
-    const result = await provider.get('get_local_domain', []);
-    return result.stack.readNumber();
+    const data = await this.getStorage(provider);
+    return data.skip(8).loadUint(32);
   }
 
   async getLatestDispatchedId(provider: ContractProvider) {
-    const result = await provider.get('get_latest_dispatched_id', []);
-    return result.stack.readNumber();
+    const data = await this.getStorage(provider);
+    return data.skip(8 + 32 + 32).loadUintBig(256);
   }
 
   async getDefaultIsm(provider: ContractProvider) {
-    const result = await provider.get('get_default_ism', []);
-    return result.stack.readAddress();
+    const data = await this.getStorage(provider);
+    data.loadRef();
+    return data.loadRef().beginParse().loadAddress();
   }
 
   async getDefaultHook(provider: ContractProvider) {
-    const result = await provider.get('get_default_hook', []);
-    return result.stack.readAddress();
+    const data = await this.getStorage(provider);
+    data.loadRef();
+    const s = data.loadRef().beginParse();
+    s.loadAddress();
+    return s.loadAddress();
   }
 
   async getRequiredHook(provider: ContractProvider) {
-    const result = await provider.get('get_required_hook', []);
-    return result.stack.readAddress();
+    const data = await this.getStorage(provider);
+    data.loadRef();
+    const s = data.loadRef().beginParse();
+    s.loadAddress();
+    s.loadAddress();
+    return s.loadAddress();
   }
 }

@@ -275,7 +275,7 @@ describe('TokenRouter', () => {
       //await blockchain.setVerbosityForAddress(mailbox.address,'vm_logs_full');
     });
 
-    it.only('process -> handle (mint synthetic)', async () => {
+    it('process -> handle (mint synthetic)', async () => {
       const { amount: balanceBefore } = await jettonWallet.getBalance();
       const mintedAmount = 1000n;
       const hyperlaneMessage = HypMessage.fromAny({

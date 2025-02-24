@@ -76,7 +76,7 @@ describe('InterchainGasPaymaster', () => {
         variant: 0,
         msgValue: toNano('0.1'),
         gasLimit: gasLimit,
-        refundAddress: deployer.address,
+        refundAddress: deployer.address.hash,
       }).toCell(),
     };
     const res = await interchainGasPaymaster.sendPostDispatch(
@@ -281,11 +281,11 @@ describe('InterchainGasPaymaster', () => {
     const expectedQuoteDispatch = 10000n;
     const quoteDispatch = await interchainGasPaymaster.getQuoteDispatch(
       0,
-      HypMessage.fromAny({
+      HookMetadata.fromObj({
         variant: 0,
         msgValue: toNano('0.1'),
         gasLimit: gasLimit,
-        refundAddress: deployer.address,
+        refundAddress: deployer.address.hash,
       }).toCell(),
     );
     expect(quoteDispatch).toStrictEqual(expectedQuoteDispatch);

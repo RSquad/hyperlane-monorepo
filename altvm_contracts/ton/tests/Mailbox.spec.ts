@@ -129,7 +129,16 @@ describe('Mailbox', () => {
         recipientCode,
       ),
     );
-
+    const requests = Dictionary.empty(
+      Mailbox.DeliveryKey,
+      Mailbox.DeliveryValue,
+    );
+    requests.set(100n, {
+      message: new HypMessage(),
+      metadata: new HookMetadata(),
+      initiator: deployer.address,
+      ism: new Address(0, Buffer.alloc(32)),
+    });
     const initConfig: TMailboxContractConfig = {
       version: Mailbox.version,
       localDomain: 1,
@@ -140,10 +149,7 @@ describe('Mailbox', () => {
       requiredHookAddr: initialRequiredHook.address,
       owner: deployer.address,
       deliveryCode,
-      processRequests: Dictionary.empty(
-        Mailbox.DeliveryKey,
-        Mailbox.DeliveryValue,
-      ),
+      processRequests: requests,
     };
     mailbox = blockchain.openContract(
       Mailbox.createFromConfig(initConfig, code),
@@ -459,6 +465,7 @@ describe('Mailbox', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
+        queryId: 100,
         metadata: multisigMetadataToCell({
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
@@ -481,6 +488,7 @@ describe('Mailbox', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
+        queryId: 100,
         metadata: multisigMetadataToCell({
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
@@ -526,6 +534,6 @@ describe('Mailbox', () => {
 
   it('should return latest dispatched id', async () => {
     const latestDispatchedId = await mailbox.getLatestDispatchedId();
-    expect(latestDispatchedId).toStrictEqual(0);
+    expect(latestDispatchedId).toStrictEqual(0n);
   });
 });
