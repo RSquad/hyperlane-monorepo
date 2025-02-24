@@ -14,21 +14,9 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import {
-  buildHookMetadataCell,
-  buildMessageCell,
-  buildMetadataCell,
-  readHookMetadataCell,
-  readMessageCell,
-} from './utils/builders';
+import { readHookMetadataCell, readMessageCell } from './utils/builders';
 import { OpCodes, answer } from './utils/constants';
-import {
-  THookMetadata,
-  TMailboxContractConfig,
-  TMessage,
-  TMultisigMetadata,
-  TProcessRequest,
-} from './utils/types';
+import { TMailboxContractConfig, TProcessRequest } from './utils/types';
 
 export const MAILBOX_VERSION = 3;
 
@@ -67,8 +55,8 @@ export class Mailbox implements Contract {
       const delivery_cell = beginCell()
         .storeAddress(src.initiator)
         .storeAddress(src.ism)
-        .storeRef(buildMessageCell(src.message))
-        .storeRef(buildHookMetadataCell(src.metadata))
+        .storeRef(src.message.toCell())
+        .storeRef(src.metadata.toCell())
         .endCell();
       builder.storeRef(delivery_cell);
     },
@@ -113,8 +101,8 @@ export class Mailbox implements Contract {
     opts: {
       destDomain: number;
       recipientAddr: Buffer;
-      message: Cell;
-      hookMetadata: THookMetadata;
+      messageBody: Cell;
+      hookMetadata?: Cell;
       queryId?: number;
     },
   ) {
@@ -125,9 +113,9 @@ export class Mailbox implements Contract {
         .storeUint(OpCodes.DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.destDomain, 32)
-        .storeBuffer(opts.recipientAddr)
-        .storeRef(opts.message)
-        .storeMaybeRef(buildHookMetadataCell(opts.hookMetadata))
+        .storeBuffer(opts.recipientAddr, 32)
+        .storeRef(opts.messageBody)
+        .storeMaybeRef(opts.hookMetadata)
         .endCell(),
     });
   }
@@ -137,8 +125,8 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      metadata: TMultisigMetadata;
-      message: TMessage;
+      metadata: Cell;
+      message: Cell;
       queryId?: number;
     },
   ) {
@@ -148,8 +136,8 @@ export class Mailbox implements Contract {
       body: beginCell()
         .storeUint(OpCodes.PROCESS, 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeRef(buildMessageCell(opts.message))
-        .storeMaybeRef(buildMetadataCell(opts.metadata))
+        .storeRef(opts.message)
+        .storeRef(opts.metadata)
         .endCell(),
     });
   }
@@ -159,8 +147,8 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      metadata: TMultisigMetadata;
-      message: TMessage;
+      metadata: Cell;
+      message: Cell;
       queryId?: number;
     },
   ) {
@@ -171,8 +159,8 @@ export class Mailbox implements Contract {
         .storeUint(answer(OpCodes.VERIFY), 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeBit(false)
-        .storeRef(buildMessageCell(opts.message))
-        .storeRef(buildMetadataCell(opts.metadata))
+        .storeRef(opts.message)
+        .storeRef(opts.metadata)
         .endCell(),
     });
   }
@@ -182,8 +170,8 @@ export class Mailbox implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      metadata: TMultisigMetadata;
-      message: TMessage;
+      metadata: Cell;
+      message: Cell;
       queryId?: number;
     },
   ) {
@@ -194,8 +182,8 @@ export class Mailbox implements Contract {
         .storeUint(answer(OpCodes.GET_ISM), 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeBit(false)
-        .storeRef(buildMessageCell(opts.message))
-        .storeRef(buildMetadataCell(opts.metadata))
+        .storeRef(opts.message)
+        .storeRef(opts.metadata)
         .endCell(),
     });
   }

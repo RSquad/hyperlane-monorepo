@@ -11,7 +11,7 @@ import {
 } from '@ton/core';
 
 import { OpCodes } from './utils/constants';
-import { THookMetadata } from './utils/types';
+import { HookMetadata } from './utils/types';
 
 export type MerkleHookTestConfig = {
   index: number;

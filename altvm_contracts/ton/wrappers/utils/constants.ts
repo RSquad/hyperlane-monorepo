@@ -51,6 +51,7 @@ export const OpCodes = {
   TRANSFER_REMOTE: op('op::transfer_remote'),
   SET_ROUTER: op('op:set_router'),
   MERKLE_TEST: op('op::merkle_test'),
+  DELIVERY_INITIALIZE: op('op::delivery::initialize'),
 };
 
 export const Errors = {

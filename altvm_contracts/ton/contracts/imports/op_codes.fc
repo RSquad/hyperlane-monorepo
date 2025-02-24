@@ -48,5 +48,5 @@ const int op::transfer_remote = "op::transfer_remote"c & (~ ANSWER_BIT);
 const int op::set_router = "op:set_router"c;
 
 ;; Delivery
-const int op::delivery::initialize = "op::delivery::initialize"c;
+const int op::delivery::initialize = "op::delivery::initialize"c & (~ ANSWER_BIT);
 const int op::delivery::initialize::answer = op::delivery::initialize | ANSWER_BIT;

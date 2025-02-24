@@ -1,12 +1,10 @@
 import { NetworkProvider } from '@ton/blueprint';
-import { Address, OpenedContract, beginCell, toNano } from '@ton/core';
-import { ethers } from 'ethers';
+import { Address, toNano } from '@ton/core';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import { JettonMinterContract } from '../wrappers/JettonMinter';
 import { TokenRouter } from '../wrappers/TokenRouter';
-import { THookMetadata } from '../wrappers/utils/types';
 
 import { Route, TokenStandard } from './types';
 

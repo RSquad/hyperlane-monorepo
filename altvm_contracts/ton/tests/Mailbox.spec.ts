@@ -15,13 +15,12 @@ import { Mailbox } from '../wrappers/Mailbox';
 import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { RecipientMock } from '../wrappers/RecipientMock';
-import { buildMessage } from '../wrappers/utils/builders';
+import { multisigMetadataToCell } from '../wrappers/utils/builders';
 import { Errors, OpCodes, answer } from '../wrappers/utils/constants';
 import {
-  THookMetadata,
+  HookMetadata,
+  HypMessage,
   TMailboxContractConfig,
-  TMessage,
-  TMultisigMetadata,
 } from '../wrappers/utils/types';
 
 import { makeRandomBigint } from './utils/generators';
@@ -30,7 +29,7 @@ import { messageId } from './utils/signing';
 
 const expectHandleLog = (
   externals: BlockchainTransaction[],
-  message: TMessage,
+  message: HypMessage,
   src: Address,
 ) => {
   expect(externals).toHaveLength(1);
@@ -52,13 +51,13 @@ describe('Mailbox', () => {
   let recipientCode: Cell;
   let deliveryCode: Cell;
 
-  let hyperlaneMessage: TMessage;
-  let hookMetadata: THookMetadata;
+  let hyperlaneMessage: HypMessage;
+  let hookMetadata: HookMetadata;
   let dispatchBody: {
     destDomain: number;
     recipientAddr: Buffer;
-    message: Cell;
-    hookMetadata: THookMetadata;
+    messageBody: Cell;
+    hookMetadata: Cell;
     queryId?: number | undefined;
   };
 
@@ -206,19 +205,15 @@ describe('Mailbox', () => {
       success: true,
     });
 
-    hyperlaneMessage = buildMessage(
-      0,
-      Buffer.alloc(32),
-      1,
-      recipient.address.hash,
-      beginCell().storeUint(123, 32).endCell(),
-    );
-    hookMetadata = {
+    hyperlaneMessage = new HypMessage()
+      .overrideRecipient(recipient.address.hash)
+      .overrideBody(beginCell().storeUint(123, 32).endCell());
+    hookMetadata = HookMetadata.fromObj({
       variant: 0,
       msgValue: toNano('1'),
       gasLimit: 100000000n,
       refundAddress: deployer.address.hash,
-    };
+    });
   });
 
   it('should dispatch message and send log message', async () => {
@@ -227,19 +222,17 @@ describe('Mailbox', () => {
       ethersWallet.address.slice(2).padStart(64, '0'),
       'hex',
     );
-    hyperlaneMessage = buildMessage(
-      1,
-      deployer.address.hash,
-      0,
-      addr,
-      beginCell().storeUint(123, 32).endCell(),
-    );
+    hyperlaneMessage = new HypMessage()
+      .overrideOrigin(1)
+      .overrideDest(0)
+      .overrideRecipient(addr)
+      .overrideSender(deployer.address.hash);
     const id = messageId(hyperlaneMessage);
     dispatchBody = {
       destDomain: 0,
       recipientAddr: addr,
-      message: beginCell().storeUint(123, 32).endCell(),
-      hookMetadata,
+      messageBody: beginCell().storeUint(123, 32).endCell(),
+      hookMetadata: hookMetadata.toCell(),
     };
     const res = await mailbox.sendDispatch(
       deployer.getSender(),
@@ -297,15 +290,15 @@ describe('Mailbox', () => {
   });
 
   it('should process incoming message', async () => {
-    const metadata: TMultisigMetadata = {
+    const metadata = multisigMetadataToCell({
       originMerkleHook: Buffer.alloc(32),
       root: Buffer.alloc(32),
       index: 0n,
       signatures: [{ r: 0n, s: 0n, v: 0n }],
-    };
+    });
     const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
       metadata,
-      message: hyperlaneMessage,
+      message: hyperlaneMessage.toCell(),
     });
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
@@ -422,22 +415,15 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong mailbox version', async () => {
-    hyperlaneMessage = buildMessage(
-      0,
-      recipient.address.hash,
-      1,
-      Buffer.alloc(32),
-      beginCell().storeUint(123, 32).endCell(),
-      2,
-    );
+    hyperlaneMessage = new HypMessage(2).overrideSender(recipient.address.hash);
     const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
-      metadata: {
+      metadata: multisigMetadataToCell({
         originMerkleHook: Buffer.alloc(32),
         root: Buffer.alloc(32),
         index: 0n,
         signatures: [{ r: 0n, s: 0n, v: 0n }],
-      },
-      message: hyperlaneMessage,
+      }),
+      message: hyperlaneMessage.toCell(),
     });
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
@@ -448,21 +434,17 @@ describe('Mailbox', () => {
   });
 
   it('should throw if wrong dest domain', async () => {
-    hyperlaneMessage = buildMessage(
-      0,
-      recipient.address.hash,
-      2,
-      Buffer.alloc(32),
-      beginCell().storeUint(123, 32).endCell(),
-    );
+    hyperlaneMessage = new HypMessage()
+      .overrideDest(2)
+      .overrideSender(recipient.address.hash);
     const res = await mailbox.sendProcess(deployer.getSender(), toNano('0.1'), {
-      metadata: {
+      metadata: multisigMetadataToCell({
         originMerkleHook: Buffer.alloc(32),
         root: Buffer.alloc(32),
         index: 0n,
         signatures: [{ r: 0n, s: 0n, v: 0n }],
-      },
-      message: hyperlaneMessage,
+      }),
+      message: hyperlaneMessage.toCell(),
     });
     expect(res.transactions).toHaveTransaction({
       from: deployer.address,
@@ -477,13 +459,13 @@ describe('Mailbox', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
-        metadata: {
+        metadata: multisigMetadataToCell({
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
           index: 0n,
           signatures: [{ r: 0n, s: 0n, v: 0n }],
-        },
-        message: hyperlaneMessage,
+        }),
+        message: hyperlaneMessage.toCell(),
       },
     );
     expect(res.transactions).toHaveTransaction({
@@ -499,13 +481,13 @@ describe('Mailbox', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
-        metadata: {
+        metadata: multisigMetadataToCell({
           originMerkleHook: Buffer.alloc(32),
           root: Buffer.alloc(32),
           index: 0n,
           signatures: [{ r: 0n, s: 0n, v: 0n }],
-        },
-        message: hyperlaneMessage,
+        }),
+        message: hyperlaneMessage.toCell(),
       },
     );
     expect(res.transactions).toHaveTransaction({
