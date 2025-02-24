@@ -2,7 +2,7 @@
 #include "imports/op_codes.fc";
 #include "imports/errors.fc";
 #include "imports/ton_msg.fc";
-#include "imports/deliverylib.fc";
+#include "imports/delivery.lib.fc";
 
 global int g::initiated?;
 global int g::message_id;

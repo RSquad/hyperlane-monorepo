@@ -6,6 +6,7 @@
 #include "imports/signing_utils.fc";
 #include "imports/hyp_message.fc";
 #include "imports/metadata.fc";
+#include "imports/delivery.lib.fc";
 
 global int g::version;
 global int g::local_domain;
@@ -127,7 +128,7 @@ slice delete_current_request() impure inline {
     (_, _, slice initiator, _) = process_request::unpack(req);
     send_change_with_payload(
         initiator,
-        op::process,
+        op::mailbox::process,
         g::query_id,
         send_mode::carry_remaining_value,
         begin_cell().store_uint(error::mailbox_bounced, 32).store_uint(op, 32)
@@ -240,8 +241,7 @@ slice build_delivery_address(int message_id) inline {
             cell hook_metadata = in_msg_body~load_maybe_ref();
             slice ms = hyp_message.begin_parse();
 
-            int id = message_id(ms);
-
+            int id = build_message_id(ms);
             int dest_domain = message::unpack::dest_domain(ms);
             int recipient_addr = message::unpack::recipient(ms);
 
@@ -333,11 +333,11 @@ slice build_delivery_address(int message_id) inline {
         builder verify_msg = build_message(ism_addr, 0, true, null(), verify_body);
 
         g::process_requests~udict_set_ref(32, g::query_id, 
-            process_request::pack(hyp_message, hyp_medatata, initiator, ism_addr));
+            process_request::pack(hyp_message, hyp_metadata, initiator, ism_addr));
 
         reserve_original_balance(0);
         send_raw_message(verify_msg.end_cell(), send_mode::carry_remaining_balance);
-        validate_msg_value(msg_value, 0)
+        validate_msg_value(msg_value, 0);
         return store_globals();
     }
 
@@ -357,7 +357,7 @@ slice build_delivery_address(int message_id) inline {
         ;; Deploy delivery contract to prevent double processing of the same message.
         ;; If delivery contract is already deployed then it will bounce to mailbox which 
         ;; will return change to sender. Otherwise the contract will response with initialize::answer opcode
-        int message_id = build_message_id(hyp_message);
+        int message_id = build_message_id(hyp_message.begin_parse());
         using::delivery::deploy(message_id);
         validate_msg_value(msg_value, 0);
         return store_globals();
@@ -374,7 +374,7 @@ slice build_delivery_address(int message_id) inline {
         
         ;; Only delivery contract can send this opcode. But we need to calculate
         ;; delivery contract address based on message_id.
-        int message_id = build_message_id(hyp_message)
+        int message_id = build_message_id(hyp_message.begin_parse());
         slice delivery_addr = build_delivery_address(message_id);
         throw_unless(
             error::unauthorized_sender,
@@ -384,11 +384,11 @@ slice build_delivery_address(int message_id) inline {
         (   _,
             _, 
             int origin_domain, 
-            slice sender,
+            int sender,
             _,
             int recipient,
             cell message_body
-        ) = hyperlane::message::unpack(hyp_message);
+        ) = hyperlane::message::unpack(hyp_message.begin_parse());
             
         cell body = begin_cell()
             .store_uint(op::recipient::handle, 32)

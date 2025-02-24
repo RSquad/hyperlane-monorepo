@@ -109,7 +109,7 @@ builder build_message(
 }
 
 () reserve_and_send_remaining(int op, int query_id, int msg_value, int extra_reserved, slice dest, slice body) impure inline {
-    reserve_original_balance(0, extra_reserved);
+    reserve_original_balance(extra_reserved);
     cell body = begin_cell()
         .store_uint(op | ANSWER_BIT, 32)
         .store_uint(query_id, 64)

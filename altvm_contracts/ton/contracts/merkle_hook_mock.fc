@@ -23,7 +23,7 @@ global int g::index;
     slice body = s;
     slice hyp_message = s~load_ref_slice();
     cell hook_metadata = s~load_maybe_ref();
-    int message_id = message_id(hyp_message);
+    int message_id = build_message_id(hyp_message);
 
     builder data = begin_cell().store_uint(message_id, 256).store_uint(g::index, 32);
     send_event(

@@ -31,11 +31,8 @@ global cell g::tree;
     slice body = s;
     slice hyp_message = s~load_ref_slice();
 
-    int message_id = message_id(hyp_message);
-    (int count, cell tree) = insert_into_tree(message_id, g::count, g::tree);
-
-    g::count = count;
-    g::tree = tree;
+    int message_id = build_message_id(hyp_message);
+    (g::count, g::tree) = insert_into_tree(message_id, g::count, g::tree);
 
     builder data = begin_cell().store_uint(message_id, 256).store_uint(g::count - 1, 32);
     send_event(

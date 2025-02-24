@@ -89,7 +89,7 @@ int pay_for_gas(
     slice body = s;
     slice hyp_message = s~load_ref_slice();
     cell hook_metadata = s~load_maybe_ref();
-    int message_id = message_id(hyp_message);
+    int message_id = build_message_id(hyp_message);
     int dest_domain = message::unpack::dest_domain(hyp_message);
 
     int gas_limit = get_gas_limit(hook_metadata);
