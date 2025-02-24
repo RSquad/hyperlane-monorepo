@@ -5,9 +5,6 @@ import * as path from 'path';
 
 import { TokenRouter } from '../wrappers/TokenRouter';
 
-/**
- * Функция загружает warp route из JSON-файла для указанного домена
- */
 function loadWarpRoute(provider: NetworkProvider, domain: number) {
   const filePath = path.join(__dirname, `../warp-contracts-${domain}.json`);
   if (!fs.existsSync(filePath)) {
@@ -21,9 +18,6 @@ function loadWarpRoute(provider: NetworkProvider, domain: number) {
   };
 }
 
-/**
- * Функция устанавливает маршруты между доменами
- */
 export async function run(provider: NetworkProvider) {
   const originDomain = Number(process.env.ORIGIN_DOMAIN);
   const destDomain = Number(process.env.DESTINATION_DOMAIN);
