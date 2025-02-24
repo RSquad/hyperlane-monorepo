@@ -242,7 +242,7 @@ describe('Mailbox', () => {
     };
     const res = await mailbox.sendDispatch(
       deployer.getSender(),
-      toNano('10'),
+      toNano(0.6),
       dispatchBody,
     );
     expect(res.transactions).toHaveTransaction({

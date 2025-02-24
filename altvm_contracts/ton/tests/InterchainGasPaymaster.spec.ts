@@ -95,7 +95,7 @@ describe('InterchainGasPaymaster', () => {
   });
 
   it('should claim', async () => {
-    const minimalBalance = toNano('0.5');
+    const minimalBalance = toNano('0.1');
     const res = await interchainGasPaymaster.sendClaim(
       deployer.getSender(),
       toNano('0.1'),

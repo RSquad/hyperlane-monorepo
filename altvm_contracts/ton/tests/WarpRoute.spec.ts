@@ -377,7 +377,7 @@ describe('TokenRouter', () => {
 
     it('burn synthetic -> dispatch', async () => {
       const res = await jettonWallet.sendBurn(deployer.getSender(), {
-        value: toNano(0.1),
+        value: toNano(0.6),
         queryId: 0,
         jettonAmount: burnAmount,
         responseAddress: deployer.address,

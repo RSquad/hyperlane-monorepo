@@ -21,7 +21,17 @@ const int FWD_FEES = 3000000;
 }
 
 () reserve_original_balance(int extra_value) impure inline {
-  raw_reserve(storagefee() + extra_value, reserve_mode::balance_plus_this_amount);
+    raw_reserve(storagefee() + extra_value, reserve_mode::balance_plus_this_amount);
+}
+
+() send(builder msg) impure inline {
+    reserve_original_balance(0);
+    send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
+}
+
+() send_all_except_extra(builder msg, int extra_value) impure inline {
+    reserve_original_balance(extra_value);
+    send_raw_message(msg.end_cell(), send_mode::carry_remaining_balance);
 }
 
 ;; Builds TON message header.
@@ -108,23 +118,21 @@ builder build_message(
   send_raw_message(log, 0);
 }
 
-() reserve_and_send_remaining(int op, int query_id, int msg_value, int extra_reserved, slice dest, slice body) impure inline {
-    reserve_original_balance(extra_reserved);
+() reserve_and_send_remaining(
+    int op, 
+    int query_id,
+    int extra_reserved, 
+    slice dest, 
+    slice body
+) impure inline {
     cell body = begin_cell()
         .store_uint(op | ANSWER_BIT, 32)
         .store_uint(query_id, 64)
         .store_slice(body)
         .end_cell();
         
-    builder answer_msg = build_message(
-        dest,
-        0,
-        false,
-        null(),
-        body
-    );
-
-    send_raw_message(answer_msg.end_cell(), send_mode::carry_remaining_balance);
+    build_message(dest, 0, false, null(), body)
+        .send_all_except_extra(extra_reserved);
 }
 
 ;; Builds state init of a TON contract.
