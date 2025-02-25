@@ -13,6 +13,7 @@
     "test:merkle": "jest ./tests/Merkle.spec.ts",
     "test:mth": "jest ./tests/MerkleTreeHook.spec.ts",
     "test:pfh": "jest ./tests/ProtocolFeeHook.spec.ts",
+    "test:agh": "jest ./tests/AggregationHook.spec.ts",
     "test:wr": "jest ./tests/WarpRoute.spec.ts",
     "deploy:msig": "npx blueprint run deployMultisigIsm --mnemonic --testnet",
     "deploy:rcpnt": "npx blueprint run deployRecipientMock --mnemonic --testnet",
