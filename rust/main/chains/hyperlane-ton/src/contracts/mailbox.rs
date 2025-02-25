@@ -129,8 +129,7 @@ impl Debug for TonMailbox {
     }
 }
 impl TonMailbox {
-    const PROCESS_OPCODE: u32 = 0xea81949bu32;
-    const PROCESS_INIT: u32 = 0xba35fd5f;
+    const PROCESS_OPCODE: u32 = 0x658A3AF3;
 }
 #[async_trait]
 impl Mailbox for TonMailbox {
@@ -203,23 +202,12 @@ impl Mailbox for TonMailbox {
             ))
         })?;
 
-        if stack.r#type != "cell" {
-            return Err(ChainCommunicationError::from(
-                HyperlaneTonError::ParsingError(
-                    "Unexpected data type in stack, expected cell".to_string(),
-                ),
-            ));
-        }
-        let boc = ConversionUtils::extract_boc_from_stack_item(stack)?;
-
-        let ism_address = ConversionUtils::parse_address_from_boc(boc)
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse address from BOC: {:?}",
-                    e
-                )))
-            })?;
+        let ism_address = stack.as_cell()?.parser().load_address().map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse address from BOC: {:?}",
+                e
+            )))
+        })?;
 
         Ok(ConversionUtils::ton_address_to_h256(&ism_address))
     }
@@ -304,14 +292,12 @@ impl Mailbox for TonMailbox {
         info!("metadata ready");
 
         let query_id = 1; // it is not currently used in the contract
-        let block_number = 1;
 
         let msg = build_message(
             TonMailbox::PROCESS_OPCODE,
             ArcCell::new(message_cell),
             ArcCell::new(metadata_cell),
             query_id,
-            block_number,
         )
         .map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
@@ -551,60 +537,14 @@ pub(crate) fn build_message(
     message_cell: ArcCell,
     metadata_cell: ArcCell,
     query_id: u64,
-    block_number: u64,
 ) -> Result<Cell, ChainCommunicationError> {
-    let mut writer = CellBuilder::new();
-
-    writer.store_u32(32, opcode).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-            "Failed to store process opcode: {}",
-            e
-        )))
-    })?;
-
-    writer.store_u64(64, query_id).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-            "Failed to store query_id: {}",
-            e
-        )))
-    })?;
-
-    writer
-        .store_u32(32, TonMailbox::PROCESS_INIT)
-        .map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-                "Failed to store process init: {}",
-                e
-            )))
-        })?;
-
-    writer.store_u64(48, block_number).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-            "Failed to store block_number: {}",
-            e
-        )))
-    })?;
-
-    writer.store_reference(&message_cell).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-            "Failed to store message reference: {}",
-            e
-        )))
-    })?;
-
-    writer.store_reference(&metadata_cell).map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-            "Failed to store metadata reference: {}",
-            e
-        )))
-    })?;
-
-    writer.build().map_err(|e| {
-        ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
-            "Cell build failed: {}",
-            e
-        )))
-    })
+    CellBuilder::new()
+        .store_u32(32, opcode)
+        .and_then(|b| b.store_u64(64, query_id))
+        .and_then(|b| b.store_reference(&message_cell))
+        .and_then(|b| b.store_reference(&metadata_cell))
+        .and_then(|b| b.build())
+        .map_err(|e| ChainCommunicationError::from_other(HyperlaneTonError::TonCellError(e)))
 }
 
 pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
