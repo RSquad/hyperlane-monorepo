@@ -55,15 +55,12 @@ impl TonMailbox {
     }
 
     async fn get_delivery_code(&self) -> ChainResult<ArcCell> {
+        let mailbox_hex = self.mailbox_address.to_hex();
         let err_mapper =
             |e| ChainCommunicationError::from_other(HyperlaneTonError::TonCellError(e));
         let response = self
             .provider
-            .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_storage".to_string(),
-                None,
-            )
+            .run_get_method(&mailbox_hex, "get_storage", None)
             .await
             .map_err(|e| {
                 info!("delivered error:{:?}", e);
