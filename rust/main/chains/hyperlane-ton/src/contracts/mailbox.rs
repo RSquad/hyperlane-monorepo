@@ -1,6 +1,7 @@
 use std::{
     fmt::{Debug, Formatter},
     ops::RangeInclusive,
+    sync::Arc,
     time::SystemTime,
 };
 
@@ -8,10 +9,7 @@ use async_trait::async_trait;
 use base64::{engine::general_purpose, Engine};
 use num_bigint::BigUint;
 use tonlib_core::{
-    cell::{
-        dict::predefined_readers::{key_reader_uint, val_reader_cell},
-        ArcCell, BagOfCells, Cell, CellBuilder, TonCellError,
-    },
+    cell::{ArcCell, BagOfCells, Cell, CellBuilder, StateInit, TonCellError},
     message::{CommonMsgInfo, InternalMessage, TonMessage, TransferMessage},
     TonAddress,
 };
@@ -54,6 +52,54 @@ impl TonMailbox {
             workchain,
             signer,
         }
+    }
+
+    async fn get_delivery_code(&self) -> ChainResult<ArcCell> {
+        let err_mapper =
+            |e| ChainCommunicationError::from_other(HyperlaneTonError::TonCellError(e));
+        let response = self
+            .provider
+            .run_get_method(
+                self.mailbox_address.to_hex(),
+                "get_storage".to_string(),
+                None,
+            )
+            .await
+            .map_err(|e| {
+                info!("delivered error:{:?}", e);
+                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                    "Error calling run_get_method: {:?}",
+                    e
+                )))
+            })?;
+
+        let stack_item = response.stack.first().ok_or_else(|| {
+            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
+                "No stack item found in response".to_string(),
+            ))
+        })?;
+
+        stack_item
+            .as_cell()?
+            .parser()
+            .next_reference()
+            .map_err(err_mapper)
+    }
+
+    fn get_delivery_data(&self, message_id: &H256) -> ChainResult<ArcCell> {
+        let err_mapper =
+            |e| ChainCommunicationError::from_other(HyperlaneTonError::TonCellError(e));
+        Ok(Arc::new(
+            CellBuilder::new()
+                .store_bit(false)
+                .map_err(err_mapper)?
+                .store_slice(&message_id.as_bytes())
+                .map_err(err_mapper)?
+                .store_address(&self.mailbox_address)
+                .map_err(err_mapper)?
+                .build()
+                .map_err(err_mapper)?,
+        ))
     }
 }
 
@@ -114,65 +160,24 @@ impl Mailbox for TonMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn delivered(&self, id: H256) -> ChainResult<bool> {
-        let response = self
+        let state_hash = StateInit::create_account_id(
+            &self.get_delivery_code().await?,
+            &self.get_delivery_data(&id)?,
+        )
+        .map_err(|e| ChainCommunicationError::from_other(HyperlaneTonError::TonCellError(e)))?;
+        let delivery_address = TonAddress::new(0, &state_hash);
+        let accounts = self
             .provider
-            .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_deliveries".to_string(),
-                None,
-            )
-            .await
-            .map_err(|e| {
-                info!("delivered error:{:?}", e);
-                ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                    "Error calling run_get_method: {:?}",
-                    e
-                )))
-            })?;
-
-        let stack_item = response.stack.first().ok_or_else(|| {
-            ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
-                "No stack item found in response".to_string(),
-            ))
-        })?;
-
-        if stack_item.r#type != "cell" {
-            if stack_item.r#type == "list" {
-                return Ok(false);
-            }
-            return Err(ChainCommunicationError::from(
-                HyperlaneTonError::ParsingError(format!(
-                    "Unexpected stack item type: {:?}",
-                    stack_item.r#type
-                )),
-            ));
-        };
-
-        let boc = ConversionUtils::extract_boc_from_stack_item(stack_item)?;
-
-        let root_cell = ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
-            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                "Failed to parse root cell: {:?}",
-                e
-            )))
-        })?;
-
-        let parsed_dict = root_cell
-            .parser()
-            .load_dict_data(256, key_reader_uint, val_reader_cell)
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to load dictionary from root cell: {:?}",
-                    e
-                )))
-            })?;
-
-        let del = parsed_dict
-            .iter()
-            .any(|(key, _)| BigUint::from_bytes_be(id.as_bytes()) == *key);
-
-        info!("delivered {:?} for Id:{:?}", del, id);
-        Ok(del)
+            .get_account_state(delivery_address.to_string(), false)
+            .await?
+            .accounts;
+        let delivered = accounts
+            .get(0)
+            .and_then(|x| x.status.as_ref())
+            .map(|x| x == "active")
+            .unwrap_or(false);
+        info!("delivered {:?} for Id:{:?}", delivered, id);
+        Ok(delivered)
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
