@@ -129,7 +129,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             "get_announced_storage_locations for validators:{:?}",
             validators
         );
-        let function_name = "get_announced_storage_locations".to_string();
+        let function_name = "get_announced_storage_locations";
         let validators_cell =
             ConversionUtils::create_address_linked_cells(&validators).map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
@@ -155,7 +155,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
 
         let response = self
             .provider
-            .run_get_method(self.address.to_hex(), function_name, stack)
+            .run_get_method(self.address.to_hex().as_str(), function_name, stack)
             .await
             .map_err(|e| {
                 HyperlaneTonError::ApiRequestFailed(format!(

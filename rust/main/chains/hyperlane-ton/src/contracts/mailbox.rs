@@ -137,8 +137,8 @@ impl Mailbox for TonMailbox {
         let response = self
             .provider
             .run_get_method(
-                self.mailbox_address.to_string(),
-                "get_nonce".to_string(),
+                self.mailbox_address.to_string().as_str(),
+                "get_nonce",
                 Some(vec![]),
             )
             .await
@@ -184,8 +184,8 @@ impl Mailbox for TonMailbox {
         let response = self
             .provider
             .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_default_ism".to_string(),
+                self.mailbox_address.to_hex().as_str(),
+                "get_default_ism",
                 None,
             )
             .await
@@ -218,7 +218,7 @@ impl Mailbox for TonMailbox {
 
         let recipient_response = self
             .provider
-            .run_get_method(recipient_address.to_hex(), "get_ism".to_string(), None)
+            .run_get_method(recipient_address.to_hex().as_str(), "get_ism", None)
             .await;
 
         let response = match recipient_response {
@@ -226,8 +226,8 @@ impl Mailbox for TonMailbox {
             Err(_) => self
                 .provider
                 .run_get_method(
-                    self.mailbox_address.to_hex(),
-                    "get_default_ism".to_string(),
+                    self.mailbox_address.to_hex().as_str(),
+                    "get_default_ism",
                     None,
                 )
                 .await

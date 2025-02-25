@@ -68,7 +68,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
         let response = self
             .provider
-            .run_get_method(self.address.to_string(), "get_tree".to_string(), None)
+            .run_get_method(self.address.to_string().as_str(), "get_tree", None)
             .await
             .map_err(|e| HyperlaneTonError::ApiInvalidResponse(format!("Error:{:?}", e)))?;
         if response.exit_code != 0 {
@@ -176,7 +176,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let response = self
             .provider
-            .run_get_method(self.address.to_string(), "get_count".to_string(), None)
+            .run_get_method(self.address.to_string().as_str(), "get_count", None)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -196,8 +196,8 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         let response = self
             .provider
             .run_get_method(
-                self.address.to_string(),
-                "get_latest_checkpoint".to_string(),
+                self.address.to_string().as_str(),
+                "get_latest_checkpoint",
                 None,
             )
             .await
@@ -303,8 +303,8 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         let response = self
             .provider
             .run_get_method(
-                self.merkle_tree_hook_address.to_string(),
-                "get_count".to_string(),
+                self.merkle_tree_hook_address.to_string().as_str(),
+                "get_count",
                 None,
             )
             .await

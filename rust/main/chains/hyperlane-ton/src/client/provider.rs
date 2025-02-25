@@ -461,8 +461,8 @@ impl TonApiCenter for TonProvider {
 
     async fn run_get_method(
         &self,
-        address: String,
-        method: String,
+        address: &str,
+        method: &str,
         stack: Option<Vec<StackItem>>,
     ) -> ChainResult<RunGetMethodResponse> {
         info!(
@@ -590,7 +590,6 @@ impl TonApiCenter for TonProvider {
 
             account = ConversionUtils::h256_to_ton_address(&h256, 0).to_string();
         }
-        println!("account:{:?}", account);
 
         let query_params = [("address", account)];
 
@@ -925,6 +924,7 @@ mod tests {
     use reqwest::Client;
     use std::env;
     use tokio;
+    use tonlib_core::TonAddress;
     use url::Url;
 
     fn create_test_provider() -> TonProvider {
@@ -1013,10 +1013,9 @@ mod tests {
     async fn test_is_contract_true() {
         let provider = create_test_provider();
 
-        let contract_address = tonlib_core::TonAddress::from_base64_url(
-            "0QCSES0TZYqcVkgoguhIb8iMEo4cvaEwmIrU5qbQgnN8fo2A",
-        )
-        .expect("msg");
+        let contract_address =
+            TonAddress::from_base64_url("0QCSES0TZYqcVkgoguhIb8iMEo4cvaEwmIrU5qbQgnN8fo2A")
+                .expect("msg");
         let contract_address = ConversionUtils::ton_address_to_h256(&contract_address);
 
         let result = provider.is_contract(&contract_address).await;

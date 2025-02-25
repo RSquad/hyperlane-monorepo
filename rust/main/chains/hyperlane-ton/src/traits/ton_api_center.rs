@@ -65,8 +65,8 @@ pub trait TonApiCenter {
 
     async fn run_get_method(
         &self,
-        address: String,
-        method: String,
+        address: &str,
+        method: &str,
         stack: Option<Vec<StackItem>>,
     ) -> ChainResult<RunGetMethodResponse>;
 
