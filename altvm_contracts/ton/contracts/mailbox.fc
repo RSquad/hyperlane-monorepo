@@ -410,7 +410,7 @@ cell get_storage() method_id {
     return get_data();
 }
 
-cell get_default_ism() method_id {
+slice get_default_ism() method_id {
     load_globals();
     return g::default_ism_addr;
 }

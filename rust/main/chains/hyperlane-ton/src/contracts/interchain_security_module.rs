@@ -77,10 +77,11 @@ impl HyperlaneChain for TonInterchainSecurityModule {
 #[async_trait]
 impl InterchainSecurityModule for TonInterchainSecurityModule {
     async fn module_type(&self) -> ChainResult<ModuleType> {
-        let function_name = "get_module_type".to_string();
+        let function_name = "get_module_type";
+        let ism_hex = self.ism_address.to_hex();
         let response = self
             .provider
-            .run_get_method(self.ism_address.to_hex(), function_name, None)
+            .run_get_method(&ism_hex, function_name, None)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
