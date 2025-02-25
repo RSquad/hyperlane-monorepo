@@ -66,9 +66,10 @@ impl HyperlaneChain for TonMerkleTreeHook {
 #[async_trait]
 impl MerkleTreeHook for TonMerkleTreeHook {
     async fn tree(&self, _reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkle> {
+        let merkle_tree_hook_hex = self.address.to_string();
         let response = self
             .provider
-            .run_get_method(self.address.to_string(), "get_tree".to_string(), None)
+            .run_get_method(&merkle_tree_hook_hex, "get_tree", None)
             .await
             .map_err(|e| HyperlaneTonError::ApiInvalidResponse(format!("Error:{:?}", e)))?;
         if response.exit_code != 0 {
@@ -174,9 +175,10 @@ impl MerkleTreeHook for TonMerkleTreeHook {
     }
 
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let merkle_tree_hook_hex = &self.address.to_string();
         let response = self
             .provider
-            .run_get_method(self.address.to_string(), "get_count".to_string(), None)
+            .run_get_method(&merkle_tree_hook_hex, "get_count", None)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -193,13 +195,10 @@ impl MerkleTreeHook for TonMerkleTreeHook {
         })
     }
     async fn latest_checkpoint(&self, _reorg_period: &ReorgPeriod) -> ChainResult<Checkpoint> {
+        let merkle_tree_hook_hex = self.address.to_string();
         let response = self
             .provider
-            .run_get_method(
-                self.address.to_string(),
-                "get_latest_checkpoint".to_string(),
-                None,
-            )
+            .run_get_method(&merkle_tree_hook_hex, "get_latest_checkpoint", None)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -303,8 +302,8 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         let response = self
             .provider
             .run_get_method(
-                self.merkle_tree_hook_address.to_string(),
-                "get_count".to_string(),
+                self.merkle_tree_hook_address.to_string().as_str(),
+                "get_count",
                 None,
             )
             .await

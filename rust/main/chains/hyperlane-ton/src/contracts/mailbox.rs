@@ -134,13 +134,10 @@ impl TonMailbox {
 #[async_trait]
 impl Mailbox for TonMailbox {
     async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let mailbox_str = self.mailbox_address.to_string();
         let response = self
             .provider
-            .run_get_method(
-                self.mailbox_address.to_string(),
-                "get_nonce".to_string(),
-                Some(vec![]),
-            )
+            .run_get_method(&mailbox_str, "get_nonce", Some(vec![]))
             .await
             .map_err(|e| {
                 HyperlaneTonError::ApiRequestFailed(format!(
@@ -181,13 +178,10 @@ impl Mailbox for TonMailbox {
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn default_ism(&self) -> ChainResult<H256> {
+        let mailbox_hex = self.mailbox_address.to_hex();
         let response = self
             .provider
-            .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_default_ism".to_string(),
-                None,
-            )
+            .run_get_method(&mailbox_hex, "get_default_ism", None)
             .await
             .map_err(|e| {
                 HyperlaneTonError::ApiRequestFailed(format!(
@@ -215,28 +209,26 @@ impl Mailbox for TonMailbox {
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
         let recipient_address = ConversionUtils::h256_to_ton_address(&recipient, self.workchain);
-
+        let recipient_hex = recipient_address.to_hex();
         let recipient_response = self
             .provider
-            .run_get_method(recipient_address.to_hex(), "get_ism".to_string(), None)
+            .run_get_method(&recipient_hex, "get_ism", None)
             .await;
 
         let response = match recipient_response {
             Ok(response) => response,
-            Err(_) => self
-                .provider
-                .run_get_method(
-                    self.mailbox_address.to_hex(),
-                    "get_default_ism".to_string(),
-                    None,
-                )
-                .await
-                .map_err(|e| {
-                    ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                        "Error calling run_get_method for mailbox: {:?}",
-                        e
-                    )))
-                })?,
+            Err(_) => {
+                let mailbox_hex = self.mailbox_address.to_hex();
+                self.provider
+                    .run_get_method(&mailbox_hex, "get_default_ism", None)
+                    .await
+                    .map_err(|e| {
+                        ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
+                            "Error calling run_get_method for mailbox: {:?}",
+                            e
+                        )))
+                    })
+            }?,
         };
 
         let stack = response.stack.first().ok_or_else(|| {
