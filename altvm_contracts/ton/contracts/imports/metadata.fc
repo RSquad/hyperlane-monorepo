@@ -15,3 +15,15 @@ cell token_message::new(int recipient, int amount) inline {
         .store_uint(amount, 256)
         .end_cell();
 }
+
+int metadata::refund_addr(cell metadata, int default_addr) inline {
+    if (null?(metadata)) {
+        return default_addr;
+    }
+    return metadata.begin_parse().skip_bits(16 + 256 + 256).preload_uint(256);
+}
+
+int metadata::unpack::gas_limit(slice metadata) inline {
+    metadata~skip_bits(16 + 256);
+    return metadata~load_uint(256);
+}

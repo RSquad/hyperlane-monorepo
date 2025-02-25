@@ -9,9 +9,8 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import { buildHookMetadataCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
-import { THookMetadata, TJettonWalletContractConfig } from './utils/types';
+import { TJettonWalletContractConfig } from './utils/types';
 
 export function jettonWalletConfigToCell(
   config: TJettonWalletContractConfig,

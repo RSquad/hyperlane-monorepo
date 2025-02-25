@@ -7,9 +7,12 @@ import * as dotenv from 'dotenv';
 import * as ethers from 'ethers';
 
 import { MultisigIsm } from '../wrappers/MultisigIsm';
-import { buildValidatorsDict } from '../wrappers/utils/builders';
+import {
+  buildValidatorsDict,
+  multisigMetadataToCell,
+} from '../wrappers/utils/builders';
 import { Errors, OpCodes } from '../wrappers/utils/constants';
-import { TMultisigMetadata } from '../wrappers/utils/types';
+import { HypMessage, TMultisigMetadata } from '../wrappers/utils/types';
 
 import { messageId, toEthSignedMessageHash } from './utils/signing';
 
@@ -22,15 +25,12 @@ const buildSignedMessage = (
   destination: number = 0,
   signature?: { v: number; r: string; s: string },
 ) => {
-  const messageToSign = {
-    version: 1,
-    nonce: 0,
+  const messageToSign = HypMessage.fromAny({
     origin,
     sender: Buffer.from(wallet.address.slice(2).padStart(64, '0'), 'hex'),
     destination,
     recipient: recipient.hash,
-    body: beginCell().storeUint(123, 32).endCell(),
-  };
+  });
   const id = messageId(messageToSign);
 
   const originMerkleHook = randomBytes(32);
@@ -69,14 +69,9 @@ const buildSignedMessage = (
     ],
   };
 
-  const message = {
-    id,
-    ...messageToSign,
-  };
-
   return {
-    message,
-    metadata,
+    message: messageToSign.toCell(),
+    metadata: multisigMetadataToCell(metadata),
   };
 };
 

@@ -15,9 +15,8 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import { buildHookMetadataCell, buildMessageCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
-import { TGasConfig, THookMetadata, TMessage } from './utils/types';
+import { TGasConfig } from './utils/types';
 
 export type InterchainGasPaymasterConfig = {
   owner: Address;
@@ -95,8 +94,8 @@ export class InterchainGasPaymaster implements Contract {
     via: Sender,
     value: bigint,
     opts: {
-      message: TMessage;
-      hookMetadata: THookMetadata;
+      message: Cell;
+      hookMetadata?: Cell;
       queryId?: number;
     },
   ) {
@@ -106,8 +105,8 @@ export class InterchainGasPaymaster implements Contract {
       body: beginCell()
         .storeUint(OpCodes.POST_DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
-        .storeRef(buildMessageCell(opts.message))
-        .storeMaybeRef(buildHookMetadataCell(opts.hookMetadata))
+        .storeRef(opts.message)
+        .storeMaybeRef(opts.hookMetadata)
         .endCell(),
     });
   }
@@ -118,7 +117,7 @@ export class InterchainGasPaymaster implements Contract {
     value: bigint,
     opts: {
       destDomain: number;
-      hookMetadata: THookMetadata;
+      hookMetadata: Cell;
       queryId?: number;
     },
   ) {
@@ -129,7 +128,7 @@ export class InterchainGasPaymaster implements Contract {
         .storeUint(OpCodes.QUOTE_DISPATCH, 32)
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.destDomain, 32)
-        .storeRef(buildHookMetadataCell(opts.hookMetadata))
+        .storeRef(opts.hookMetadata)
         .endCell(),
     });
   }
@@ -254,7 +253,7 @@ export class InterchainGasPaymaster implements Contract {
   async getQuoteDispatch(
     provider: ContractProvider,
     destDomain: number,
-    hookMetadata: THookMetadata,
+    hookMetadata: Cell,
   ) {
     const result = await provider.get('get_quote_dispatch', [
       {
@@ -263,7 +262,7 @@ export class InterchainGasPaymaster implements Contract {
       },
       {
         type: 'cell',
-        cell: buildHookMetadataCell(hookMetadata),
+        cell: hookMetadata,
       },
     ]);
     return result.stack.readBigNumber();

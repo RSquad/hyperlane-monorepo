@@ -4,7 +4,6 @@ import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { MultisigIsm } from '../wrappers/MultisigIsm';
 import { buildValidatorsDict } from '../wrappers/utils/builders';
 
@@ -34,7 +33,7 @@ export async function run(provider: NetworkProvider) {
     toNano('0.1'),
     {
       threshold: 1,
-      domain,
+      domain: 421614,
       validators: buildValidatorsDict([BigInt(sampleWallet.address)]),
     },
   );

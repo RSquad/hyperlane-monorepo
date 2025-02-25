@@ -5,6 +5,7 @@ import '@ton/test-utils';
 
 import { ProtocolFeeHook } from '../wrappers/ProtocolFeeHook';
 import { Errors, OpCodes } from '../wrappers/utils/constants';
+import { HookMetadata, HypMessage } from '../wrappers/utils/types';
 
 describe('ProtocolFeeHook', () => {
   let code: Cell;
@@ -60,21 +61,13 @@ describe('ProtocolFeeHook', () => {
       deployer.getSender(),
       toNano('0.1'),
       {
-        message: {
-          version: 1,
-          nonce: 2,
-          origin: 0,
-          sender: Buffer.alloc(32),
-          destination: 0,
-          recipient: Buffer.alloc(32),
-          body: beginCell().storeUint(123, 32).endCell(),
-        },
-        hookMetadata: {
+        message: new HypMessage().toCell(),
+        hookMetadata: HookMetadata.fromObj({
           variant: 1,
           msgValue: toNano('0.1'),
           gasLimit: 50000n,
-          refundAddress: deployer.address,
-        },
+          refundAddress: deployer.address.hash,
+        }).toCell(),
       },
     );
 
@@ -194,21 +187,13 @@ describe('ProtocolFeeHook', () => {
       deployer.getSender(),
       toNano('0.01'),
       {
-        message: {
-          version: 1,
-          nonce: 2,
-          origin: 0,
-          sender: Buffer.alloc(32),
-          destination: 0,
-          recipient: Buffer.alloc(32),
-          body: beginCell().storeUint(123, 32).endCell(),
-        },
-        hookMetadata: {
+        message: new HypMessage().toCell(),
+        hookMetadata: HookMetadata.fromObj({
           variant: 0,
           msgValue: toNano('0.01'),
           gasLimit: 50000n,
-          refundAddress: deployer.address,
-        },
+          refundAddress: deployer.address.hash,
+        }).toCell(),
       },
     );
 

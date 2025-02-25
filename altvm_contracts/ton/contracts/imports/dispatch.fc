@@ -7,9 +7,8 @@ cell serialize_dispatch_body(
     cell hook_metadata
 ) inline {
     return begin_cell()
-        .store_uint(op::dispatch, 32)
+        .store_uint(op::mailbox::dispatch, 32)
         .store_uint(query_id, 64)
-        .store_uint(op::dispatch::init, 32)
         .store_uint(destination, 32)
         .store_uint(recipient, 256)
         .store_ref(hyp_message_body)

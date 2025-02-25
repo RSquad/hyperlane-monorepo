@@ -14,6 +14,7 @@ import {
 } from '@ton/sandbox';
 import '@ton/test-utils';
 
+import { Delivery } from '../wrappers/Delivery';
 import { InterchainGasPaymaster } from '../wrappers/InterchainGasPaymaster';
 import {
   JettonMinterContract,
@@ -25,24 +26,25 @@ import { MerkleHookMock } from '../wrappers/MerkleHookMock';
 import { MockIsm } from '../wrappers/MockIsm';
 import { TokenRouter } from '../wrappers/TokenRouter';
 import {
-  buildHookMetadataCell,
-  buildMessage,
   buildTokenMessage,
+  multisigMetadataToCell,
 } from '../wrappers/utils/builders';
 import {
   Errors,
   METADATA_VARIANT,
   OpCodes,
-  ProcessOpCodes,
+  answer,
 } from '../wrappers/utils/constants';
 import {
+  HookMetadata,
+  HypMessage,
   TMailboxContractConfig,
-  TMessage,
   TMultisigMetadata,
 } from '../wrappers/utils/types';
 
 import { expectTransactionFlow } from './utils/expect';
 import { makeRandomBigint } from './utils/generators';
+import { messageId } from './utils/signing';
 
 describe('TokenRouter', () => {
   let hypJettonCode: Cell;
@@ -52,7 +54,6 @@ describe('TokenRouter', () => {
   let requiredHookCode: Cell;
   let defaultHookCode: Cell;
   let mockIsmCode: Cell;
-  let recipientCode: Cell;
   let minterCode: Cell;
   let walletCode: Cell;
   const burnAmount = 10000000000n;
@@ -142,7 +143,7 @@ describe('TokenRouter', () => {
       defaultHookAddr: initialDefaultHook.address,
       requiredHookAddr: initialRequiredHook.address,
       owner: deployer.address,
-      deliveries: Dictionary.empty(Mailbox.DeliveryKey, Mailbox.DeliveryValue),
+      deliveryCode: await compile('Delivery'),
     };
 
     mailbox = blockchain.openContract(
@@ -277,26 +278,34 @@ describe('TokenRouter', () => {
     it('process -> handle (mint synthetic)', async () => {
       const { amount: balanceBefore } = await jettonWallet.getBalance();
       const mintedAmount = 1000n;
-      const hyperlaneMessage = buildMessage(
-        originChain,
-        originRouterMock.address.hash,
-        destinationChain,
-        tokenRouter.address.hash,
-        buildTokenMessage(deployer.address.hash, mintedAmount),
-      );
-      const metadata: TMultisigMetadata = {
+      const hyperlaneMessage = HypMessage.fromAny({
+        origin: originChain,
+        sender: originRouterMock.address.hash,
+        destination: destinationChain,
+        recipient: tokenRouter.address.hash,
+        body: buildTokenMessage(deployer.address.hash, mintedAmount),
+      });
+      const metadata = multisigMetadataToCell({
         originMerkleHook: Buffer.alloc(32),
         root: Buffer.alloc(32),
         index: 0n,
         signatures: [{ r: 0n, s: 0n, v: 0n }],
-      };
+      });
       const res = await mailbox.sendProcess(
         deployer.getSender(),
         toNano('0.1'),
         {
           metadata,
-          message: hyperlaneMessage,
+          message: hyperlaneMessage.toCell(),
         },
+      );
+
+      const delivery = Delivery.createFromConfig(
+        {
+          messageId: BigInt(messageId(hyperlaneMessage)),
+          mailboxAddress: mailbox.address,
+        },
+        await compile('Delivery'),
       );
 
       expectTransactionFlow(res, [
@@ -316,13 +325,7 @@ describe('TokenRouter', () => {
           from: tokenRouter.address,
           to: mailbox.address,
           success: true,
-          op: OpCodes.PROCESS,
-          body: (x: Cell | undefined): boolean => {
-            if (!x) return false;
-            const s = x!.beginParse();
-            s.skip(32 + 64);
-            return s.loadUint(32) == ProcessOpCodes.VERIFY;
-          },
+          op: answer(OpCodes.GET_ISM),
         },
         {
           from: mailbox.address,
@@ -334,13 +337,19 @@ describe('TokenRouter', () => {
           from: initialDefaultIsm.address,
           to: mailbox.address,
           success: true,
-          op: OpCodes.PROCESS,
-          body: (x: Cell | undefined): boolean => {
-            if (!x) return false;
-            const s = x!.beginParse();
-            s.skip(32 + 64);
-            return s.loadUint(32) == ProcessOpCodes.DELIVER_MESSAGE;
-          },
+          op: answer(OpCodes.VERIFY),
+        },
+        {
+          from: mailbox.address,
+          to: delivery.address,
+          success: true,
+          op: OpCodes.DELIVERY_INITIALIZE,
+        },
+        {
+          from: delivery.address,
+          to: mailbox.address,
+          success: true,
+          op: answer(OpCodes.DELIVERY_INITIALIZE),
         },
         {
           from: mailbox.address,
@@ -368,19 +377,19 @@ describe('TokenRouter', () => {
 
     it('burn synthetic -> dispatch', async () => {
       const res = await jettonWallet.sendBurn(deployer.getSender(), {
-        value: toNano(0.1),
+        value: toNano(0.6),
         queryId: 0,
         jettonAmount: burnAmount,
         responseAddress: deployer.address,
         destDomain: destinationChain,
         recipientAddr: tokenRouter.address.hash,
         message: buildTokenMessage(recipient.address.hash, burnAmount),
-        hookMetadata: buildHookMetadataCell({
+        hookMetadata: HookMetadata.fromObj({
           variant: METADATA_VARIANT.STANDARD,
           msgValue: toNano('1'),
           gasLimit: 100000000n,
-          refundAddress: deployer.address,
-        }),
+          refundAddress: deployer.address.hash,
+        }).toCell(),
       });
       expectTransactionFlow(res, [
         {
@@ -503,7 +512,6 @@ describe('TokenRouter', () => {
           body: beginCell()
             .storeUint(OpCodes.DISPATCH, 32)
             .storeUint(0, 64)
-            .storeUint(OpCodes.DISPATCH_INIT, 32)
             .storeUint(destinationChain, 32)
             .storeBuffer(routers.get(destinationChain)!, 32)
             .storeRef(
@@ -513,12 +521,12 @@ describe('TokenRouter', () => {
                 .endCell(),
             )
             .storeMaybeRef(
-              buildHookMetadataCell({
+              HookMetadata.fromObj({
                 variant: METADATA_VARIANT.STANDARD,
                 msgValue: 0n,
                 gasLimit: 0n,
-                refundAddress: deployer.address,
-              }),
+                refundAddress: deployer.address.hash,
+              }).toCell(),
             )
             .endCell(),
         },
@@ -631,12 +639,12 @@ describe('TokenRouter', () => {
             .storeUint(originChain, 32)
             .storeBuffer(recipient.address.hash, 32)
             .storeMaybeRef(
-              buildHookMetadataCell({
+              HookMetadata.fromObj({
                 variant: METADATA_VARIANT.STANDARD,
                 msgValue: 0n,
                 gasLimit: 1000000000n,
-                refundAddress: refundAddress.address,
-              }),
+                refundAddress: refundAddress.address.hash,
+              }).toCell(),
             )
             .storeMaybeRef(null)
             .endCell(),
@@ -672,5 +680,51 @@ describe('TokenRouter', () => {
     });
 
     it.todo('process -> handle (transfer token)');
+  });
+
+  describe('Routers map', () => {
+    beforeEach(async () => {
+      await blockchain.loadFrom(snapshot);
+
+      tokenRouter = blockchain.openContract(
+        TokenRouter.createFromConfig(
+          {
+            ownerAddress: deployer.address,
+            mailboxAddress: mailbox.address,
+            routers: Dictionary.empty(
+              Dictionary.Keys.Uint(32),
+              Dictionary.Values.Buffer(32),
+            ),
+          },
+          hypJettonCode,
+        ),
+      );
+
+      await tokenRouter.sendDeploy(deployer.getSender(), toNano(0.1));
+    });
+
+    it('set router', async () => {
+      const res = await tokenRouter.sendSetRouter(
+        deployer.getSender(),
+        toNano(0.1),
+        {
+          domain: 1,
+          router: originRouterMock.address.hash,
+        },
+      );
+      expectTransactionFlow(res, [
+        {
+          from: deployer.address,
+          to: tokenRouter.address,
+          success: true,
+        },
+      ]);
+
+      const dictRouters = await tokenRouter.getRouters();
+      expect(dictRouters.get(1)).toBeDefined();
+      expect(dictRouters.get(1)!.toString('hex')).toBe(
+        originRouterMock.address.hash.toString('hex'),
+      );
+    });
   });
 });

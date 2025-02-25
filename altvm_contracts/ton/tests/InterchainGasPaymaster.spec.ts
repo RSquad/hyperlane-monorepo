@@ -1,5 +1,5 @@
 import { compile } from '@ton/blueprint';
-import { Cell, Dictionary, beginCell, toNano } from '@ton/core';
+import { Cell, Dictionary, toNano } from '@ton/core';
 import { Blockchain, SandboxContract, TreasuryContract } from '@ton/sandbox';
 import '@ton/test-utils';
 
@@ -7,13 +7,10 @@ import {
   InterchainGasPaymaster,
   InterchainGasPaymasterConfig,
 } from '../wrappers/InterchainGasPaymaster';
-import { buildMessage } from '../wrappers/utils/builders';
 import { Errors, OpCodes } from '../wrappers/utils/constants';
-import { TGasConfig } from '../wrappers/utils/types';
+import { HookMetadata, HypMessage, TGasConfig } from '../wrappers/utils/types';
 
 import { makeRandomBigint } from './utils/generators';
-
-const TOKEN_EXCHANGE_RATE_SCALE = 10000000000n;
 
 describe('InterchainGasPaymaster', () => {
   let code: Cell;
@@ -74,20 +71,13 @@ describe('InterchainGasPaymaster', () => {
 
   it('should post dispatch', async () => {
     const postDispatchBody = {
-      message: buildMessage(
-        0,
-        Buffer.alloc(32),
-        0,
-        Buffer.alloc(32),
-        beginCell().storeUint(123, 32).endCell(),
-      ),
-      hookMetadata: {
+      message: new HypMessage().toCell(),
+      hookMetadata: HookMetadata.fromObj({
         variant: 0,
         msgValue: toNano('0.1'),
         gasLimit: gasLimit,
-        refundAddress: deployer.address,
-      },
-      refundAddr: deployer.address,
+        refundAddress: deployer.address.hash,
+      }).toCell(),
     };
     const res = await interchainGasPaymaster.sendPostDispatch(
       deployer.getSender(),
@@ -105,7 +95,7 @@ describe('InterchainGasPaymaster', () => {
   });
 
   it('should claim', async () => {
-    const minimalBalance = toNano('0.5');
+    const minimalBalance = toNano('0.1');
     const res = await interchainGasPaymaster.sendClaim(
       deployer.getSender(),
       toNano('0.1'),
@@ -118,7 +108,6 @@ describe('InterchainGasPaymaster', () => {
       success: true,
     });
 
-    const balanceAfter = await beneficiary.getBalance();
     const paymasterBalanceAfter = await interchainGasPaymaster.getBalance();
     expect(paymasterBalanceAfter).toStrictEqual(minimalBalance);
   });
@@ -290,12 +279,15 @@ describe('InterchainGasPaymaster', () => {
 
   it('should get quote dispatch', async () => {
     const expectedQuoteDispatch = 10000n;
-    const quoteDispatch = await interchainGasPaymaster.getQuoteDispatch(0, {
-      variant: 0,
-      msgValue: toNano('0.1'),
-      gasLimit: gasLimit,
-      refundAddress: deployer.address,
-    });
+    const quoteDispatch = await interchainGasPaymaster.getQuoteDispatch(
+      0,
+      HookMetadata.fromObj({
+        variant: 0,
+        msgValue: toNano('0.1'),
+        gasLimit: gasLimit,
+        refundAddress: deployer.address.hash,
+      }).toCell(),
+    );
     expect(quoteDispatch).toStrictEqual(expectedQuoteDispatch);
   });
 });

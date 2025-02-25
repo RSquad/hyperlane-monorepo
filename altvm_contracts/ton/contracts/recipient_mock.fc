@@ -34,13 +34,11 @@ global slice g::ism_addr;
     int query_id = in_msg_body~load_uint(64);
 
     load_globals();
-    if (op == op::get_ism) {
+    if (op == op::recipient::get_ism) {
         cell body = begin_cell()
-            .store_uint(op::process, 32)
+            .store_uint(op::recipient::get_ism::answer, 32)
             .store_uint(query_id, 64)
-            .store_uint(op::process::verify, 32)
             .store_slice(g::ism_addr)
-            .store_slice(in_msg_body)
             .end_cell();
         
         builder msg = build_message(msg_sender, 0, true, null(), body);
@@ -48,7 +46,7 @@ global slice g::ism_addr;
         return store_globals();
     }
 
-    if (op == op::handle) {
+    if (op == op::recipient::handle) {
         int origin_domain = in_msg_body~load_uint(32);
         int sender = in_msg_body~load_uint(256);
         cell message_body = in_msg_body~load_ref();

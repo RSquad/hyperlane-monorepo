@@ -2,7 +2,7 @@ import { Cell } from '@ton/core';
 import { ethers, utils } from 'ethers';
 
 import { writeCellsToBuffer } from '../../wrappers/utils/convert';
-import { TMessage } from '../../wrappers/utils/types';
+import { HypMessage } from '../../wrappers/utils/types';
 
 export const signCell = (signer: ethers.Wallet, cell: Cell) => {
   const hash = cell.hash();
@@ -23,7 +23,7 @@ export const toEthSignedMessageHash = (hash: bigint) => {
   );
 };
 
-export const messageId = (message: TMessage) => {
+export const messageId = (message: HypMessage) => {
   return utils.keccak256(
     utils.solidityPack(
       ['uint8', 'uint32', 'uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],

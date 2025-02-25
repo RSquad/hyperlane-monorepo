@@ -10,9 +10,7 @@ import {
   contractAddress,
 } from '@ton/core';
 
-import { buildHookMetadataCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
-import { THookMetadata } from './utils/types';
 
 export type TokenRouterConfig = {
   ismAddress?: Address;
@@ -21,7 +19,7 @@ export type TokenRouterConfig = {
   // domain -> router address (h256)
   routers: Dictionary<number, Buffer>;
   ownerAddress: Address;
-  jettonWalletCode?: Cell;
+  jettonWalletCode?: Cell | null;
 };
 
 export function tokenRouterConfigToCell(config: TokenRouterConfig): Cell {
@@ -134,7 +132,7 @@ export class TokenRouter implements Contract {
       destination: number;
       recipient: Buffer;
       amount: bigint;
-      hookMetadata?: THookMetadata;
+      hookMetadata?: Cell;
     },
   ) {
     await provider.internal(via, {
@@ -146,9 +144,7 @@ export class TokenRouter implements Contract {
         .storeUint(opts.destination, 32)
         .storeBuffer(opts.recipient, 32)
         .storeUint(opts.amount, 256)
-        .storeMaybeRef(
-          opts.hookMetadata ? buildHookMetadataCell(opts.hookMetadata!) : null,
-        )
+        .storeMaybeRef(opts.hookMetadata)
         .storeMaybeRef(null)
         .endCell(),
     });
@@ -156,5 +152,35 @@ export class TokenRouter implements Contract {
 
   async getBalance(provider: ContractProvider) {
     return (await provider.getState()).balance;
+  }
+
+  async getStorage(provider: ContractProvider): Promise<TokenRouterConfig> {
+    const result = await provider.get('get_storage', []);
+    const data = result.stack.readCell().beginParse();
+    const ismAddress =
+      data.preloadUint(2) != 0 ? data.loadAddress() : undefined;
+    if (!ismAddress) data.loadUint(2);
+    const jettonAddress =
+      data.preloadUint(2) != 0 ? data.loadAddress() : undefined;
+    if (!jettonAddress) data.loadUint(2);
+    const routerConfig: TokenRouterConfig = {
+      ismAddress,
+      jettonAddress,
+      mailboxAddress: data.loadAddress(),
+      routers: data.loadDict(
+        Dictionary.Keys.Uint(32),
+        Dictionary.Values.Buffer(32),
+      ),
+      jettonWalletCode: data.loadMaybeRef(),
+      ownerAddress: data.loadRef().beginParse().loadAddress(),
+    };
+    return routerConfig;
+  }
+
+  async getRouters(
+    provider: ContractProvider,
+  ): Promise<Dictionary<number, Buffer>> {
+    const data = await this.getStorage(provider);
+    return data.routers;
   }
 }

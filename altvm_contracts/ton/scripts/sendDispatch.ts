@@ -1,12 +1,10 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { Address, beginCell, toNano } from '@ton/core';
-import { ethers } from 'ethers';
 import * as fs from 'fs';
 import * as path from 'path';
 
 import { Mailbox } from '../wrappers/Mailbox';
-import { buildMessage, buildMessageCell } from '../wrappers/utils/builders';
-import { THookMetadata } from '../wrappers/utils/types';
+import { HookMetadata } from '../wrappers/utils/types';
 
 function loadDeployedContracts(domain: number) {
   const filePath = path.join(__dirname, `../deployedContracts_${domain}.json`);
@@ -35,12 +33,12 @@ export async function run(provider: NetworkProvider) {
 
   const destAddrTon = Address.parse(deployedContracts.recipientAddress).hash;
 
-  const hookMetadata: THookMetadata = {
-    variant: 0,
+  const hookMetadata = HookMetadata.fromObj({
+    variant: 1,
     msgValue: 1000n,
     gasLimit: 50000n,
     refundAddress: provider.sender().address!,
-  };
+  });
 
   await mailbox.sendDispatch(provider.sender(), toNano('0.5'), {
     destDomain: targetDomain,
