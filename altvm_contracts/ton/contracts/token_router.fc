@@ -74,7 +74,8 @@ int routers::must_get(cell routers, int domain) impure inline {
         int router_addr = in_msg_body~load_uint(256);
         in_msg_body.end_parse();
         g::routers~udict_set_builder(32, domain, begin_cell().store_uint(router_addr, 256));
-        send_change(g::msg_sender, op::set_router, g::query_id, send_mode::carry_remaining_balance);
+        send_change(g::msg_sender, op::set_router, g::query_id, send_mode::carry_remaining_value);
+        store_globals();
         throw(0);
     }
 }

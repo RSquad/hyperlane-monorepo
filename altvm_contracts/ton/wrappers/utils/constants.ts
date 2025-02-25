@@ -49,7 +49,7 @@ export const OpCodes = {
   JETTON_TOP_UP: 0xd372158c,
   JETTON_CHANGE_ADMIN: 0x6501f354,
   TRANSFER_REMOTE: op('op::transfer_remote'),
-  SET_ROUTER: op('op:set_router'),
+  SET_ROUTER: answer(op('op:set_router')),
   MERKLE_TEST: op('op::merkle_test'),
   DELIVERY_INITIALIZE: op('op::delivery::initialize'),
 };

@@ -681,4 +681,50 @@ describe('TokenRouter', () => {
 
     it.todo('process -> handle (transfer token)');
   });
+
+  describe('Routers map', () => {
+    beforeEach(async () => {
+      await blockchain.loadFrom(snapshot);
+
+      tokenRouter = blockchain.openContract(
+        TokenRouter.createFromConfig(
+          {
+            ownerAddress: deployer.address,
+            mailboxAddress: mailbox.address,
+            routers: Dictionary.empty(
+              Dictionary.Keys.Uint(32),
+              Dictionary.Values.Buffer(32),
+            ),
+          },
+          hypJettonCode,
+        ),
+      );
+
+      await tokenRouter.sendDeploy(deployer.getSender(), toNano(0.1));
+    });
+
+    it('set router', async () => {
+      const res = await tokenRouter.sendSetRouter(
+        deployer.getSender(),
+        toNano(0.1),
+        {
+          domain: 1,
+          router: originRouterMock.address.hash,
+        },
+      );
+      expectTransactionFlow(res, [
+        {
+          from: deployer.address,
+          to: tokenRouter.address,
+          success: true,
+        },
+      ]);
+
+      const dictRouters = await tokenRouter.getRouters();
+      expect(dictRouters.get(1)).toBeDefined();
+      expect(dictRouters.get(1)!.toString('hex')).toBe(
+        originRouterMock.address.hash.toString('hex'),
+      );
+    });
+  });
 });
