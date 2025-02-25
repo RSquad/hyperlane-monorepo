@@ -43,7 +43,7 @@ export async function run(provider: NetworkProvider) {
   await mailbox.sendDispatch(provider.sender(), toNano('0.5'), {
     destDomain: targetDomain,
     recipientAddr: destAddrTon,
-    message: beginCell().storeStringTail('Hello, world!').endCell(),
-    hookMetadata,
+    messageBody: beginCell().storeStringTail('Hello, world!').endCell(),
+    hookMetadata: hookMetadata.toCell(),
   });
 }
