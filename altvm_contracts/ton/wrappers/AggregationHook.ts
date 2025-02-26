@@ -3,6 +3,7 @@ import {
   Cell,
   Contract,
   ContractProvider,
+  Dictionary,
   SendMode,
   Sender,
   beginCell,
@@ -15,6 +16,8 @@ import { THookMetadata, TMessage } from './utils/types';
 
 export type AggregationHookConfig = {
   mailboxAddr: Address;
+  hooks: Dictionary<number, Address>;
+  curHookIndex: Dictionary<number, Cell>;
 };
 
 export function aggregationHookConfigToCell(

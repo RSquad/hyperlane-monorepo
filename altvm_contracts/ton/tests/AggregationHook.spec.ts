@@ -54,15 +54,6 @@ describe('AggregationHook', () => {
 
     deployer = await blockchain.treasury('deployer');
 
-    aggregationHook = blockchain.openContract(
-      AggregationHook.createFromConfig(
-        {
-          mailboxAddr: deployer.address,
-        },
-        code,
-      ),
-    );
-
     merkleHook = blockchain.openContract(
       MerkleHookMock.createFromConfig(
         {
@@ -109,13 +100,6 @@ describe('AggregationHook', () => {
       ),
     );
 
-    await deployAndExpectSuccess(aggregationHook, deployer);
-    await deployAndExpectSuccess(protocolFeeHook, deployer);
-    await deployAndExpectSuccess(merkleHook, deployer);
-    await deployAndExpectSuccess(igpHook, deployer);
-  });
-
-  it('should post dispatch', async () => {
     const hooksArr = [
       protocolFeeHook.address,
       merkleHook.address,
@@ -128,9 +112,30 @@ describe('AggregationHook', () => {
     hooksArr.forEach((addr, i) => {
       hooks.set(i, addr);
     });
-    console.log(hooks);
-    const body = beginCell().storeUint(1, 1).storeDict(hooks).endCell();
-    console.log(body);
+
+    const curHookIndex = Dictionary.empty(
+      Dictionary.Keys.Uint(64),
+      Dictionary.Values.Cell(),
+    );
+
+    aggregationHook = blockchain.openContract(
+      AggregationHook.createFromConfig(
+        {
+          mailboxAddr: deployer.address,
+          hooks,
+          curHookIndex,
+        },
+        code,
+      ),
+    );
+
+    await deployAndExpectSuccess(aggregationHook, deployer);
+    await deployAndExpectSuccess(protocolFeeHook, deployer);
+    await deployAndExpectSuccess(merkleHook, deployer);
+    await deployAndExpectSuccess(igpHook, deployer);
+  });
+
+  it('should post dispatch', async () => {
     const res = await aggregationHook.sendPostDispatch(
       deployer.getSender(),
       toNano('0.1'),
@@ -142,7 +147,7 @@ describe('AggregationHook', () => {
           sender: Buffer.alloc(32),
           destination: 0,
           recipient: Buffer.alloc(32),
-          body,
+          body: beginCell().storeUint(123, 32).endCell(),
         },
         hookMetadata: {
           variant: 0,
