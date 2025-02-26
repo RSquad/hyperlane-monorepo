@@ -10,6 +10,7 @@ import { loadDeployedContracts } from './loadDeployedContracts';
 export async function run(provider: NetworkProvider) {
   const sampleWallet = new ethers.Wallet(process.env.VALIDATOR_KEY!);
   const domain = Number(process.env.ORIGIN_DOMAIN) || 0;
+  const targetDomain = Number(process.env.TARGET_DOMAIN) || 0;
 
   let deployedContracts = loadDeployedContracts(domain);
   const multisigIsm = provider.open(
@@ -25,7 +26,7 @@ export async function run(provider: NetworkProvider) {
     toNano('0.1'),
     {
       threshold: 1,
-      domain: 421614,
+      domain: targetDomain,
       validators: buildValidatorsDict([BigInt(sampleWallet.address)]),
     },
   );
