@@ -1,12 +1,16 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { Address, beginCell, toNano } from '@ton/core';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { InterchainGasPaymaster } from '../wrappers/InterchainGasPaymaster';
 import { Mailbox } from '../wrappers/Mailbox';
 import { HookMetadata, HypMessage } from '../wrappers/utils/types';
 
+import { loadDeployedContracts } from './loadDeployedContracts';
+
 export async function run(provider: NetworkProvider) {
+  let deployedContracts = loadDeployedContracts(
+    Number(process.env.ORIGIN_DOMAIN!),
+  );
   console.log('igp:', deployedContracts.interchainGasPaymasterAddress);
   const recipient = Address.parse(deployedContracts.recipientAddress).hash;
   console.log('recipient:', recipient);
