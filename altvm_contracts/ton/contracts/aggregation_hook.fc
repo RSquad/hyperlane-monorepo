@@ -7,44 +7,62 @@
 #include "imports/signing_utils.fc";
 #include "imports/hyp_message.fc";
 
-global int g::hook_type;
+global slice g::mailbox_addr;
 
 () store_globals() impure inline_ref {
     cell data = begin_cell()
-        .store_uint(hook_type::aggregation, 8)
+        .store_slice(g::mailbox_addr)
         .end_cell();
     set_data(data);
 }
 
 () load_globals() impure inline_ref {
     slice ds = get_data().begin_parse();
-    g::hook_type = ds~load_uint(8);
+    g::mailbox_addr = ds~load_msg_addr();
 }
 
 () post_dispatch(slice s, int query_id, int value, slice dest) impure inline  {
     slice body = s;
-    cell message_body = s.message::unpack::body();
+    
+    cell message = s~load_ref();
+    cell message_body = message::unpack::body(message.begin_parse());
     slice mbs = message_body.begin_parse();
+    
     cell hooks = mbs~load_dict();
-    (_, slice hook_addr, int found?) = hooks~udict::delete_get_min(32);
-    while(found?) {
-        reserve_original_balance(value, 0);
+    (hooks, _, slice hook_addr, int found?) = udict_delete_get_min(hooks, 8);
+    reserve_original_balance(value, 0);
+    if (found?) {
         cell body = begin_cell()
             .store_uint(op::hook::post_dispatch, 32)
             .store_uint(query_id, 64)
             .store_slice(s)
             .end_cell();
         
-        builder answer_msg = build_message(
-            hook_addr,
-            0,
-            false,
-            null(),
-            body
+            builder answer_msg = build_message(
+                hook_addr,
+                0,
+                false,
+                null(),
+                body
         );
 
         send_raw_message(answer_msg.end_cell(), send_mode::carry_remaining_balance);
-        (_, hook_addr, found?) = hooks~udict::delete_get_min(32);
+    } else {
+        cell body = begin_cell()
+            .store_uint(op::hook::post_dispatch::answer, 32)
+            .store_uint(query_id, 64)
+            .store_slice(s)
+            .end_cell();
+        
+            builder answer_msg = build_message(
+                g::mailbox_addr,
+                0,
+                false,
+                null(),
+                body
+        );
+
+        send_raw_message(answer_msg.end_cell(), send_mode::carry_remaining_balance);
     }
 }
 
@@ -62,22 +80,23 @@ global int g::hook_type;
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
 
-    load_globals();
-
-    if (op == op::hook::post_dispatch) {
+    if (
+        (op == op::hook::post_dispatch) | 
+        (op == op::hook::post_dispatch::answer)
+    ) {
         post_dispatch(
             in_msg_body,
             query_id,
             msg_value,
             msg_sender
         );
-        return store_globals();
+        return ();
     }
 
     throw(error::unknown_op);
 }
 
 (int) get_hook_data() method_id {
-    load_globals();
-    return (g::hook_type);
+    
+    return (hook_type::aggregation);
 }

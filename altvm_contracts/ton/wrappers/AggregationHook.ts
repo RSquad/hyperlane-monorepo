@@ -13,12 +13,14 @@ import { buildHookMetadataCell, buildMessageCell } from './utils/builders';
 import { OpCodes } from './utils/constants';
 import { THookMetadata, TMessage } from './utils/types';
 
-export type AggregationHookConfig = {};
+export type AggregationHookConfig = {
+  mailboxAddr: Address;
+};
 
 export function aggregationHookConfigToCell(
   config: AggregationHookConfig,
 ): Cell {
-  return beginCell().endCell();
+  return beginCell().storeAddress(config.mailboxAddr).endCell();
 }
 
 export class AggregationHook implements Contract {
