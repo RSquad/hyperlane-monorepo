@@ -30,7 +30,11 @@ export async function run(provider: NetworkProvider) {
     nonce: 0,
     latestDispatchedId: 0n,
     defaultIsm: Address.parse(deployedContracts.multisigIsmAddress),
-    defaultHookAddr: Address.parse(deployedContracts.merkleTreeHookAddress),
+    defaultHookAddr: deployedContracts.merkleTreeHookAddress
+      ? Address.parse(deployedContracts.merkleTreeHookAddress)
+      : Address.parse(
+          '0:0000000000000000000000000000000000000000000000000000000000000000',
+        ),
     requiredHookAddr: Address.parse(
       deployedContracts.interchainGasPaymasterAddress,
     ),
