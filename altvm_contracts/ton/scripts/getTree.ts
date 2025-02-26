@@ -8,8 +8,6 @@ import { MultisigIsm } from '../wrappers/MultisigIsm';
 import { buildValidatorsDict } from '../wrappers/utils/builders';
 
 export async function run(provider: NetworkProvider) {
-  //   const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
-
   const hook = provider.open(
     MerkleTreeHook.createFromAddress(
       Address.parse(deployedContracts.merkleTreeHookAddress),
