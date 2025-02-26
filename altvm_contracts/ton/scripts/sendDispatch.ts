@@ -1,22 +1,14 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { Address, beginCell, toNano } from '@ton/core';
-import * as fs from 'fs';
-import * as path from 'path';
 
 import { Mailbox } from '../wrappers/Mailbox';
 import { HookMetadata } from '../wrappers/utils/types';
 
-function loadDeployedContracts(domain: number) {
-  const filePath = path.join(__dirname, `../deployedContracts_${domain}.json`);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Deployed contracts file not found: ${filePath}`);
-  }
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
+import { loadDeployedContracts } from './loadDeployedContracts';
 
 export async function run(provider: NetworkProvider) {
-  const dispatchDomain = Number(process.env.DISPATCH_DOMAIN) || 0;
-  const targetDomain = Number(process.env.TARGET_DOMAIN) || 0;
+  const dispatchDomain = Number(process.env.ORIGIN_DOMAIN) || 0;
+  const targetDomain = Number(process.env.DESTINATION_DOMAIN) || 0;
 
   if (!dispatchDomain || !targetDomain) {
     throw new Error(
