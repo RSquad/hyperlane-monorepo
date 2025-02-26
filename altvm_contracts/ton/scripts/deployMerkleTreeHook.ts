@@ -1,5 +1,5 @@
 import { NetworkProvider, compile } from '@ton/blueprint';
-import { Dictionary, toNano } from '@ton/core';
+import { Address, Dictionary, toNano } from '@ton/core';
 import * as fs from 'fs';
 
 import * as deployedContracts from '../deployedContracts.json';
@@ -19,6 +19,7 @@ export async function run(provider: NetworkProvider) {
       {
         index: 0,
         tree: dict,
+        mailboxAddr: Address.parse(deployedContracts.mailboxAddress),
       },
       await compile('MerkleTreeHook'),
     ),
