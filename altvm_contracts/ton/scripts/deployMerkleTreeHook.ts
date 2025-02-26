@@ -2,10 +2,13 @@ import { NetworkProvider, compile } from '@ton/blueprint';
 import { Address, Dictionary, toNano } from '@ton/core';
 import * as fs from 'fs';
 
-import * as deployedContracts from '../deployedContracts.json';
 import { MerkleTreeHook } from '../wrappers/MerkleTreeHook';
 
+import { loadDeployedContracts } from './loadDeployedContracts';
+
 export async function run(provider: NetworkProvider) {
+  const domain = Number(process.env.ORIGIN_DOMAIN!);
+  let deployedContracts = loadDeployedContracts(domain);
   const dict = Dictionary.empty(
     Dictionary.Keys.Uint(8),
     Dictionary.Values.BigUint(256),
@@ -39,5 +42,5 @@ export async function run(provider: NetworkProvider) {
     merkleTreeHookAddress: merkleTreeHook.address.toString(),
   };
 
-  fs.writeFileSync('./deployedContracts.json', JSON.stringify(data));
+  fs.writeFileSync(`./deployedContracts_${domain}.json`, JSON.stringify(data));
 }
