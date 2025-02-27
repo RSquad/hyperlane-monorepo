@@ -9,7 +9,7 @@ import { HypMessage, TMultisigMetadata } from '../wrappers/utils/types';
 
 export async function run(provider: NetworkProvider) {
   const recipient = Address.parse(deployedContracts.recipientAddress).hash;
-  const sampleWallet = new ethers.Wallet(process.env.ETH_WALLET_PUBKEY!);
+  const sampleWallet = new ethers.Wallet(process.env.PRIVATE_KEY!);
 
   const sender = Buffer.from(
     sampleWallet.address.slice(2).padStart(64, '0'),
