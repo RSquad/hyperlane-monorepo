@@ -223,7 +223,7 @@ impl ConversionUtils {
     }
     /// Parses the first address from a BOC (Bag of Cells) encoded as a Base64 string.
     /// This function decodes the BOC, extracts the root cell, and retrieves the address stored in it.
-    pub async fn parse_address_from_boc(boc: &str) -> Result<TonAddress, TonCellError> {
+    pub fn parse_address_from_boc(boc: &str) -> Result<TonAddress, TonCellError> {
         let cell = Self::parse_root_cell_from_boc(boc)?;
         let mut parser = cell.parser();
         let address = parser.load_address()?;
@@ -496,6 +496,18 @@ mod tests {
     use super::ConversionUtils;
     use crate::run_get_method::{StackItem, StackValue};
 
+    #[test]
+    fn test_parse_address_from_boc() {
+        let address = ConversionUtils::parse_address_from_boc(
+            "te6cckEBAQEAJAAAQ4AK6ETsEZndZnPkJ4gUxnX2otydTPtek+fiTAQfLC3C0JAaOf4x",
+        )
+        .expect("failed");
+
+        assert_eq!(
+            address.to_base64_std(),
+            "EQBXQidgjM7rM58hPECmM6+1FuTqZ9r0nz8SYCD5YW4WhHCM".to_string()
+        );
+    }
     #[test]
     fn test_base64_to_h512_valid() {
         let hash_str = "emUQnddCZvrUNaMmy0eYGzRtHAVsdniV0x7EBpK6ON4=";
