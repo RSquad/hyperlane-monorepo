@@ -390,6 +390,7 @@ mod test {
     #[test]
     fn test_run() {
         use crate::ton::run_ton_to_ton;
+        use std::env;
         env_logger::init();
 
         use crate::ton::run_ton_to_evm;
