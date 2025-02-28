@@ -1,4 +1,4 @@
-import { NetworkProvider, compile } from '@ton/blueprint';
+import { NetworkProvider, compile, sleep } from '@ton/blueprint';
 import { Address, Dictionary, OpenedContract, toNano } from '@ton/core';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -17,9 +17,9 @@ async function deploy<T>(
   code: string,
   provider: NetworkProvider,
 ): Promise<OpenedContract<T>> {
-  const contract = provider.open(
-    c.createFromConfig(config, await compile(code)),
-  );
+  const codeCell = await compile(code);
+  console.log('code hash:', codeCell.hash().toString('hex'));
+  const contract = provider.open(c.createFromConfig(config, codeCell));
   await contract.sendDeploy(provider.sender(), toNano('0.1'));
   await provider.waitForDeploy(contract.address, 20, 3000);
   return contract;
@@ -30,6 +30,7 @@ async function deployWarpRoute(
   tokenStandard: TokenStandard,
   mailboxAddress: Address,
 ): Promise<Route> {
+  console.log('DEPLOY WARP ROUTE', tokenStandard);
   const params: Partial<Route> = {};
   let routerType = 'HypNative';
   const routers: Dictionary<number, Buffer> = Dictionary.empty(
@@ -49,6 +50,7 @@ async function deployWarpRoute(
     tokenStandard === TokenStandard.Synthetic ||
     tokenStandard === TokenStandard.Collateral
   ) {
+    console.log('Deploy jetton');
     params.jettonMinter = await deploy<JettonMinterContract>(
       JettonMinterContract,
       {
@@ -65,14 +67,17 @@ async function deployWarpRoute(
         ? 'HypJetton'
         : 'HypJettonCollateral';
   }
+  console.log('Deploy router with jetton', params.jettonMinter?.address);
   params.tokenRouter = await deploy<TokenRouter>(
     TokenRouter,
     {
       ownerAddress: provider.sender().address,
-      jettonAdress: params.jettonMinter?.address,
+      jettonAddress: params.jettonMinter?.address,
       mailboxAddress,
       routers,
-      JettonWalletCode: await compile('JettonWallet'),
+      JettonWalletCode: params.jettonMinter
+        ? await compile('JettonWallet')
+        : undefined,
     },
     routerType,
     provider,
@@ -117,30 +122,45 @@ export async function run(provider: NetworkProvider) {
   const destTokenStandard =
     (process.env.DESTINATION_TOKEN_STANDARD as TokenStandard) ??
     TokenStandard.Synthetic;
-  const mailboxAddress = Address.parse(process.env.MAILBOX!);
-  //const ismAddress = Address.parse(process.env.ISM!);
+  const origMailboxAddress = Address.parse(process.env.ORIGIN_MAILBOX!);
+  const destMailboxAddress = Address.parse(process.env.DESTINATION_MAILBOX!);
+
   const ui = provider.ui();
 
   const warp1 = await deployWarpRoute(
     provider,
     origTokenStandard,
-    mailboxAddress,
+    origMailboxAddress,
   );
+
   const warp2 = await deployWarpRoute(
     provider,
     destTokenStandard,
-    mailboxAddress,
+    destMailboxAddress,
   );
 
-  await warp1.tokenRouter.sendSetRouter(provider.sender(), toNano(0.1), {
-    domain: destDomain,
-    router: warp2.tokenRouter.address.hash,
-  });
-  await warp2.tokenRouter.sendSetRouter(provider.sender(), toNano(0.1), {
-    domain: originDomain,
-    router: warp1.tokenRouter.address.hash,
-  });
-
+  console.log('Set destination router');
+  while (true) {
+    await warp1.tokenRouter.sendSetRouter(provider.sender(), toNano(0.03), {
+      domain: destDomain,
+      router: warp2.tokenRouter.address.hash,
+    });
+    const routers = await warp1.tokenRouter.getRouters();
+    if (routers.get(destDomain)) break;
+    await sleep(5000);
+  }
+  console.log('Done');
+  console.log('Set origin router');
+  while (true) {
+    await warp2.tokenRouter.sendSetRouter(provider.sender(), toNano(0.03), {
+      domain: originDomain,
+      router: warp1.tokenRouter.address.hash,
+    });
+    const routers = await warp2.tokenRouter.getRouters();
+    if (routers.get(originDomain)) break;
+    await sleep(5000);
+  }
+  console.log('Done');
   console.log(
     `Warp route ${originDomain} (${origTokenStandard}) -> ${destDomain} (${destTokenStandard}):`,
   );

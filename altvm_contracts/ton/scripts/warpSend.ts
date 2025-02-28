@@ -40,7 +40,7 @@ export async function run(provider: NetworkProvider) {
   if (origTokenStandard === TokenStandard.Native) {
     await route.tokenRouter.sendTransferRemote(
       provider.sender(),
-      sendAmount + toNano(0.5),
+      sendAmount + toNano(1),
       {
         destination: destDomain,
         recipient: provider.sender().address!.hash,
