@@ -45,7 +45,3 @@ int message::unpack::dest_domain(slice message) inline {
     message~skip_bits(8 + 32 + 32 + 256);
     return message~load_uint(32);
 }
-
-cell message::unpack::body(slice message) inline {
-    return message~load_ref();
-}

@@ -23,7 +23,11 @@ export type AggregationHookConfig = {
 export function aggregationHookConfigToCell(
   config: AggregationHookConfig,
 ): Cell {
-  return beginCell().storeAddress(config.mailboxAddr).endCell();
+  return beginCell()
+    .storeAddress(config.mailboxAddr)
+    .storeDict(config.hooks)
+    .storeDict(config.curHookIndex)
+    .endCell();
 }
 
 export class AggregationHook implements Contract {

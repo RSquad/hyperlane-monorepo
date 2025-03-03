@@ -28,10 +28,9 @@ global cell g::cur_hook_index;
 }
 
 () post_dispatch(slice s, int query_id, int value, slice dest) impure inline  {
-    slice body = s;
 
     (cell i, int i_found?) = g::cur_hook_index.udict_get_ref?(64, query_id);
-    
+
     int index = 0;
     if (i_found?) {
         slice si = i.begin_parse();
@@ -45,21 +44,21 @@ global cell g::cur_hook_index;
         cell body = begin_cell()
             .store_uint(op::hook::post_dispatch, 32)
             .store_uint(query_id, 64)
-            .store_slice(body)
+            .store_slice(s)
             .end_cell();
         
-            builder answer_msg = build_message(
-                hook_addr,
-                0,
-                false,
-                null(),
-                body
+        builder answer_msg = build_message(
+            hook_addr,
+            0,
+            false,
+            null(),
+            body
         );
 
-        g::cur_hook_index~udict_set_builder(
+        g::cur_hook_index~udict_set_ref(
             64,
             query_id,
-            begin_cell().store_uint(index + 1, 8)
+            begin_cell().store_uint(index + 1, 8).end_cell()
         ); 
 
         send_raw_message(answer_msg.end_cell(), send_mode::carry_remaining_balance);
@@ -67,7 +66,7 @@ global cell g::cur_hook_index;
         cell body = begin_cell()
             .store_uint(op::hook::post_dispatch::answer, 32)
             .store_uint(query_id, 64)
-            .store_slice(body)
+            .store_slice(s)
             .end_cell();
         
             builder answer_msg = build_message(
@@ -97,7 +96,6 @@ global cell g::cur_hook_index;
     slice msg_sender = cs~load_msg_addr();
     int op = in_msg_body~load_uint(32);
     int query_id = in_msg_body~load_uint(64);
-    ~dump(1);
     load_globals();
 
     if (

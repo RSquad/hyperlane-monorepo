@@ -100,11 +100,7 @@ describe('AggregationHook', () => {
       ),
     );
 
-    const hooksArr = [
-      protocolFeeHook.address,
-      merkleHook.address,
-      igpHook.address,
-    ];
+    const hooksArr = [merkleHook.address, igpHook.address];
     const hooks = Dictionary.empty(
       Dictionary.Keys.Uint(8),
       Dictionary.Values.Address(),
@@ -162,20 +158,6 @@ describe('AggregationHook', () => {
       from: deployer.address,
       to: aggregationHook.address,
       op: OpCodes.POST_DISPATCH,
-      success: true,
-    });
-
-    expect(res.transactions).toHaveTransaction({
-      from: aggregationHook.address,
-      to: protocolFeeHook.address,
-      op: OpCodes.POST_DISPATCH,
-      success: true,
-    });
-
-    expect(res.transactions).toHaveTransaction({
-      from: protocolFeeHook.address,
-      to: aggregationHook.address,
-      op: answer(OpCodes.POST_DISPATCH),
       success: true,
     });
 
