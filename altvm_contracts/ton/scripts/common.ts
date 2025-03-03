@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { JettonMinterContract } from '../wrappers/JettonMinter';
+import { JettonWalletContract } from '../wrappers/JettonWallet';
 import { TokenRouter } from '../wrappers/TokenRouter';
 
 import { Route } from './types';
@@ -24,6 +25,13 @@ export function loadWarpRoute(
     jettonMinter: addrs.jetton
       ? provider.open(
           JettonMinterContract.createFromAddress(Address.parse(addrs.jetton)),
+        )
+      : undefined,
+    jettonWallet: addrs.jettonWallet
+      ? provider.open(
+          JettonWalletContract.createFromAddress(
+            Address.parse(addrs.jettonWallet),
+          ),
         )
       : undefined,
   };

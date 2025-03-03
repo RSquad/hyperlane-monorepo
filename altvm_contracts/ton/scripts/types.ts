@@ -1,6 +1,7 @@
 import { OpenedContract } from '@ton/core';
 
 import { JettonMinterContract } from '../wrappers/JettonMinter';
+import { JettonWalletContract } from '../wrappers/JettonWallet';
 import { TokenRouter } from '../wrappers/TokenRouter';
 
 export enum TokenStandard {
@@ -11,5 +12,6 @@ export enum TokenStandard {
 
 export type Route = {
   jettonMinter?: OpenedContract<JettonMinterContract>;
+  jettonWallet?: OpenedContract<JettonWalletContract>;
   tokenRouter: OpenedContract<TokenRouter>;
 };
