@@ -61,6 +61,48 @@ int routers::must_get(cell routers, int domain) impure inline {
     return (amount, recipient_addr);
  }
 
+(int,
+ int,
+ int,
+ cell,
+ cell,
+ slice
+) burn_params::unpack_checked(slice in_msg_body) impure inline {
+    int amount = in_msg_body~load_coins();
+    slice sender_addr = in_msg_body~load_msg_addr();
+    slice hyp_payload = in_msg_body~load_ref_slice();
+    in_msg_body.end_parse();
+
+    int destination = hyp_payload~load_uint(32);
+    int recipient = hyp_payload~load_uint(256);
+    cell hook_metadata = hyp_payload~load_ref();
+    hyp_payload.end_parse();
+
+    cell hook_addr = null();
+    return (destination, recipient, amount, hook_metadata, hook_addr, sender_addr);
+}
+
+(int,
+ int,
+ int,
+ cell,
+ cell,
+ slice
+) transfer_params::unpack_checked(slice in_msg_body) impure inline {
+    int amount = in_msg_body~load_coins();
+    slice sender_addr = in_msg_body~load_msg_addr();
+    throw_unless(error::invalid_body, in_msg_body~load_uint(1));
+    slice payload = in_msg_body~load_ref_slice();
+    in_msg_body.end_parse();
+
+    int destination = payload~load_uint(32);
+    int recipient = payload~load_uint(256);
+    cell hook_metadata = payload~load_maybe_ref();
+    cell hook_addr = payload~load_maybe_ref();
+    payload.end_parse();
+    return (destination, recipient, amount, hook_metadata, hook_addr, sender_addr);
+}
+
 () op_handler::manage_routers(
     int op, 
     slice in_msg_body
@@ -101,16 +143,17 @@ int routers::must_get(cell routers, int domain) impure inline {
 
 () transfer_remote(
     int destination,
-    int jetton_recipient,
+    int recipient,
     int amount,
-    int reserve_amount,
     cell hook_metadata,
-    cell hook_addr
+    cell hook_addr,
+    int reserve_amount,
+    slice response_addr
 ) impure inline_ref {
     if (null?(hook_metadata)) {
-        hook_metadata = standard_metadata::new(destination, g::msg_sender).end_cell();
+        hook_metadata = standard_metadata::new(destination, response_addr).end_cell();
     }
-    cell token_message = token_message::new(jetton_recipient, amount);
+    cell token_message = token_message::new(recipient, amount);
     int router_addr = g::routers.routers::must_get(destination);
     cell dispatch_body = serialize_dispatch_body(
         g::query_id, destination, router_addr, token_message, hook_metadata);

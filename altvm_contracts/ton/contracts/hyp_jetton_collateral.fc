@@ -54,17 +54,14 @@
             calculate_user_jetton_wallet_address(my_address(), g::jetton_addr, g::jetton_wallet_code), 
             g::msg_sender
         );
-        int amount = in_msg_body~load_coins();
-        slice from_address = in_msg_body~load_msg_addr();
-        throw_unless(error::invalid_body, in_msg_body~load_uint(1));
-        slice payload = in_msg_body~load_ref_slice();
-        in_msg_body.end_parse();
-
-        int destination = payload~load_uint(32);
-        int recipient_addr = payload~load_uint(256);
-        cell hook_metadata = payload~load_maybe_ref();
-        cell hook_addr = payload~load_maybe_ref();
-        transfer_remote(destination, recipient_addr, amount, 0, hook_metadata, hook_addr);
+        (int destination, 
+         int recipient, 
+         int amount,
+         cell hook_metadata, 
+         cell hook_addr,
+         slice sender_addr) = transfer_params::unpack_checked(in_msg_body);
+        transfer_remote(destination, recipient, amount, 
+            hook_metadata, hook_addr, 0, sender_addr);
         throw(0);
     }
 }

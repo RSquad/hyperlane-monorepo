@@ -376,19 +376,18 @@ describe('TokenRouter', () => {
     });
 
     it('burn synthetic -> dispatch', async () => {
+      const refunder = await blockchain.treasury('refunder');
       const res = await jettonWallet.sendBurn(deployer.getSender(), {
         value: toNano(0.6),
         queryId: 0,
         jettonAmount: burnAmount,
-        responseAddress: deployer.address,
         destDomain: destinationChain,
-        recipientAddr: tokenRouter.address.hash,
-        message: buildTokenMessage(recipient.address.hash, burnAmount),
+        recipientAddr: deployer.address.hash,
         hookMetadata: HookMetadata.fromObj({
           variant: METADATA_VARIANT.STANDARD,
           msgValue: toNano('1'),
           gasLimit: 100000000n,
-          refundAddress: deployer.address.hash,
+          refundAddress: refunder.address.hash,
         }).toCell(),
       });
       expectTransactionFlow(res, [
@@ -421,6 +420,29 @@ describe('TokenRouter', () => {
           to: initialRequiredHook.address,
           success: true,
           op: OpCodes.POST_DISPATCH,
+        },
+        {
+          from: initialRequiredHook.address,
+          to: mailbox.address,
+          success: true,
+          op: answer(OpCodes.POST_DISPATCH),
+        },
+        {
+          from: mailbox.address,
+          to: initialDefaultHook.address,
+          success: true,
+          op: OpCodes.POST_DISPATCH,
+        },
+        {
+          from: initialDefaultHook.address,
+          to: mailbox.address,
+          success: true,
+          op: answer(OpCodes.POST_DISPATCH),
+        },
+        {
+          from: mailbox.address,
+          to: refunder.address,
+          success: true,
         },
       ]);
     });

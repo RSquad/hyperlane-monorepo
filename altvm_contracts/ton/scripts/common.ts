@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 import { JettonMinterContract } from '../wrappers/JettonMinter';
+import { JettonWalletContract } from '../wrappers/JettonWallet';
 import { TokenRouter } from '../wrappers/TokenRouter';
 
 import { Route } from './types';
