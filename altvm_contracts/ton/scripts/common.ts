@@ -27,13 +27,6 @@ export function loadWarpRoute(
           JettonMinterContract.createFromAddress(Address.parse(addrs.jetton)),
         )
       : undefined,
-    jettonWallet: addrs.jettonWallet
-      ? provider.open(
-          JettonWalletContract.createFromAddress(
-            Address.parse(addrs.jettonWallet),
-          ),
-        )
-      : undefined,
   };
 }
 

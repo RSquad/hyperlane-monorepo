@@ -1,6 +1,7 @@
 import { NetworkProvider } from '@ton/blueprint';
 import { toNano } from '@ton/core';
 
+import { JettonWalletContract } from '../wrappers/JettonWallet';
 import { buildTokenMessage } from '../wrappers/utils/builders';
 import { METADATA_VARIANT } from '../wrappers/utils/constants';
 import { HookMetadata } from '../wrappers/utils/types';
@@ -25,14 +26,17 @@ export async function run(provider: NetworkProvider) {
     if (!route.jettonMinter) {
       throw new Error('No jetton wallet');
     }
-    await route.jettonWallet!.sendBurn(provider.sender(), {
+    const jettonWallet = provider.open(
+      JettonWalletContract.createFromAddress(
+        await route.jettonMinter!.getWalletAddress(provider.sender().address!),
+      ),
+    );
+    await jettonWallet.sendBurn(provider.sender(), {
       value: toNano(0.6),
       queryId: 0,
       jettonAmount: burnAmount,
-      responseAddress: provider.sender().address!,
       destDomain: destDomain,
-      recipientAddr: route.tokenRouter.address.hash,
-      message: buildTokenMessage(provider.sender().address!.hash, burnAmount),
+      recipientAddr: provider.sender().address!.hash,
       hookMetadata: HookMetadata.fromObj({
         variant: METADATA_VARIANT.STANDARD,
         msgValue: toNano('1'),

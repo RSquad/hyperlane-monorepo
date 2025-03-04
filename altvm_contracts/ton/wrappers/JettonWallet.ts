@@ -48,7 +48,6 @@ export class JettonWalletContract implements Contract {
     responseAddr: Address;
     destDomain: number;
     recipientAddr: Buffer;
-    message: Cell;
     hookMetadata: Cell;
   }): Cell {
     const queryId = Math.floor(Math.random() * (Math.pow(2, 64) - 1));
@@ -60,8 +59,7 @@ export class JettonWalletContract implements Contract {
       .storeMaybeRef(
         beginCell()
           .storeUint(params.destDomain, 32)
-          .storeBuffer(params.recipientAddr)
-          .storeRef(params.message)
+          .storeBuffer(params.recipientAddr, 32)
           .storeRef(params.hookMetadata)
           .endCell(),
       );
@@ -114,19 +112,16 @@ export class JettonWalletContract implements Contract {
       value: bigint;
       queryId: number;
       jettonAmount: bigint;
-      responseAddress: Address;
       destDomain: number;
-      message: Cell;
       hookMetadata: Cell;
       recipientAddr: Buffer;
     },
   ) {
     const body = JettonWalletContract.buildBurnBodyCell({
       amount: opts.jettonAmount,
-      responseAddr: opts.responseAddress,
+      responseAddr: new Address(0, Buffer.alloc(32, 0)),
       recipientAddr: opts.recipientAddr,
       destDomain: opts.destDomain,
-      message: opts.message,
       hookMetadata: opts.hookMetadata,
     });
 
