@@ -595,6 +595,12 @@ describe('TokenRouter', () => {
           op: undefined,
           value: amount,
         },
+        {
+          from: tokenRouterWithMailboxMock.address,
+          to: deployer.address,
+          success: true,
+          op: answer(OpCodes.HANDLE),
+        },
       ]);
       const tx = res.transactions.find(
         (tx) =>

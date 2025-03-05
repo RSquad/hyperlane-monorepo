@@ -20,9 +20,8 @@
         );
         ;; set Either 0 for body
         cell msg = simple_msg_b.store_uint(0, 1).end_cell();
-        reserve_original_balance(0);
         send_raw_message(msg, send_mode::pay_transfer_fees_separately);
-        send_change(relayer_addr, op, g::query_id, send_mode::carry_remaining_balance);
+        send_change(relayer_addr, op, g::query_id, send_mode::carry_remaining_value);
         throw(0);
     }
 }
