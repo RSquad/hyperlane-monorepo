@@ -17,7 +17,7 @@
             error::unauthorized_sender, 
             equal_slices(g::msg_sender, g::mailbox_addr)
         );
-        (int amount, slice recipient_addr) = handle_params::unpack_checked(in_msg_body);
+        (int amount, slice recipient_addr, slice relayer_addr) = handle_params::unpack_checked(in_msg_body);
 
         cell transfer_body = begin_cell()
             .store_uint(op::transfer, 32)

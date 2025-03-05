@@ -369,6 +369,12 @@ describe('TokenRouter', () => {
           success: true,
           op: OpCodes.JETTON_INTERNAL_TRANSFER,
         },
+        {
+          from: jettonWallet.address,
+          to: deployer.address,
+          success: true,
+          op: OpCodes.JETTON_EXCESSES,
+        },
       ]);
 
       const { amount: balanceAfter } = await jettonWallet.getBalance();
@@ -569,6 +575,7 @@ describe('TokenRouter', () => {
           queryId: 0n,
           origin: originChain,
           sender: routers.get(originChain)!,
+          relayerAddress: deployer.address,
           messageBody: buildTokenMessage(recipient.address.hash, amount),
         },
       );
@@ -605,6 +612,7 @@ describe('TokenRouter', () => {
           queryId: 0n,
           origin: originChain,
           sender: routers.get(originChain)!,
+          relayerAddress: deployer.address,
           messageBody: buildTokenMessage(recipient.address.hash, amount),
         },
       );
