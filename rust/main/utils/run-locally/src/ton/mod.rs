@@ -383,8 +383,8 @@ fn launch_ton_scraper(
 
 #[cfg(feature = "ton")]
 mod test {
-    #[test]
-    fn test_run() {
+    #[tokio::test]
+    async fn test_run() {
         use crate::ton::run_ton_to_ton;
         use std::env;
         env_logger::init();
@@ -396,7 +396,7 @@ mod test {
         match test_case.as_str() {
             "ton_to_ton" => run_ton_to_ton(),
             "ton_to_evm" => run_ton_to_evm(),
-            "ton_warp_route" => run_ton_to_ton_warp_route(),
+            "ton_warp_route" => run_ton_to_ton_warp_route().await,
             _ => panic!("Unknown TEST_CASE: {}", test_case),
         }
     }
