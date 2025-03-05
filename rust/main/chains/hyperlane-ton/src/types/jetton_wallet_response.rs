@@ -44,7 +44,7 @@ pub struct MetadataEntry {
 pub struct TokenInfo {
     pub description: String,
     pub extra: HashMap<String, serde_json::Value>,
-    pub image: String,
+    pub image: Option<String>,
     pub name: String,
     pub symbol: String,
     #[serde(rename = "type")]
