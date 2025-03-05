@@ -9,3 +9,4 @@ pub const WALLET_STATE_ENDPOINT: &str = "v3/walletStates";
 pub const RUN_GET_METHOD_ENDPOINT: &str = "v3/runGetMethod";
 pub const TRANSACTIONS_BY_MESSAGE_ENDPOINT: &str = "v3/transactionsByMessage";
 pub const BLOCKS_ENDPOINT: &str = "v3/blocks";
+pub const JETTON_WALLETS_ENDPOINT: &str = "v3/jetton/wallets";

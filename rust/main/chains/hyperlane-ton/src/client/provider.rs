@@ -16,9 +16,9 @@ use hyperlane_core::{
 };
 
 use crate::constants::{
-    ACCOUNT_STATES_ENDPOINT, BLOCKS_ENDPOINT, MESSAGES_ENDPOINT, TRANSACTIONS_BY_MESSAGE_ENDPOINT,
-    TRANSACTIONS_ENDPOINT, WALLET_INFORMATION_ENDPOINT, WALLET_STATE_ENDPOINT,
-    WORKCHAIN_MASTERCHAIN,
+    ACCOUNT_STATES_ENDPOINT, BLOCKS_ENDPOINT, JETTON_WALLETS_ENDPOINT, MESSAGES_ENDPOINT,
+    TRANSACTIONS_BY_MESSAGE_ENDPOINT, TRANSACTIONS_ENDPOINT, WALLET_INFORMATION_ENDPOINT,
+    WALLET_STATE_ENDPOINT, WORKCHAIN_MASTERCHAIN,
 };
 use crate::{
     error::HyperlaneTonError,
@@ -28,6 +28,7 @@ use crate::{
     types::{
         account_state::AccountStateResponse,
         block_response::BlockResponse,
+        jetton_wallet_response::GetJettonWalletsResponse,
         message::{MessageResponse, SendMessageResponse},
         run_get_method::RunGetMethodResponse,
         transaction::TransactionResponse,
@@ -692,6 +693,54 @@ impl TonApiCenter for TonProvider {
             })?;
         Ok(parsed_response)
     }
+
+    async fn get_jetton_wallets(
+        &self,
+        address: Option<Vec<String>>,
+        owner_address: Option<Vec<String>>,
+        jetton_address: Option<Vec<String>>,
+        exclude_zero_balance: Option<bool>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> ChainResult<GetJettonWalletsResponse> {
+        let query_params: Vec<(&str, String)> = vec![
+            ("address", address.map(|v| v.join(","))),
+            ("owner_address", owner_address.map(|v| v.join(","))),
+            ("jetton_address", jetton_address.map(|v| v.join(","))),
+            (
+                "exclude_zero_balance",
+                exclude_zero_balance.map(|v| v.to_string()),
+            ),
+            ("limit", limit.map(|v| v.to_string())),
+            ("offset", offset.map(|v| v.to_string())),
+            ("sort", sort),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|v| (key, v)))
+        .collect();
+
+        info!(
+            "Constructed query parameters for jetton wallets: {:?}",
+            query_params
+        );
+
+        let parsed_response: GetJettonWalletsResponse = self
+            .request_and_parse(
+                Method::GET,
+                JETTON_WALLETS_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
+            .await
+            .map_err(|e| {
+                warn!("Failed to fetch jetton wallets: {:?}", e);
+                e
+            })?;
+
+        info!("Successfully parsed jetton wallets response");
+        Ok(parsed_response)
+    }
 }
 
 impl TonProvider {
@@ -1144,5 +1193,30 @@ mod tests {
             "Expected get_finalized_block to succeed, got error: {:?}",
             result
         );
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_get_jetton_wallet_info() {
+        let provider = create_test_provider();
+
+        let owner_address = Some(vec![
+            "UQCswxBM6QsDd_hpqN_rCEsZWXetz288vzYHqZ3dzHZMc_2x".to_string()
+        ]);
+
+        let result = provider
+            .get_jetton_wallets(None, owner_address, None, None, Some(10), Some(0), None)
+            .await;
+
+        match result {
+            Ok(response) => {
+                println!("Jetton wallet info: {:?}", response.jetton_wallets);
+                assert!(
+                    !response.jetton_wallets.is_empty(),
+                    "Expected some jetton wallets"
+                );
+            }
+            Err(e) => panic!("Error fetching jetton wallet info: {:?}", e),
+        }
     }
 }
