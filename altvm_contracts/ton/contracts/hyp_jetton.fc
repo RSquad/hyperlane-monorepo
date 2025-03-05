@@ -59,16 +59,15 @@
             error::unauthorized_sender, 
             equal_slices(g::msg_sender, g::jetton_addr)
         );
-        int amount = in_msg_body~load_coins();
-        slice sender = in_msg_body~load_msg_addr();
-        slice payload = in_msg_body~load_ref().begin_parse();
-
-        int destination = payload~load_uint(32);
-        int recipient_addr = payload~load_uint(256);
-        cell message = payload~load_ref();
-        cell hook_metadata = payload~load_ref();
-        cell hook_addr = null();
-        transfer_remote(destination, recipient_addr, amount, 0, hook_metadata, hook_addr);
+        (int destination, 
+         int recipient, 
+         int amount,
+         cell hook_metadata, 
+         cell hook_addr,
+         slice sender_addr) = burn_params::unpack_checked(in_msg_body);
+        transfer_remote(
+            destination, recipient, amount,
+            hook_metadata, hook_addr, 0, sender_addr);
         throw(0);
     }
 }

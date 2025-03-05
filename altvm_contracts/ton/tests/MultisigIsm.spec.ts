@@ -11,7 +11,7 @@ import {
   buildValidatorsDict,
   multisigMetadataToCell,
 } from '../wrappers/utils/builders';
-import { Errors, OpCodes } from '../wrappers/utils/constants';
+import { Errors, OpCodes, answer } from '../wrappers/utils/constants';
 import { HypMessage, TMultisigMetadata } from '../wrappers/utils/types';
 
 import { messageId, toEthSignedMessageHash } from './utils/signing';
@@ -160,10 +160,11 @@ describe('MultisigIsm', () => {
   });
 
   it('should verify', async () => {
+    const signedMessage = buildSignedMessage(multisigIsm.address, sampleWallet);
     const res = await multisigIsm.sendVerify(
       deployer.getSender(),
       toNano('0.1'),
-      buildSignedMessage(multisigIsm.address, sampleWallet),
+      signedMessage,
     );
 
     expect(res.transactions).toHaveTransaction({
@@ -171,6 +172,20 @@ describe('MultisigIsm', () => {
       to: multisigIsm.address,
       success: true,
       op: OpCodes.VERIFY,
+    });
+
+    expect(res.transactions).toHaveTransaction({
+      from: multisigIsm.address,
+      to: deployer.address,
+      success: true,
+      op: answer(OpCodes.VERIFY),
+      body: beginCell()
+        .storeUint(answer(OpCodes.VERIFY), 32)
+        .storeUint(0, 64)
+        .storeUint(1, 1)
+        .storeRef(signedMessage.message)
+        .storeRef(signedMessage.metadata)
+        .endCell(),
     });
   });
 
