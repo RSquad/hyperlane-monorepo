@@ -65,30 +65,32 @@ pub async fn run_ton_to_ton_warp_route() {
     //     .expect("Failed");
 
     // let recipient = "";
-    // send_transfer(domains[0], domains[1], amount, recipient).expect("Failed to send transfer");
     info!("deploy_all_contracts and send_dispatch finished!");
 
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
     let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
+    let amount = 1;
+    let recipient = "0QCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar9r9";
 
     let http_client = Client::new();
     let api_url = "https://testnet.toncenter.com/api/";
     let connection_conf = TonConnectionConf::new(
         Url::parse(api_url).expect("Failed to parse url"),
         api_key.to_string(),
-        5,
+        100,
     );
     let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::TonTest1); // It doesn't matter now.
 
     let provider = TonProvider::new(http_client, connection_conf, domain);
 
-    let initial_balance: u128 = get_balance(&provider, domains[0])
+    let initial_balance: u128 = get_balance(&provider, domains[1], &recipient)
         .await
         .expect("Failed to get initial_balance");
 
     info!("Initial jetton wallet balance: {}", initial_balance);
-
+    let _ = send_transfer(domains[0], domains[1], amount, recipient);
+    sleep(Duration::from_secs(80));
     log!("Building rust...");
     build_rust_bins(&["relayer", "validator", "scraper", "init-db"]);
 
@@ -113,7 +115,7 @@ pub async fn run_ton_to_ton_warp_route() {
     let metrics_port = 9090;
     let debug = false;
 
-    let scraper_metrics_port = metrics_port + 10;
+    //let scraper_metrics_port = metrics_port + 10;
     info!("Running postgres db...");
     let postgres = Program::new("docker")
         .cmd("run")
@@ -155,27 +157,26 @@ pub async fn run_ton_to_ton_warp_route() {
 
     let validators = vec![validator1, validator2];
 
-    // let scraper = launch_ton_scraper(
-    //     agent_config_path.clone(),
-    //     relay_chains.clone(),
-    //     scraper_metrics_port,
-    //     debug,
-    // );
+    info!("Waiting for agents to run for 3 minutes...");
+    sleep(Duration::from_secs(180));
 
-    info!("Waiting for agents to run for 1 minutes...");
-    sleep(Duration::from_secs(60));
-    let current_balance: u128 = get_balance(&provider, domains[1])
+    let current_balance: u128 = get_balance(&provider, domains[1], &recipient)
         .await
         .expect("Failed to get initial_balance");
-    if (current_balance <= initial_balance) {
+    if current_balance <= initial_balance {
         warn!("current_balance <= initial_balance");
     }
-    send_burn(domains[1], domains[0], 1, "");
+    info!("current_balance:{:?}", current_balance);
+
+    let _ = send_burn(domains[1], domains[0], 1, &recipient);
+    sleep(Duration::from_secs(60));
     info!("Send burn executed, waiting for agents to run for 1 minutes...");
-    let balance_after_burn = get_balance(&provider, domains[1])
+    let balance_after_burn = get_balance(&provider, domains[1], &recipient)
         .await
         .expect("Failed to get initial_balance");
-    if (balance_after_burn >= current_balance) {
+    info!("balance_after_burn:{:?}", balance_after_burn);
+
+    if balance_after_burn >= current_balance {
         warn!("burn failed because balance_after_burn >= current_balance");
     }
     sleep(Duration::from_secs(60));
@@ -203,6 +204,8 @@ pub fn deploy_warp_route(
     let output = Command::new("yarn")
         .arg("run")
         .arg("deploy:warp")
+        .arg("--mnemonic")
+        .arg("--testnet")
         .env("DOMAIN", domain.to_string())
         .env("ORIGIN_TOKEN_STANDARD", origin_token_standart)
         .env("DESTINATION_TOKEN_STANDARD", destination_token_standart)
@@ -242,17 +245,21 @@ pub fn send_transfer(
     amount: u64,
     recipient: &str,
 ) -> Result<(), String> {
-    log!("Launching sendTransfer script...");
+    info!("Launching sendTransfer script...");
 
     let working_dir = "../../../../altvm_contracts/ton";
 
     let output = Command::new("yarn")
         .arg("run")
-        .arg("send:transfer")
-        .env("ORIGIN_DOMAIN", origin_domain.to_string())
-        .env("DESTINATION_DOMAIN", dest_domain.to_string())
-        .env("AMOUNT", amount.to_string())
-        .env("RECIPIENT", recipient)
+        .arg("warp:send")
+        .arg("--mnemonic")
+        .arg("--testnet")
+        .env("WALLET_VERSION", "v4")
+        .env("ORIGIN_DOMAIN", &origin_domain.to_string())
+        .env("DESTINATION_DOMAIN", &dest_domain.to_string())
+        .env("AMOUNT", &amount.to_string())
+        .env("ORIGIN_TOKEN_STANDARD", "NATIVE")
+        .env("RECIPIENT", &recipient)
         .current_dir(working_dir)
         .output()
         .expect("Failed to execute sendTransfer");
@@ -261,12 +268,16 @@ pub fn send_transfer(
     let stderr = from_utf8(&output.stderr).unwrap_or("[Invalid UTF-8]");
 
     if !output.status.success() {
-        log!("sendTransfer failed with status: {}", output.status);
-        log!("stderr:\n{}", stderr);
+        info!("warpSend failed with status: {}", output.status);
+        info!("stderr:\n{}", stderr);
         return Err(format!(
             "sendTransfer failed with status: {}\nstderr:\n{}",
             output.status, stderr
         ));
+    }
+    if !stderr.trim().is_empty() {
+        log!("stderr:\n{}", stderr);
+        return Err(format!("stderr:\n{}", stderr));
     }
 
     log!("sendTransfer script executed successfully!");
@@ -288,8 +299,12 @@ pub fn send_burn(
     let output = Command::new("yarn")
         .arg("run")
         .arg("warp:burn")
+        .arg("--mnemonic")
+        .arg("--testnet")
+        .env("WALLET_VERSION", "v4")
         .env("ORIGIN_DOMAIN", origin_domain.to_string())
         .env("DESTINATION_DOMAIN", dest_domain.to_string())
+        .env("ORIGIN_TOKEN_STANDARD", "SYNTHETIC")
         .env("AMOUNT", amount.to_string())
         .env("RECIPIENT", recipient)
         .current_dir(working_dir)
@@ -317,6 +332,7 @@ pub fn send_burn(
 pub async fn get_balance(
     provider: &TonProvider,
     domain: u32,
+    owner_address: &str,
 ) -> Result<u128, Box<dyn std::error::Error>> {
     let warp_json = read_warp_contracts(domain).expect("Failed to read warp contracts");
 
@@ -327,9 +343,9 @@ pub async fn get_balance(
 
     let initial_response = provider
         .get_jetton_wallets(
-            None,
-            Some(vec!["".to_string()]),
             Some(vec![jetton_wallet_address.to_string()]),
+            Some(vec![owner_address.to_string()]),
+            None,
             None,
             Some(100),
             Some(0),
@@ -337,6 +353,11 @@ pub async fn get_balance(
         )
         .await
         .expect("Failed to jettons");
+    info!("initial_response:{:?}", initial_response);
+
+    if initial_response.jetton_wallets.is_empty() {
+        return Ok(0);
+    }
 
     let first_wallet = initial_response
         .jetton_wallets
