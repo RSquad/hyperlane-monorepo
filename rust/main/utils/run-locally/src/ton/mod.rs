@@ -21,7 +21,6 @@ mod warp_route;
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
-    pub scraper: AgentHandles,
     pub postgres: AgentHandles,
 }
 
@@ -30,7 +29,6 @@ impl Drop for TonHyperlaneStack {
         for v in &mut self.validators {
             stop_child(&mut v.1);
         }
-        stop_child(&mut self.scraper.1);
         stop_child(&mut self.postgres.1);
         stop_child(&mut self.relayer.1);
     }
@@ -132,12 +130,12 @@ fn run_ton_to_ton() {
 
     let validators = vec![validator1, validator2];
 
-    let scraper = launch_ton_scraper(
-        agent_config_path.clone(),
-        relay_chains.clone(),
-        scraper_metrics_port,
-        debug,
-    );
+    // let scraper = launch_ton_scraper(
+    //     agent_config_path.clone(),
+    //     relay_chains.clone(),
+    //     scraper_metrics_port,
+    //     debug,
+    // );
 
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
@@ -145,7 +143,6 @@ fn run_ton_to_ton() {
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join()).collect(),
         relayer: relayer.join(),
-        scraper: scraper.join(),
         postgres,
     };
 }
@@ -248,12 +245,12 @@ fn run_ton_to_evm() {
 
     let validators = vec![validator1, validator2];
 
-    let scraper = launch_evm_ton_scraper(
-        agent_config_path.clone(),
-        relay_chains.clone(),
-        scraper_metrics_port,
-        debug,
-    );
+    // let scraper = launch_evm_ton_scraper(
+    //     agent_config_path.clone(),
+    //     relay_chains.clone(),
+    //     scraper_metrics_port,
+    //     debug,
+    // );
 
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
@@ -261,7 +258,6 @@ fn run_ton_to_evm() {
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join_box()).collect(),
         relayer: relayer.join(),
-        scraper: scraper.join(),
         postgres,
     };
 }
