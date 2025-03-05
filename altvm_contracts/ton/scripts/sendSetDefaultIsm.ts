@@ -5,13 +5,7 @@ import * as path from 'path';
 
 import { Mailbox } from '../wrappers/Mailbox';
 
-function loadDeployedContracts(domain: number) {
-  const filePath = path.join(__dirname, `../deployedContracts_${domain}.json`);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Deployed contracts file not found: ${filePath}`);
-  }
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-}
+import { loadDeployedContracts } from './utils';
 
 export async function run(provider: NetworkProvider) {
   const domain = Number(process.env.ORIGIN_DOMAIN) || 0;

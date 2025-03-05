@@ -6,25 +6,8 @@ import * as path from 'path';
 import { JettonMinterContract } from '../wrappers/JettonMinter';
 import { TokenRouter } from '../wrappers/TokenRouter';
 
+import { loadWarpRoute } from './common';
 import { Route } from './types';
-
-function loadWarpRoute(provider: NetworkProvider, domain: number): Route {
-  const filePath = path.join(__dirname, `../warp-contracts-${domain}.json`);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Deployed contracts file not found: ${filePath}`);
-  }
-  const addrs = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  return {
-    tokenRouter: provider.open(
-      TokenRouter.createFromAddress(Address.parse(addrs.router)),
-    ),
-    jettonMinter: addrs.jetton
-      ? provider.open(
-          JettonMinterContract.createFromAddress(Address.parse(addrs.jetton)),
-        )
-      : undefined,
-  };
-}
 
 export async function run(provider: NetworkProvider) {
   const originDomain = Number(process.env.ORIGIN_DOMAIN);
