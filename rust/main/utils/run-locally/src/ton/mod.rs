@@ -6,7 +6,7 @@ use tempfile::tempdir;
 use crate::{
     logging::log,
     program::Program,
-    ton::evm::{launch_evm_to_ton_relayer, launch_evm_ton_scraper, launch_evm_validator},
+    ton::evm::{launch_evm_to_ton_relayer, launch_evm_validator},
     ton::setup::{deploy_and_setup_domain, deploy_and_setup_domains, send_dispatch},
     ton::types::{generate_ton_config, TonAgentConfig},
     ton::utils::{build_rust_bins, resolve_abs_path},
@@ -88,7 +88,6 @@ fn run_ton_to_ton() {
     let metrics_port = 9090;
     let debug = false;
 
-    let scraper_metrics_port = metrics_port + 10;
     info!("Running postgres db...");
     let postgres = Program::new("docker")
         .cmd("run")
@@ -129,13 +128,6 @@ fn run_ton_to_ton() {
     );
 
     let validators = vec![validator1, validator2];
-
-    // let scraper = launch_ton_scraper(
-    //     agent_config_path.clone(),
-    //     relay_chains.clone(),
-    //     scraper_metrics_port,
-    //     debug,
-    // );
 
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
@@ -203,7 +195,6 @@ fn run_ton_to_evm() {
     let metrics_port = 9090;
     let debug = false;
 
-    let scraper_metrics_port = metrics_port + 10;
     info!("Running postgres db...");
     let postgres = Program::new("docker")
         .cmd("run")
@@ -244,13 +235,6 @@ fn run_ton_to_evm() {
     ));
 
     let validators = vec![validator1, validator2];
-
-    // let scraper = launch_evm_ton_scraper(
-    //     agent_config_path.clone(),
-    //     relay_chains.clone(),
-    //     scraper_metrics_port,
-    //     debug,
-    // );
 
     info!("Waiting for agents to run for 3 minutes...");
     sleep(Duration::from_secs(300));
@@ -345,40 +329,6 @@ pub fn launch_ton_validator(
         .spawn(make_static(format!("TON-VL{}", metrics_port % 2 + 1)), None);
 
     validator
-}
-#[apply(as_task)]
-#[allow(clippy::let_and_return)]
-fn launch_ton_scraper(
-    agent_config_path: String,
-    chains: Vec<String>,
-    metrics: u32,
-    debug: bool,
-) -> AgentHandles {
-    let bin = concat_path("../../target/debug", "scraper");
-
-    info!(
-        "Current working directory: {:?}",
-        env::current_dir().unwrap()
-    );
-    info!("CHAINSTOSCRAPE env variable: {}", chains.join(","));
-
-    let scraper = Program::default()
-        .bin(bin)
-        .working_dir("../../")
-        .env("CONFIG_FILES", resolve_abs_path(agent_config_path))
-        .env("RUST_BACKTRACE", "1")
-        .hyp_env("CHAINSTOSCRAPE", chains.join(","))
-        .hyp_env("tontest1", "1")
-        .hyp_env("tontest2", "1")
-        .hyp_env(
-            "DB",
-            "postgresql://postgres:47221c18c610@localhost:5432/postgres",
-        )
-        .hyp_env("TRACING_LEVEL", if debug { "info" } else { "warn" })
-        .hyp_env("METRICSPORT", metrics.to_string())
-        .spawn("TON_SCR", None);
-
-    scraper
 }
 
 #[cfg(feature = "ton")]
