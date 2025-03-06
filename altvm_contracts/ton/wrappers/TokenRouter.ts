@@ -108,6 +108,7 @@ export class TokenRouter implements Contract {
       origin: number;
       sender: Buffer; // h256
       messageBody: Cell;
+      relayerAddress: Address;
     },
   ) {
     await provider.internal(via, {
@@ -118,6 +119,7 @@ export class TokenRouter implements Contract {
         .storeUint(opts.queryId ?? 0, 64)
         .storeUint(opts.origin, 32)
         .storeBuffer(opts.sender, 32)
+        .storeAddress(opts.relayerAddress)
         .storeRef(opts.messageBody)
         .endCell(),
     });

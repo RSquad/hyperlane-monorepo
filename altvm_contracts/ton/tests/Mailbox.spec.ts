@@ -341,6 +341,12 @@ describe('Mailbox', () => {
       success: true,
       op: OpCodes.HANDLE,
     });
+    expect(res.transactions).toHaveTransaction({
+      from: recipient.address,
+      to: deployer.address,
+      success: true,
+      op: answer(OpCodes.HANDLE),
+    });
     const externals = res.transactions.filter((transaction: any) => {
       return transaction.externals.length === 1;
     });

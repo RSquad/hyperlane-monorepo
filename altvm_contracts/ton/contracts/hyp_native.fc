@@ -9,19 +9,14 @@
             error::unauthorized_sender, 
             equal_slices(g::msg_sender, g::mailbox_addr)
         );
-        (int amount, slice recipient_addr) = handle_params::unpack_checked(in_msg_body);
+        (int amount, slice recipient_addr, slice response_addr) = handle_params::unpack_checked(in_msg_body);
 
-        builder simple_msg_b = build_message(
-            recipient_addr,
-            amount,
-            false,
-            null(),
-            null()
-        );
-        ;; set Either 0 for body
-        cell msg = simple_msg_b.store_uint(0, 1).end_cell();
-
-        send_raw_message(msg, send_mode::pay_transfer_fees_separately);
+        raw_reserve(amount, reserve_mode::balance_minus_this_amount);
+        build_message(recipient_addr, amount, false, null(), null())
+            .store_uint(0, 1)
+            .end_cell()
+            .send_raw_message(send_mode::pay_transfer_fees_separately);
+        send_change(response_addr, op, g::query_id, send_mode::carry_remaining_balance);
         throw(0);
     }
 }
