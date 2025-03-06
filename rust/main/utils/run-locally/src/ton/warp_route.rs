@@ -115,7 +115,6 @@ pub async fn run_ton_to_ton_warp_route() {
     let metrics_port = 9090;
     let debug = false;
 
-    //let scraper_metrics_port = metrics_port + 10;
     info!("Running postgres db...");
     let postgres = Program::new("docker")
         .cmd("run")
@@ -157,8 +156,8 @@ pub async fn run_ton_to_ton_warp_route() {
 
     let validators = vec![validator1, validator2];
 
-    info!("Waiting for agents to run for 3 minutes...");
-    sleep(Duration::from_secs(180));
+    info!("Waiting for agents to run for 1.5 minutes...");
+    sleep(Duration::from_secs(90));
 
     let current_balance: u128 = get_balance(&provider, domains[1], &recipient)
         .await
@@ -337,9 +336,9 @@ pub async fn get_balance(
     let warp_json = read_warp_contracts(domain).expect("Failed to read warp contracts");
 
     let jetton_wallet_address = warp_json
-        .get("jetton")
+        .get("jettonMinter")
         .and_then(|v| v.as_str())
-        .expect("Jetton wallet address not found in JSON");
+        .expect("Jetton minter (wallet) address not found in JSON");
 
     let initial_response = provider
         .get_jetton_wallets(
@@ -353,7 +352,6 @@ pub async fn get_balance(
         )
         .await
         .expect("Failed to jettons");
-    info!("initial_response:{:?}", initial_response);
 
     if initial_response.jetton_wallets.is_empty() {
         return Ok(0);
