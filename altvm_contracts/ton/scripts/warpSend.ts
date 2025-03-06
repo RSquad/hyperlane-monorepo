@@ -1,5 +1,9 @@
 import { NetworkProvider } from '@ton/blueprint';
-import { Address, toNano } from '@ton/core';
+import { Address, beginCell, toNano } from '@ton/core';
+
+import { JettonWalletContract } from '../wrappers/JettonWallet';
+import { METADATA_VARIANT } from '../wrappers/utils/constants';
+import { HookMetadata } from '../wrappers/utils/types';
 
 import { loadWarpRoute } from './common';
 import { Route, TokenStandard } from './types';
@@ -25,6 +29,37 @@ export async function run(provider: NetworkProvider) {
         amount: sendAmount,
       },
     );
+  } else if (origTokenStandard === TokenStandard.Collateral) {
+    const jettonWallet = provider.open(
+      JettonWalletContract.createFromAddress(
+        await route.jettonMinter!.getWalletAddress(provider.sender().address!),
+      ),
+    );
+
+    await jettonWallet.sendTransfer(provider.sender(), {
+      value: toNano(0.6),
+      queryId: 0,
+      toAddress: route.tokenRouter.address,
+      jettonAmount: sendAmount,
+      responseAddress: provider.sender().address!,
+      notify: {
+        value: toNano(1),
+        payload: beginCell()
+          .storeUint(destDomain, 32)
+          .storeBuffer(provider.sender().address!.hash, 32)
+          .storeMaybeRef(
+            HookMetadata.fromObj({
+              variant: METADATA_VARIANT.STANDARD,
+              msgValue: 0n,
+              gasLimit: 1000000000n,
+              refundAddress: provider.sender().address!.hash,
+            }).toCell(),
+          )
+          .storeMaybeRef(null)
+          .endCell(),
+      },
+    });
   }
+
   console.log('DONE');
 }

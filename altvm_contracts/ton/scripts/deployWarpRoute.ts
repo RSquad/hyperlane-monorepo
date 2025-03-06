@@ -55,12 +55,20 @@ async function deployWarpRoute(
     Dictionary.Keys.Uint(32),
     Dictionary.Values.Buffer(32),
   );
-  const jettonParams = {
-    name: 'Synthetic TON ' + Math.floor(Math.random() * 10000000),
-    symbol: 'TsynTON',
-    decimals: '9',
-    description: 'test synthetic ton',
-  };
+  const jettonParams =
+    tokenStandard == TokenStandard.Synthetic
+      ? {
+          name: 'Synthetic TON ' + Math.floor(Math.random() * 10000000),
+          symbol: 'TsynTON',
+          decimals: '9',
+          description: 'test synthetic ton',
+        }
+      : {
+          name: 'Collateral TON ' + Math.floor(Math.random() * 10000000),
+          symbol: 'TcollTON',
+          decimals: '9',
+          description: 'test collateral ton',
+        };
 
   if (tokenStandard === TokenStandard.Native) {
     routerType = 'HypNative';
@@ -100,7 +108,17 @@ async function deployWarpRoute(
     routerType,
     provider,
   );
+
   if (params.jettonMinter) {
+    if (tokenStandard === TokenStandard.Collateral) {
+      params.jettonMinter!.sendMint(provider.sender(), {
+        toAddress: provider.sender().address!,
+        responseAddress: provider.sender().address!,
+        jettonAmount: 1000n,
+        queryId: 0,
+        value: toNano(0.1),
+      });
+    }
     log(m('Change jetton admin to jetton router'));
     await retry(async () => {
       await params.jettonMinter!.sendUpdateAdmin(provider.sender(), {
