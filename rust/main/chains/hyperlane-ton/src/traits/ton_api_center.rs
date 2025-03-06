@@ -99,6 +99,11 @@ pub trait TonApiCenter {
         offset: Option<u32>,
         sort: Option<String>,
     ) -> ChainResult<BlockResponse>;
+}
+
+#[cfg(feature = "test-utils")]
+#[async_trait]
+pub trait TonApiCenterTestUtils {
     async fn get_jetton_wallets(
         &self,
         address: Option<Vec<String>>,

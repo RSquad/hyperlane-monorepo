@@ -693,54 +693,6 @@ impl TonApiCenter for TonProvider {
             })?;
         Ok(parsed_response)
     }
-
-    async fn get_jetton_wallets(
-        &self,
-        address: Option<Vec<String>>,
-        owner_address: Option<Vec<String>>,
-        jetton_address: Option<Vec<String>>,
-        exclude_zero_balance: Option<bool>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        sort: Option<String>,
-    ) -> ChainResult<GetJettonWalletsResponse> {
-        let query_params: Vec<(&str, String)> = vec![
-            ("address", address.map(|v| v.join(","))),
-            ("owner_address", owner_address.map(|v| v.join(","))),
-            ("jetton_address", jetton_address.map(|v| v.join(","))),
-            (
-                "exclude_zero_balance",
-                exclude_zero_balance.map(|v| v.to_string()),
-            ),
-            ("limit", limit.map(|v| v.to_string())),
-            ("offset", offset.map(|v| v.to_string())),
-            ("sort", sort),
-        ]
-        .into_iter()
-        .filter_map(|(key, value)| value.map(|v| (key, v)))
-        .collect();
-
-        info!(
-            "Constructed query parameters for jetton wallets: {:?}",
-            query_params
-        );
-
-        let parsed_response: GetJettonWalletsResponse = self
-            .request_and_parse(
-                Method::GET,
-                JETTON_WALLETS_ENDPOINT,
-                Some(&query_params),
-                None,
-            )
-            .await
-            .map_err(|e| {
-                warn!("Failed to fetch jetton wallets: {:?}", e);
-                e
-            })?;
-
-        info!("Successfully parsed jetton wallets response");
-        Ok(parsed_response)
-    }
 }
 
 impl TonProvider {
@@ -967,6 +919,59 @@ impl TonProvider {
     }
 }
 
+use crate::ton_api_center::TonApiCenterTestUtils;
+#[cfg(feature = "test-utils")]
+#[async_trait]
+impl TonApiCenterTestUtils for TonProvider {
+    async fn get_jetton_wallets(
+        &self,
+        address: Option<Vec<String>>,
+        owner_address: Option<Vec<String>>,
+        jetton_address: Option<Vec<String>>,
+        exclude_zero_balance: Option<bool>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        sort: Option<String>,
+    ) -> ChainResult<GetJettonWalletsResponse> {
+        let query_params: Vec<(&str, String)> = vec![
+            ("address", address.map(|v| v.join(","))),
+            ("owner_address", owner_address.map(|v| v.join(","))),
+            ("jetton_address", jetton_address.map(|v| v.join(","))),
+            (
+                "exclude_zero_balance",
+                exclude_zero_balance.map(|v| v.to_string()),
+            ),
+            ("limit", limit.map(|v| v.to_string())),
+            ("offset", offset.map(|v| v.to_string())),
+            ("sort", sort),
+        ]
+        .into_iter()
+        .filter_map(|(key, value)| value.map(|v| (key, v)))
+        .collect();
+
+        info!(
+            "Constructed query parameters for jetton wallets: {:?}",
+            query_params
+        );
+
+        let parsed_response: GetJettonWalletsResponse = self
+            .request_and_parse(
+                Method::GET,
+                JETTON_WALLETS_ENDPOINT,
+                Some(&query_params),
+                None,
+            )
+            .await
+            .map_err(|e| {
+                warn!("Failed to fetch jetton wallets: {:?}", e);
+                e
+            })?;
+
+        info!("Successfully parsed jetton wallets response");
+        Ok(parsed_response)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1099,7 +1104,7 @@ mod tests {
     #[ignore]
     async fn test_get_wallet_information() {
         let provider = create_test_provider();
-        let address = "UQCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar2F3";
+        let address = "0QCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar9r9";
 
         let result = provider.get_wallet_information(address, true).await;
         println!("Wallet information result: {:?}", result);
@@ -1195,13 +1200,16 @@ mod tests {
         );
     }
 
+    use super::*;
+    #[ignore]
+    #[cfg(all(test, feature = "test-utils"))]
     #[tokio::test]
     #[ignore]
     async fn test_get_jetton_wallet_info() {
         let provider = create_test_provider();
 
         let owner_address = Some(vec![
-            "UQCswxBM6QsDd_hpqN_rCEsZWXetz288vzYHqZ3dzHZMc_2x".to_string()
+            "0QCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar9r9".to_string()
         ]);
 
         let result = provider

@@ -1,4 +1,3 @@
-use hyperlane_ton::ton_api_center::TonApiCenter;
 use hyperlane_ton::TonProvider;
 use log::{info, warn};
 
@@ -8,11 +7,12 @@ use crate::ton::launch_ton_relayer;
 use crate::ton::launch_ton_validator;
 use crate::ton::types::read_deployed_contracts;
 use crate::{
-    logging::log, program::Program, ton::setup::deploy_and_setup_domains,
-    ton::types::generate_ton_config, ton::utils::build_rust_bins, utils::TaskHandle,
+    logging::log, ton::setup::deploy_and_setup_domains, ton::types::generate_ton_config,
+    ton::utils::build_rust_bins, utils::TaskHandle,
 };
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_ton::ton_api_center::TonApiCenterTestUtils;
 use hyperlane_ton::wallet_version_from_str;
 use hyperlane_ton::TonConnectionConf;
 use hyperlane_ton::TonSigner;
