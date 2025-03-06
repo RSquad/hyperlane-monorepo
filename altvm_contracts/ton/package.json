@@ -30,8 +30,8 @@
     "send:dispatch": "npx blueprint run sendDispatch --mnemonic --testnet",
     "get:asl": "npx blueprint run getAnnouncedStorageLocations --mnemonic --testnet",
     "get:tree": "npx blueprint run getTree --mnemonic --testnet",
-    "warp:burn": "npx blueprint run getTree --mnemonic --testnet warpBurn",
-    "warp:send": "npx blueprint run getTree --mnemonic --testnet warpSend"
+    "warp:burn": "npx blueprint run warpBurn --mnemonic --testnet",
+    "warp:send": "npx blueprint run warpSend --mnemonic --testnet"
   },
   "devDependencies": {
     "@ton/blueprint": "^0.24.0",
