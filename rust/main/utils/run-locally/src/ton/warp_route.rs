@@ -2,11 +2,11 @@ use hyperlane_ton::ton_api_center::TonApiCenter;
 use hyperlane_ton::TonProvider;
 use log::{info, warn};
 use std::error::Error;
+use tonlib_core::wallet::TonWallet;
+use tonlib_core::TonAddress;
 //use macro_rules_attribute::apply;
 use std::{env, fs, thread::sleep, time::Duration};
 //use tempfile::tempdir;
-use serde_json::Value;
-
 use crate::ton::launch_ton_relayer;
 use crate::ton::launch_ton_scraper;
 use crate::ton::launch_ton_validator;
@@ -22,7 +22,9 @@ use crate::{
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
 use hyperlane_ton::TonConnectionConf;
+use hyperlane_ton::TonSigner;
 use reqwest::Client;
+use serde_json::Value;
 use url::Url;
 
 use crate::ton::TonHyperlaneStack;
@@ -35,43 +37,49 @@ pub async fn run_ton_to_ton_warp_route() {
         .split(',')
         .map(|d| d.parse::<u32>().expect("Invalid domain format"))
         .collect();
-    // let origin_token_standard =
-    //     env::var("ORIGIN_TOKEN_STANDARD").expect("Failed to get ORIGIN_TOKEN_STANDARD");
-    // let destination_token_standart =
-    //     env::var("DESTINATION_TOKEN_STANDARD").expect("Failed to get DESTINATION_TOKEN_STANDARD");
-    // let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
+    let origin_token_standard =
+        env::var("ORIGIN_TOKEN_STANDARD").expect("Failed to get ORIGIN_TOKEN_STANDARD");
+    let destination_token_standart =
+        env::var("DESTINATION_TOKEN_STANDARD").expect("Failed to get DESTINATION_TOKEN_STANDARD");
+    let validator_key = "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a";
 
     info!("domains:{:?}", domains);
 
-    // deploy_and_setup_domains(&domains, &validator_key);
+    deploy_and_setup_domains(&domains, &validator_key);
 
-    // for &domain in &domains {
-    //     let domain_str = &format!("{}", domain);
-    //     let deployed_contracts_addresses = read_deployed_contracts(domain_str);
-    //     let mailbox_address = deployed_contracts_addresses
-    //         .get("mailboxAddress")
-    //         .expect("Not found mailbox");
-    //     deploy_warp_route(
-    //         domain,
-    //         origin_token_standard.as_str(),
-    //         destination_token_standart.as_str(),
-    //         mailbox_address.as_str(),
-    //     )
-    //     .expect("Failed to deploy warp route");
-    // }
-    // let amount = env::var("AMOUNT")
-    //     .expect("Failed to get amount")
-    //     .parse::<u64>()
-    //     .expect("Failed");
+    for &domain in &domains {
+        let domain_str = &format!("{}", domain);
+        let deployed_contracts_addresses = read_deployed_contracts(domain_str);
+        let mailbox_address = deployed_contracts_addresses
+            .get("mailboxAddress")
+            .expect("Not found mailbox");
+        deploy_warp_route(
+            domain,
+            origin_token_standard.as_str(),
+            destination_token_standart.as_str(),
+            mailbox_address.as_str(),
+        )
+        .expect("Failed to deploy warp route");
+    }
+    let amount = env::var("AMOUNT")
+        .expect("Failed to get amount")
+        .parse::<u64>()
+        .expect("Failed");
 
-    // let recipient = "";
     info!("deploy_all_contracts and send_dispatch finished!");
 
     let mnemonic = env::var("MNEMONIC").expect("MNEMONIC env is missing");
     let wallet_version = env::var("WALLET_VERSION").expect("WALLET_VERSION env is missing");
     let api_key = env::var("API_KEY").expect("API_KEY env is missing");
-    let amount = 1;
-    let recipient = "0QCvsB60DElBwHpHOj26K9NfxGJgzes_5pzwV48QGxHar9r9";
+
+    let mnemonic_vec: Vec<String> = mnemonic
+        .split_whitespace()
+        .map(|word| word.to_string())
+        .collect();
+
+    let wallet = TonSigner::from_mnemonic(mnemonic_vec, tonlib_core::wallet::WalletVersion::V4R2)
+        .expect("Failed to create signer from mnemonic");
+    let recipient = wallet.address.to_base64_url();
 
     let http_client = Client::new();
     let api_url = "https://testnet.toncenter.com/api/";
@@ -89,7 +97,7 @@ pub async fn run_ton_to_ton_warp_route() {
         .expect("Failed to get initial_balance");
 
     info!("Initial jetton wallet balance: {}", initial_balance);
-    let _ = send_transfer(domains[0], domains[1], amount, recipient);
+    let _ = send_transfer(domains[0], domains[1], amount, &recipient);
     sleep(Duration::from_secs(80));
     log!("Building rust...");
     build_rust_bins(&["relayer", "validator", "scraper", "init-db"]);
