@@ -118,18 +118,6 @@ pub async fn run_ton_to_ton_warp_route() {
     let metrics_port = 9090;
     let debug = false;
 
-    info!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "ton-scraper-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
-
-    sleep(Duration::from_secs(10));
-
     let relayer = launch_ton_relayer(
         agent_config_path.clone(),
         relay_chains.clone(),
@@ -186,7 +174,6 @@ pub async fn run_ton_to_ton_warp_route() {
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join()).collect(),
         relayer: relayer.join(),
-        postgres,
     };
 }
 

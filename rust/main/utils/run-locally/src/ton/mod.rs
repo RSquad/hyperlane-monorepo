@@ -21,7 +21,6 @@ mod warp_route;
 pub struct TonHyperlaneStack {
     pub validators: Vec<AgentHandles>,
     pub relayer: AgentHandles,
-    pub postgres: AgentHandles,
 }
 
 impl Drop for TonHyperlaneStack {
@@ -29,7 +28,6 @@ impl Drop for TonHyperlaneStack {
         for v in &mut self.validators {
             stop_child(&mut v.1);
         }
-        stop_child(&mut self.postgres.1);
         stop_child(&mut self.relayer.1);
     }
 }
@@ -88,18 +86,6 @@ fn run_ton_to_ton() {
     let metrics_port = 9090;
     let debug = false;
 
-    info!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "ton-scraper-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
-
-    sleep(Duration::from_secs(10));
-
     let relayer = launch_ton_relayer(
         agent_config_path.clone(),
         relay_chains.clone(),
@@ -135,7 +121,6 @@ fn run_ton_to_ton() {
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join()).collect(),
         relayer: relayer.join(),
-        postgres,
     };
 }
 
@@ -195,18 +180,6 @@ fn run_ton_to_evm() {
     let metrics_port = 9090;
     let debug = false;
 
-    info!("Running postgres db...");
-    let postgres = Program::new("docker")
-        .cmd("run")
-        .flag("rm")
-        .arg("name", "ton-evm-scraper-postgres")
-        .arg("env", "POSTGRES_PASSWORD=47221c18c610")
-        .arg("publish", "5432:5432")
-        .cmd("postgres:14")
-        .spawn("SQL", None);
-
-    sleep(Duration::from_secs(10));
-
     let relayer = launch_evm_to_ton_relayer(
         agent_config_path.clone(),
         relay_chains.clone(),
@@ -242,7 +215,6 @@ fn run_ton_to_evm() {
     let _ = TonHyperlaneStack {
         validators: validators.into_iter().map(|v| v.join_box()).collect(),
         relayer: relayer.join(),
-        postgres,
     };
 }
 
