@@ -568,6 +568,7 @@ describe('TokenRouter', () => {
         to: tokenRouterWithMailboxMock.address,
       });
       const balanceBefore = await recipient.getBalance();
+      const routerBalance1 = await tokenRouterWithMailboxMock.getBalance();
       const res = await tokenRouterWithMailboxMock.sendHandle(
         mailboxMock.getSender(),
         toNano('0.1'),
@@ -579,6 +580,7 @@ describe('TokenRouter', () => {
           messageBody: buildTokenMessage(recipient.address.hash, amount),
         },
       );
+      const routerBalance2 = await tokenRouterWithMailboxMock.getBalance();
       const balanceAfter = await recipient.getBalance();
       expectTransactionFlow(res, [
         {
@@ -607,6 +609,7 @@ describe('TokenRouter', () => {
           tx.address.toString(16) === recipient.address.hash.toString('hex'),
       );
       expect(balanceAfter - balanceBefore).toBe(amount - tx!.totalFees.coins);
+      expect(routerBalance1 - routerBalance2).toBe(amount);
     });
 
     it('process -> handle (not a mailbox)', async () => {
