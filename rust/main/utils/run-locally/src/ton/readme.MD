@@ -40,7 +40,7 @@ export DISPATCH_DOMAIN="777001"
 export TARGET_DOMAIN="777002"
 export TON_ADDRESS="EQC2..."
 ```
-### Also you need choise run-locally test mod. The TEST_CASE variable in the environment is responsible for this:
+### Also you need choose run-locally test mod. The TEST_CASE variable in the environment is responsible for this:
 - `ton_to_ton` - running a test environment between Ton and Ton, sending a message normally
 - `ton_to_evm` - running a test environment between Ton and EVM (for example, aribtrum sepolia), sending a message normally
 - `ton_warp_route` - launching a warp route between Ton and Ton. The first thing that happens is the native Ton is sent, and synTon is released. The synTon is then burned and the native Ton is unlocked. 
