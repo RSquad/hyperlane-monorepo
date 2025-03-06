@@ -1,26 +1,19 @@
 use hyperlane_ton::ton_api_center::TonApiCenter;
 use hyperlane_ton::TonProvider;
 use log::{info, warn};
-use std::error::Error;
-use tonlib_core::wallet::TonWallet;
-use tonlib_core::TonAddress;
-//use macro_rules_attribute::apply;
+
 use std::{env, fs, thread::sleep, time::Duration};
-//use tempfile::tempdir;
+
 use crate::ton::launch_ton_relayer;
-use crate::ton::launch_ton_scraper;
 use crate::ton::launch_ton_validator;
 use crate::ton::types::read_deployed_contracts;
 use crate::{
-    logging::log,
-    program::Program,
-    ton::setup::deploy_and_setup_domains,
-    ton::types::generate_ton_config,
-    ton::utils::build_rust_bins,
-    utils::{as_task, concat_path, make_static, stop_child, AgentHandles, TaskHandle},
+    logging::log, program::Program, ton::setup::deploy_and_setup_domains,
+    ton::types::generate_ton_config, ton::utils::build_rust_bins, utils::TaskHandle,
 };
 use hyperlane_core::HyperlaneDomain;
 use hyperlane_core::KnownHyperlaneDomain;
+use hyperlane_ton::wallet_version_from_str;
 use hyperlane_ton::TonConnectionConf;
 use hyperlane_ton::TonSigner;
 use reqwest::Client;
@@ -76,8 +69,10 @@ pub async fn run_ton_to_ton_warp_route() {
         .split_whitespace()
         .map(|word| word.to_string())
         .collect();
+    let wallet_version_ton = wallet_version_from_str(&wallet_version)
+        .expect("Failed to convert ton walletVersion from str");
 
-    let wallet = TonSigner::from_mnemonic(mnemonic_vec, tonlib_core::wallet::WalletVersion::V4R2)
+    let wallet = TonSigner::from_mnemonic(mnemonic_vec, wallet_version_ton)
         .expect("Failed to create signer from mnemonic");
     let recipient = wallet.address.to_base64_url();
 
