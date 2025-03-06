@@ -367,6 +367,7 @@ slice build_delivery_address(int message_id) inline {
             .store_uint(g::query_id, 64)
             .store_uint(origin_domain, 32)
             .store_uint(sender, 256)
+            .store_slice(initiator)
             .store_ref(message_body)
             .end_cell();
 

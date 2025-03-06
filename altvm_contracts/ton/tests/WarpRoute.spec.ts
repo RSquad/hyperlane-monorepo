@@ -369,6 +369,12 @@ describe('TokenRouter', () => {
           success: true,
           op: OpCodes.JETTON_INTERNAL_TRANSFER,
         },
+        {
+          from: jettonWallet.address,
+          to: deployer.address,
+          success: true,
+          op: OpCodes.JETTON_EXCESSES,
+        },
       ]);
 
       const { amount: balanceAfter } = await jettonWallet.getBalance();
@@ -562,6 +568,7 @@ describe('TokenRouter', () => {
         to: tokenRouterWithMailboxMock.address,
       });
       const balanceBefore = await recipient.getBalance();
+      const routerBalance1 = await tokenRouterWithMailboxMock.getBalance();
       const res = await tokenRouterWithMailboxMock.sendHandle(
         mailboxMock.getSender(),
         toNano('0.1'),
@@ -569,9 +576,11 @@ describe('TokenRouter', () => {
           queryId: 0n,
           origin: originChain,
           sender: routers.get(originChain)!,
+          relayerAddress: deployer.address,
           messageBody: buildTokenMessage(recipient.address.hash, amount),
         },
       );
+      const routerBalance2 = await tokenRouterWithMailboxMock.getBalance();
       const balanceAfter = await recipient.getBalance();
       expectTransactionFlow(res, [
         {
@@ -588,12 +597,19 @@ describe('TokenRouter', () => {
           op: undefined,
           value: amount,
         },
+        {
+          from: tokenRouterWithMailboxMock.address,
+          to: deployer.address,
+          success: true,
+          op: answer(OpCodes.HANDLE),
+        },
       ]);
       const tx = res.transactions.find(
         (tx) =>
           tx.address.toString(16) === recipient.address.hash.toString('hex'),
       );
       expect(balanceAfter - balanceBefore).toBe(amount - tx!.totalFees.coins);
+      expect(routerBalance1 - routerBalance2).toBe(amount);
     });
 
     it('process -> handle (not a mailbox)', async () => {
@@ -605,6 +621,7 @@ describe('TokenRouter', () => {
           queryId: 0n,
           origin: originChain,
           sender: routers.get(originChain)!,
+          relayerAddress: deployer.address,
           messageBody: buildTokenMessage(recipient.address.hash, amount),
         },
       );
