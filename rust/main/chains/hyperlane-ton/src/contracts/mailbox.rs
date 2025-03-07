@@ -261,7 +261,6 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
-        info!("message_cell ready");
 
         let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
@@ -269,7 +268,6 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
-        info!("metadata ready");
 
         let query_id = 1; // it is not currently used in the contract
 
@@ -285,7 +283,6 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
-        info!("build_message ready!");
 
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
