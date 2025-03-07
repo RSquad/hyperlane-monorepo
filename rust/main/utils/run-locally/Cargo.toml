@@ -11,7 +11,7 @@ version.workspace = true
 hyperlane-base = { path = "../../hyperlane-base" }
 hyperlane-core = { path = "../../hyperlane-core", features = ["float"] }
 hyperlane-cosmos = { path = "../../chains/hyperlane-cosmos" }
-hyperlane-ton = { path = "../../chains/hyperlane-ton" }
+hyperlane-ton = { path = "../../chains/hyperlane-ton", features = ["test-utils"] }
 toml_edit.workspace = true
 k256.workspace = true
 jobserver.workspace = true

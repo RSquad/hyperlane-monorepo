@@ -55,15 +55,12 @@ impl TonMailbox {
     }
 
     async fn get_delivery_code(&self) -> ChainResult<ArcCell> {
+        let mailbox_hex = self.mailbox_address.to_hex();
         let err_mapper =
             |e| ChainCommunicationError::from_other(HyperlaneTonError::TonCellError(e));
         let response = self
             .provider
-            .run_get_method(
-                self.mailbox_address.to_hex(),
-                "get_storage".to_string(),
-                None,
-            )
+            .run_get_method(&mailbox_hex, "get_storage", None)
             .await
             .map_err(|e| {
                 info!("delivered error:{:?}", e);
@@ -247,14 +244,12 @@ impl Mailbox for TonMailbox {
         }
         let boc = ConversionUtils::extract_boc_from_stack_item(stack)?;
 
-        let recipient_ism = ConversionUtils::parse_address_from_boc(boc)
-            .await
-            .map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse address from BOC: {:?}",
-                    e
-                )))
-            })?;
+        let recipient_ism = ConversionUtils::parse_address_from_boc(boc).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse address from BOC: {:?}",
+                e
+            )))
+        })?;
 
         Ok(ConversionUtils::ton_address_to_h256(&recipient_ism))
     }
@@ -305,7 +300,7 @@ impl Mailbox for TonMailbox {
             bounced: false,
             src: self.signer.address.clone(),
             dest: self.mailbox_address.clone(),
-            value: BigUint::from(30000000u32),
+            value: BigUint::from(100000000u32),
             ihr_fee: Default::default(),
             fwd_fee: Default::default(),
             created_lt: 0,
@@ -610,6 +605,7 @@ pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
         recipient,
         body: data.to_vec(),
     };
+    info!("HyperlaneMessage in parse_message:{}", message);
     Ok(message)
 }
 

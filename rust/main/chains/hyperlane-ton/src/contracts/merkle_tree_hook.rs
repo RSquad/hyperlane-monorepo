@@ -32,16 +32,12 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-/// A reference to a MerkleTreeHook contract on some TON chain
 pub struct TonMerkleTreeHook {
-    /// Domain
     provider: TonProvider,
-    /// Contract address
     address: TonAddress,
 }
 
 impl TonMerkleTreeHook {
-    /// Create a new TonMerkleTreeHook instance
     pub fn new(provider: TonProvider, address: TonAddress) -> ChainResult<Self> {
         Ok(Self { provider, address })
     }
@@ -71,7 +67,10 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             .provider
             .run_get_method(&merkle_tree_hook_hex, "get_tree", None)
             .await
-            .map_err(|e| HyperlaneTonError::ApiInvalidResponse(format!("Error:{:?}", e)))?;
+            .map_err(|e| {
+                warn!("Failed to get tree from contract: {:?}", e);
+                HyperlaneTonError::ApiRequestFailed("get_tree method call failed".to_string())
+            })?;
         if response.exit_code != 0 {
             return Err(ChainCommunicationError::from(
                 HyperlaneTonError::ApiRequestFailed("Non-zero exit code in response".to_string()),
@@ -301,11 +300,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         let tip = self.get_finalized_block_number().await?;
         let response = self
             .provider
-            .run_get_method(
-                self.merkle_tree_hook_address.to_string().as_str(),
-                "get_count",
-                None,
-            )
+            .run_get_method(&self.merkle_tree_hook_address.to_hex(), "get_count", None)
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(

@@ -11,7 +11,7 @@ export async function run(provider: NetworkProvider) {
     (process.env.ORIGIN_TOKEN_STANDARD as TokenStandard) ??
     TokenStandard.Native;
   const sendAmount = toNano(process.env.AMOUNT!);
-
+  console.log(`sendAmount: ${sendAmount}`);
   const route = loadWarpRoute(provider, originDomain);
   console.log(`Dispatching from domain ${originDomain} to ${destDomain}`);
 
