@@ -182,50 +182,50 @@ export async function run(provider: NetworkProvider) {
     origMailboxAddress,
   );
 
-  // const warp2 = await deployWarpRoute(
-  //   provider,
-  //   destTokenStandard,
-  //   destMailboxAddress,
-  // );
+  const warp2 = await deployWarpRoute(
+    provider,
+    destTokenStandard,
+    destMailboxAddress,
+  );
 
-  // log(m('Set destination router'));
-  // await retry(async () => {
-  //   await warp1.tokenRouter.sendSetRouter(provider.sender(), toNano(0.03), {
-  //     domain: destDomain,
-  //     router: warp2.tokenRouter.address.hash,
-  //   });
-  //   let done = false;
-  //   await retry(async () => {
-  //     await sleep(5000);
-  //     const routers = await warp1.tokenRouter.getRouters();
-  //     if (!bufeq(routers.get(destDomain)!, warp2.tokenRouter.address.hash))
-  //       throw 'waiting for sendSetRouter to complete';
-  //     done = true;
-  //   }, 10);
-  //   if (!done) throw "router doesn't set";
-  // }, 5);
-  // log(m('Done'));
-  // log(m('Set origin router'));
-  // await retry(async () => {
-  //   await warp2.tokenRouter.sendSetRouter(provider.sender(), toNano(0.03), {
-  //     domain: originDomain,
-  //     router: warp1.tokenRouter.address.hash,
-  //   });
-  //   let done = false;
-  //   await retry(async () => {
-  //     await sleep(5000);
-  //     const routers = await warp2.tokenRouter.getRouters();
-  //     if (!bufeq(routers.get(originDomain), warp1.tokenRouter.address.hash))
-  //       throw 'waiting for sendSetRouter to complete';
-  //     done = true;
-  //   }, 10);
-  //   if (!done) throw "router doesn't set";
-  // }, 5);
+  log(m('Set destination router'));
+  await retry(async () => {
+    await warp1.tokenRouter.sendSetRouter(provider.sender(), toNano(0.03), {
+      domain: destDomain,
+      router: warp2.tokenRouter.address.hash,
+    });
+    let done = false;
+    await retry(async () => {
+      await sleep(5000);
+      const routers = await warp1.tokenRouter.getRouters();
+      if (!bufeq(routers.get(destDomain)!, warp2.tokenRouter.address.hash))
+        throw 'waiting for sendSetRouter to complete';
+      done = true;
+    }, 10);
+    if (!done) throw "router doesn't set";
+  }, 5);
+  log(m('Done'));
+  log(m('Set origin router'));
+  await retry(async () => {
+    await warp2.tokenRouter.sendSetRouter(provider.sender(), toNano(0.03), {
+      domain: originDomain,
+      router: warp1.tokenRouter.address.hash,
+    });
+    let done = false;
+    await retry(async () => {
+      await sleep(5000);
+      const routers = await warp2.tokenRouter.getRouters();
+      if (!bufeq(routers.get(originDomain), warp1.tokenRouter.address.hash))
+        throw 'waiting for sendSetRouter to complete';
+      done = true;
+    }, 10);
+    if (!done) throw "router doesn't set";
+  }, 5);
 
-  // log(m('Done'));
-  // console.log(
-  //   `Warp route ${originDomain} (${origTokenStandard}) -> ${destDomain} (${destTokenStandard}):`,
-  // );
+  log(m('Done'));
+  console.log(
+    `Warp route ${originDomain} (${origTokenStandard}) -> ${destDomain} (${destTokenStandard}):`,
+  );
 
   console.log(
     originDomain,
@@ -237,17 +237,17 @@ export async function run(provider: NetworkProvider) {
     ' TokenRouter :',
     warp1.tokenRouter.address.toString(),
   );
-  // console.log(
-  //   destDomain,
-  //   ' JettonMinter:',
-  //   warp2.jettonMinter?.address.toString(),
-  // );
-  // console.log(
-  //   destDomain,
-  //   ' TokenRouter :',
-  //   warp2.tokenRouter.address.toString(),
-  // );
+  console.log(
+    destDomain,
+    ' JettonMinter:',
+    warp2.jettonMinter?.address.toString(),
+  );
+  console.log(
+    destDomain,
+    ' TokenRouter :',
+    warp2.tokenRouter.address.toString(),
+  );
 
-  // writeWarpRoute(originDomain, warp1);
-  // writeWarpRoute(destDomain, warp2);
+  writeWarpRoute(originDomain, warp1);
+  writeWarpRoute(destDomain, warp2);
 }
