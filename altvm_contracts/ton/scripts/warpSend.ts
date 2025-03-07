@@ -18,6 +18,7 @@ export async function run(provider: NetworkProvider) {
 
   const route = loadWarpRoute(provider, originDomain);
   console.log(`Dispatching from domain ${originDomain} to ${destDomain}`);
+  console.log('Origin token:', origTokenStandard);
 
   if (origTokenStandard === TokenStandard.Native) {
     await route.tokenRouter.sendTransferRemote(
@@ -37,7 +38,7 @@ export async function run(provider: NetworkProvider) {
     );
 
     await jettonWallet.sendTransfer(provider.sender(), {
-      value: toNano(0.6),
+      value: toNano(1.6),
       queryId: 0,
       toAddress: route.tokenRouter.address,
       jettonAmount: sendAmount,
