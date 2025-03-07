@@ -124,7 +124,7 @@ async function deployWarpRoute(
         await params.jettonMinter!.sendMint(provider.sender(), {
           toAddress: provider.sender().address!,
           responseAddress: provider.sender().address!,
-          jettonAmount: 1000n,
+          jettonAmount: toNano(100),
           queryId: 0,
           value: toNano(0.2),
         });
