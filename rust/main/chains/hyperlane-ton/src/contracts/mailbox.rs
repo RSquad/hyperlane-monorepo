@@ -214,18 +214,7 @@ impl Mailbox for TonMailbox {
 
         let response = match recipient_response {
             Ok(response) => response,
-            Err(_) => {
-                let mailbox_hex = self.mailbox_address.to_hex();
-                self.provider
-                    .run_get_method(&mailbox_hex, "get_default_ism", None)
-                    .await
-                    .map_err(|e| {
-                        ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
-                            "Error calling run_get_method for mailbox: {:?}",
-                            e
-                        )))
-                    })
-            }?,
+            Err(_) => return self.default_ism().await,
         };
 
         let stack = response.stack.first().ok_or_else(|| {
@@ -250,6 +239,10 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
+        if recipient_ism.to_base64_url() == "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c" {
+            info!("recipient_ism is zero, execute default_ism");
+            return self.default_ism().await;
+        }
 
         Ok(ConversionUtils::ton_address_to_h256(&recipient_ism))
     }
@@ -268,7 +261,6 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
-        info!("message_cell ready");
 
         let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
@@ -276,7 +268,6 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
-        info!("metadata ready");
 
         let query_id = 1; // it is not currently used in the contract
 
@@ -292,7 +283,6 @@ impl Mailbox for TonMailbox {
                 e
             )))
         })?;
-        info!("build_message ready!");
 
         let common_msg_info = CommonMsgInfo::InternalMessage(InternalMessage {
             ihr_disabled: false,
