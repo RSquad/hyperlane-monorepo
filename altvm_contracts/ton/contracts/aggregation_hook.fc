@@ -1,0 +1,119 @@
+#include "imports/stdlib.fc";
+#include "imports/ton_msg.fc";
+#include "imports/hook_types.fc";
+#include "imports/op_codes.fc";
+#include "imports/errors.fc";
+#include "imports/send_mode.fc";
+#include "imports/signing_utils.fc";
+#include "imports/hyp_message.fc";
+
+global slice g::mailbox_addr;
+global cell g::hooks;
+global cell g::cur_hook_index;
+
+() store_globals() impure inline_ref {
+    cell data = begin_cell()
+        .store_slice(g::mailbox_addr)
+        .store_dict(g::hooks)
+        .store_dict(g::cur_hook_index)
+        .end_cell();
+    set_data(data);
+}
+
+() load_globals() impure inline_ref {
+    slice ds = get_data().begin_parse();
+    g::mailbox_addr = ds~load_msg_addr();
+    g::hooks = ds~load_dict();
+    g::cur_hook_index = ds~load_dict();
+}
+
+() post_dispatch(slice s, int query_id, int value, slice dest) impure inline  {
+
+    (cell i, int i_found?) = g::cur_hook_index.udict_get_ref?(64, query_id);
+
+    int index = 0;
+    if (i_found?) {
+        slice si = i.begin_parse();
+        index = si~load_uint(8);
+    }
+    
+    (slice hook_addr, int hook_found?) = g::hooks.udict_get?(8, index);
+
+    reserve_original_balance(value, 0);
+    if (hook_found?) {
+        cell body = begin_cell()
+            .store_uint(op::hook::post_dispatch, 32)
+            .store_uint(query_id, 64)
+            .store_slice(s)
+            .end_cell();
+        
+        builder answer_msg = build_message(
+            hook_addr,
+            0,
+            false,
+            null(),
+            body
+        );
+
+        g::cur_hook_index~udict_set_ref(
+            64,
+            query_id,
+            begin_cell().store_uint(index + 1, 8).end_cell()
+        ); 
+
+        send_raw_message(answer_msg.end_cell(), send_mode::carry_remaining_balance);
+    } else {
+        cell body = begin_cell()
+            .store_uint(op::hook::post_dispatch::answer, 32)
+            .store_uint(query_id, 64)
+            .store_slice(s)
+            .end_cell();
+        
+            builder answer_msg = build_message(
+                g::mailbox_addr,
+                0,
+                false,
+                null(),
+                body
+        );
+
+        (g::cur_hook_index, _) = g::cur_hook_index.udict_delete?(64, query_id);
+
+        send_raw_message(answer_msg.end_cell(), send_mode::carry_remaining_balance);
+    }
+}
+
+() recv_internal(int my_balance, int msg_value, cell in_msg_full, slice in_msg_body) impure {
+    if ( in_msg_body.slice_empty?() ) { ;; accept simple transfer
+        return ();
+    }
+    slice cs = in_msg_full.begin_parse();
+    int flags = cs~load_uint(4);
+    if ( flags & 1 ) { ;; ignore all bounced messages
+        return ();
+    }
+
+    slice msg_sender = cs~load_msg_addr();
+    int op = in_msg_body~load_uint(32);
+    int query_id = in_msg_body~load_uint(64);
+    load_globals();
+
+    if (
+        (op == op::hook::post_dispatch) | 
+        (op == op::hook::post_dispatch::answer)
+    ) {
+        post_dispatch(
+            in_msg_body,
+            query_id,
+            msg_value,
+            msg_sender
+        );
+        return store_globals();
+    }
+
+    throw(error::unknown_op);
+}
+
+(int) get_hook_type() method_id {
+    return (hook_type::aggregation);
+}
