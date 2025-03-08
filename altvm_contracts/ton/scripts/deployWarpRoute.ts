@@ -1,5 +1,12 @@
 import { NetworkProvider, compile, sleep } from '@ton/blueprint';
-import { Address, Dictionary, OpenedContract, Sender, toNano } from '@ton/core';
+import {
+  Address,
+  Dictionary,
+  OpenedContract,
+  SendMode,
+  Sender,
+  toNano,
+} from '@ton/core';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -36,8 +43,9 @@ async function deploy<T>(
   const codeCell = await compile(code);
   log(b('code hash:'), codeCell.hash().toString('hex'));
   const contract = provider.open(c.createFromConfig(config, codeCell));
+  const value = code == 'JettonMinter' ? toNano('1.2') : toNano('0.1');
   await retry(async () => {
-    await contract.sendDeploy(provider.sender(), toNano('0.1'));
+    await contract.sendDeploy(provider.sender(), value);
     await provider.waitForDeploy(contract.address, 20, 3000);
   }, 5);
   return contract;
@@ -55,12 +63,20 @@ async function deployWarpRoute(
     Dictionary.Keys.Uint(32),
     Dictionary.Values.Buffer(32),
   );
-  const jettonParams = {
-    name: 'Synthetic TON ' + Math.floor(Math.random() * 10000000),
-    symbol: 'TsynTON',
-    decimals: '9',
-    description: 'test synthetic ton',
-  };
+  const jettonParams =
+    tokenStandard == TokenStandard.Synthetic
+      ? {
+          name: 'Synthetic TON ' + Math.floor(Math.random() * 10000000),
+          symbol: 'TsynTON',
+          decimals: '9',
+          description: 'test synthetic ton',
+        }
+      : {
+          name: 'Collateral TON ' + Math.floor(Math.random() * 10000000),
+          symbol: 'TcollTON',
+          decimals: '9',
+          description: 'test collateral ton',
+        };
 
   if (tokenStandard === TokenStandard.Native) {
     routerType = 'HypNative';
@@ -100,7 +116,21 @@ async function deployWarpRoute(
     routerType,
     provider,
   );
+
   if (params.jettonMinter) {
+    if (tokenStandard === TokenStandard.Collateral) {
+      log(m('Mint jettons to relayer wallet'));
+      await retry(async () => {
+        await params.jettonMinter!.sendMint(provider.sender(), {
+          toAddress: provider.sender().address!,
+          responseAddress: provider.sender().address!,
+          jettonAmount: toNano(100),
+          queryId: 0,
+          value: toNano(0.2),
+        });
+      }, 5);
+      await sleep(5000);
+    }
     log(m('Change jetton admin to jetton router'));
     await retry(async () => {
       await params.jettonMinter!.sendUpdateAdmin(provider.sender(), {
@@ -109,10 +139,6 @@ async function deployWarpRoute(
       });
     }, 5);
     log(m('Done.'));
-
-    await provider
-      .sender()
-      .send({ value: toNano(1), to: params.jettonMinter.address });
   }
 
   return {
