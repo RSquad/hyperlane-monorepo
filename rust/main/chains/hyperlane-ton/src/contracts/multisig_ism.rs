@@ -16,7 +16,7 @@ use crate::{
     error::HyperlaneTonError,
     run_get_method::{StackItem, StackValue},
     traits::ton_api_center::TonApiCenter,
-    ConversionUtils,
+    utils::{conversion::*, parsers::*},
 };
 
 #[derive(Clone, Debug, new)]
@@ -37,7 +37,7 @@ impl HyperlaneChain for TonMultisigIsm {
 
 impl HyperlaneContract for TonMultisigIsm {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.multisig_address)
+        conversion::ton_address_to_h256(&self.multisig_address)
     }
 }
 
@@ -72,7 +72,7 @@ impl MultisigIsm for TonMultisigIsm {
                 "No threshold stack item in response".to_string(),
             ))
         })?;
-        let threshold_boc = ConversionUtils::extract_boc_from_stack_item(&threshold_stack_item)
+        let threshold_boc = conversion::extract_boc_from_stack_item(&threshold_stack_item)
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Error extracting BOC from stack item: {:?}",
@@ -95,14 +95,14 @@ impl MultisigIsm for TonMultisigIsm {
             ))
         })?;
 
-        let validators_boc = ConversionUtils::extract_boc_from_stack_item(&cell_stack_item)
-            .map_err(|e| {
+        let validators_boc =
+            conversion::extract_boc_from_stack_item(&cell_stack_item).map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                     "Error extracting BOC from stack item: {:?}",
                     e
                 )))
             })?;
-        let root_cell = ConversionUtils::parse_root_cell_from_boc(validators_boc).map_err(|e| {
+        let root_cell = parsers::parse_root_cell_from_boc(validators_boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse_root_cell_from_boc: {:?}",
                 e

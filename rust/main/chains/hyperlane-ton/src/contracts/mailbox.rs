@@ -29,7 +29,8 @@ use crate::{
     signer::signer::TonSigner,
     traits::ton_api_center::TonApiCenter,
     utils::{
-        conversion::ConversionUtils, log_meta::create_ton_log_meta, pagination::paginate_logs,
+        cell_builders::*, conversion::*, log_meta::create_ton_log_meta, pagination::paginate_logs,
+        parsers::*,
     },
 };
 
@@ -102,7 +103,7 @@ impl TonMailbox {
 
 impl HyperlaneContract for TonMailbox {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.mailbox_address)
+        conversion::ton_address_to_h256(&self.mailbox_address)
     }
 }
 
@@ -143,7 +144,7 @@ impl Mailbox for TonMailbox {
                 ))
             })?;
 
-        ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
+        parsers::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedToParseStackItem(format!(
                 "Failed to parse stack item to u32: {:?}",
                 e
@@ -200,12 +201,12 @@ impl Mailbox for TonMailbox {
             )))
         })?;
 
-        Ok(ConversionUtils::ton_address_to_h256(&ism_address))
+        Ok(conversion::ton_address_to_h256(&ism_address))
     }
 
     #[instrument(level = "debug", err, ret, skip(self))]
     async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
-        let recipient_address = ConversionUtils::h256_to_ton_address(&recipient, self.workchain);
+        let recipient_address = conversion::h256_to_ton_address(&recipient, self.workchain);
         let recipient_hex = recipient_address.to_hex();
         let recipient_response = self
             .provider
@@ -231,9 +232,9 @@ impl Mailbox for TonMailbox {
                 )),
             ));
         }
-        let boc = ConversionUtils::extract_boc_from_stack_item(stack)?;
+        let boc = conversion::extract_boc_from_stack_item(stack)?;
 
-        let recipient_ism = ConversionUtils::parse_address_from_boc(boc).map_err(|e| {
+        let recipient_ism = parsers::parse_address_from_boc(boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse address from BOC: {:?}",
                 e
@@ -244,7 +245,7 @@ impl Mailbox for TonMailbox {
             return self.default_ism().await;
         }
 
-        Ok(ConversionUtils::ton_address_to_h256(&recipient_ism))
+        Ok(conversion::ton_address_to_h256(&recipient_ism))
     }
 
     async fn process(
@@ -255,14 +256,14 @@ impl Mailbox for TonMailbox {
     ) -> ChainResult<TxOutcome> {
         info!("HyperlaneMessage in process:{:?}", message);
         info!("metadata in process:{:?}", metadata);
-        let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
+        let message_cell = cell_builders::build_hyperlane_message_cell(message).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to build HyperlaneMessage to Ton Cell: {:?}",
                 e
             )))
         })?;
 
-        let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
+        let metadata_cell = cell_builders::metadata_to_cell(metadata).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to build metadata to Ton Cell: {:?}",
                 e
@@ -406,7 +407,7 @@ impl Indexer<HyperlaneMessage> for TonMailboxIndexer {
         );
 
         let mailbox_addr = self.mailbox.mailbox_address.to_string();
-        let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
+        let mailbox_addr_h256 = conversion::ton_address_to_h256(&self.mailbox.mailbox_address);
 
         let parse_fn = |message: Message| {
             parse_message(&message.message_content.body)
@@ -464,7 +465,7 @@ impl Indexer<H256> for TonMailboxIndexer {
         let (start_utime, end_utime) = self.mailbox.provider.get_utime_range(range).await?;
 
         let mailbox_addr = self.mailbox.mailbox_address.to_string();
-        let mailbox_addr_h256 = ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address);
+        let mailbox_addr_h256 = conversion::ton_address_to_h256(&self.mailbox.mailbox_address);
 
         let parse_fn = move |message: Message| {
             let decoded = match general_purpose::STANDARD.decode(&message.hash) {
@@ -525,7 +526,7 @@ pub(crate) fn build_message(
 }
 
 pub fn parse_message(boc: &str) -> Result<HyperlaneMessage, TonCellError> {
-    let cell = ConversionUtils::parse_root_cell_from_boc(boc).map_err(|e| {
+    let cell = parsers::parse_root_cell_from_boc(boc).map_err(|e| {
         error!("Failed to parse root cell from BOC: {:?}", e);
         TonCellError::BagOfCellsDeserializationError(
             "Failed to parse root cell from BOC".to_string(),

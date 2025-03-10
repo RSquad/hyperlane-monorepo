@@ -20,8 +20,8 @@ use crate::{
     error::HyperlaneTonError,
     message::Message,
     signer::signer::TonSigner,
+    utils::{conversion::*, parsers::*},
     utils::{log_meta::create_ton_log_meta, pagination::paginate_logs},
-    ConversionUtils,
 };
 
 #[derive(Clone)]
@@ -35,7 +35,7 @@ impl TonInterchainGasPaymaster {}
 
 impl HyperlaneContract for TonInterchainGasPaymaster {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.igp_address)
+        conversion::ton_address_to_h256(&self.igp_address)
     }
 }
 impl HyperlaneChain for TonInterchainGasPaymaster {
@@ -74,7 +74,7 @@ impl Indexer<InterchainGasPayment> for TonInterchainGasPaymasterIndexer {
         let (start_utime, end_utime) = self.provider.get_utime_range(range).await?;
 
         let igp_address = self.igp_address.to_string();
-        let igp_address_h256 = ConversionUtils::ton_address_to_h256(&self.igp_address);
+        let igp_address_h256 = conversion::ton_address_to_h256(&self.igp_address);
 
         let parse_fn = |message: Message| {
             parse_igp_events(&message.message_content.body)
@@ -119,7 +119,7 @@ impl SequenceAwareIndexer<InterchainGasPayment> for TonInterchainGasPaymasterInd
 }
 
 fn parse_igp_events(boc: &str) -> Result<InterchainGasPayment, ChainCommunicationError> {
-    let parsed_cell = ConversionUtils::parse_root_cell_from_boc(boc)
+    let parsed_cell = parsers::parse_root_cell_from_boc(boc)
         .map_err(|e| HyperlaneTonError::ParsingError(format!("Failed to parse BOC: {:?}", e)))?;
 
     let mut parser = parsed_cell.parser();

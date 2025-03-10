@@ -6,7 +6,7 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, H256,
 };
 
-use crate::{client::provider::TonProvider, utils::conversion::ConversionUtils};
+use crate::{client::provider::TonProvider, utils::conversion::*};
 
 #[derive(Debug)]
 pub struct TonAggregationIsm {
@@ -22,7 +22,7 @@ impl TonAggregationIsm {
 
 impl HyperlaneContract for TonAggregationIsm {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.address)
+        conversion::ton_address_to_h256(&self.address)
     }
 }
 

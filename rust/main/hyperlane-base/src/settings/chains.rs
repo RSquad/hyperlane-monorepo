@@ -28,8 +28,8 @@ use hyperlane_fuel as h_fuel;
 use hyperlane_sealevel as h_sealevel;
 use hyperlane_ton as h_ton;
 use hyperlane_ton::{
-    ConversionUtils, TonAggregationIsm, TonMerkleTreeHook, TonMerkleTreeHookIndexer, TonProvider,
-    TonRoutingIsm,
+    cell_builders::*, conversion::*, parsers::*, TonAggregationIsm, TonMerkleTreeHook,
+    TonMerkleTreeHookIndexer, TonProvider, TonRoutingIsm,
 };
 
 use super::ChainSigner;
@@ -267,7 +267,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let mailbox_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
+                    h_ton::conversion::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
@@ -311,7 +311,7 @@ impl ChainConf {
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
                 let address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
+                    h_ton::conversion::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
                 let hook = TonMerkleTreeHook::new(provider, address)?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
@@ -366,7 +366,7 @@ impl ChainConf {
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
+                    h_ton::conversion::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
 
@@ -424,7 +424,7 @@ impl ChainConf {
                 let signer = self.ton_signer().await.context(ctx)?;
 
                 let mailbox_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.mailbox, 0);
+                    h_ton::conversion::h256_to_ton_address(&self.addresses.mailbox, 0);
 
                 let mailbox = h_ton::TonMailbox::new(mailbox_address, provider, 0, signer.unwrap());
 
@@ -544,7 +544,7 @@ impl ChainConf {
             ChainConnectionConf::Ton(conf) => {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
-                let igp_address = ConversionUtils::h256_to_ton_address(
+                let igp_address = h_ton::conversion::h256_to_ton_address(
                     &self.addresses.interchain_gas_paymaster,
                     0,
                 );
@@ -609,7 +609,7 @@ impl ChainConf {
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
                 let address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
+                    h_ton::conversion::h256_to_ton_address(&self.addresses.merkle_tree_hook, 0);
                 let indexer = Box::new(TonMerkleTreeHookIndexer::new(address, provider)?);
 
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
@@ -649,7 +649,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
                 let validator_announce_address =
-                    ConversionUtils::h256_to_ton_address(&self.addresses.validator_announce, 0);
+                    h_ton::conversion::h256_to_ton_address(&self.addresses.validator_announce, 0);
 
                 let signer = self.ton_signer().await.context(ctx)?;
 
@@ -747,7 +747,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
-                let multisig_address = ConversionUtils::h256_to_ton_address(&address, 0);
+                let multisig_address = h_ton::conversion::h256_to_ton_address(&address, 0);
 
                 let ism = h_ton::TonMultisigIsm::new(provider, multisig_address);
 
@@ -791,7 +791,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
-                let address = ConversionUtils::h256_to_ton_address(&address, 0);
+                let address = h_ton::conversion::h256_to_ton_address(&address, 0);
                 let ism = Box::new(TonRoutingIsm::new(provider, address)?);
 
                 Ok(ism as Box<dyn RoutingIsm>)
@@ -835,7 +835,7 @@ impl ChainConf {
                 let provider =
                     TonProvider::new(Client::new(), conf.clone(), locator.domain.clone());
 
-                let address = ConversionUtils::h256_to_ton_address(&address, 0);
+                let address = h_ton::conversion::h256_to_ton_address(&address, 0);
                 let ism = Box::new(TonAggregationIsm::new(provider, address)?);
 
                 Ok(ism as Box<dyn AggregationIsm>)

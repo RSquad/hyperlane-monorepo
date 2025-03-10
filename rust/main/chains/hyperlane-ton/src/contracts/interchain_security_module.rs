@@ -22,9 +22,13 @@ use hyperlane_core::{
 };
 
 use crate::{
-    client::provider::TonProvider, error::HyperlaneTonError, run_get_method::StackValue,
-    signer::signer::TonSigner, traits::ton_api_center::TonApiCenter,
-    utils::conversion::ConversionUtils, TonConnectionConf,
+    client::provider::TonProvider,
+    error::HyperlaneTonError,
+    run_get_method::StackValue,
+    signer::signer::TonSigner,
+    traits::ton_api_center::TonApiCenter,
+    utils::{cell_builders::*, conversion::*},
+    TonConnectionConf,
 };
 
 pub struct TonInterchainSecurityModule {
@@ -39,7 +43,7 @@ pub struct TonInterchainSecurityModule {
 impl TonInterchainSecurityModule {
     const VERIFY: u32 = 0x7b00ad2c;
     pub fn new(locator: ContractLocator, conf: TonConnectionConf, signer: TonSigner) -> Self {
-        let ism_address = ConversionUtils::h256_to_ton_address(&locator.address, 0);
+        let ism_address = conversion::h256_to_ton_address(&locator.address, 0);
         let provider = TonProvider::new(reqwest::Client::new(), conf, locator.domain.clone());
 
         Self {
@@ -61,7 +65,7 @@ impl Debug for TonInterchainSecurityModule {
 
 impl HyperlaneContract for TonInterchainSecurityModule {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.ism_address)
+        conversion::ton_address_to_h256(&self.ism_address)
     }
 }
 impl HyperlaneChain for TonInterchainSecurityModule {
@@ -124,14 +128,14 @@ impl InterchainSecurityModule for TonInterchainSecurityModule {
         message: &HyperlaneMessage,
         metadata: &[u8],
     ) -> ChainResult<Option<U256>> {
-        let message_cell = ConversionUtils::build_hyperlane_message_cell(message).map_err(|e| {
+        let message_cell = cell_builders::build_hyperlane_message_cell(message).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to build HyperlaneMessage to Ton Cell: {:?}",
                 e
             )))
         })?;
 
-        let metadata_cell = ConversionUtils::metadata_to_cell(metadata).map_err(|e| {
+        let metadata_cell = cell_builders::metadata_to_cell(metadata).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                 "Failed to build metadata cell: {:?}",
                 e

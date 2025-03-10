@@ -26,18 +26,20 @@ use crate::{
     message::Message,
     run_get_method::StackValue,
     ton_api_center::TonApiCenter,
-    utils::{
-        conversion::ConversionUtils, log_meta::create_ton_log_meta, pagination::paginate_logs,
-    },
+    utils::{conversion::*, log_meta::create_ton_log_meta, pagination::paginate_logs, parsers::*},
 };
 
 #[derive(Debug, Clone)]
+/// A reference to a MerkleTreeHook contract on some TON chain
 pub struct TonMerkleTreeHook {
+    /// Domain
     provider: TonProvider,
+    /// Contract address
     address: TonAddress,
 }
 
 impl TonMerkleTreeHook {
+    /// Create a new TonMerkleTreeHook instance
     pub fn new(provider: TonProvider, address: TonAddress) -> ChainResult<Self> {
         Ok(Self { provider, address })
     }
@@ -45,7 +47,7 @@ impl TonMerkleTreeHook {
 
 impl HyperlaneContract for TonMerkleTreeHook {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.address)
+        conversion::ton_address_to_h256(&self.address)
     }
 }
 
@@ -67,10 +69,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             .provider
             .run_get_method(&merkle_tree_hook_hex, "get_tree", None)
             .await
-            .map_err(|e| {
-                warn!("Failed to get tree from contract: {:?}", e);
-                HyperlaneTonError::ApiRequestFailed("get_tree method call failed".to_string())
-            })?;
+            .map_err(|e| HyperlaneTonError::ApiInvalidResponse(format!("Error:{:?}", e)))?;
         if response.exit_code != 0 {
             return Err(ChainCommunicationError::from(
                 HyperlaneTonError::ApiRequestFailed("Non-zero exit code in response".to_string()),
@@ -186,7 +185,7 @@ impl MerkleTreeHook for TonMerkleTreeHook {
                 )))
             })?;
 
-        ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
+        parsers::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse count from stack: {:?}",
                 e
@@ -216,11 +215,11 @@ impl MerkleTreeHook for TonMerkleTreeHook {
             ));
         }
 
-        let root = ConversionUtils::parse_stack_item_biguint(stack, 0, "root")?;
-        let index = ConversionUtils::parse_stack_item_to_u32(stack, 1)?;
+        let root = parsers::parse_stack_item_biguint(stack, 0, "root")?;
+        let index = parsers::parse_stack_item_to_u32(stack, 1)?;
 
         Ok(Checkpoint {
-            merkle_tree_hook_address: ConversionUtils::ton_address_to_h256(&self.address.clone()),
+            merkle_tree_hook_address: conversion::ton_address_to_h256(&self.address.clone()),
             mailbox_domain: self.domain().id(),
             root: H256::from_slice(root.to_bytes_be().as_slice()),
             index,
@@ -258,7 +257,7 @@ impl Indexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
 
         let merkle_tree_hook_address = self.merkle_tree_hook_address.to_string();
         let merkle_tree_hook_address_h256 =
-            ConversionUtils::ton_address_to_h256(&self.merkle_tree_hook_address);
+            conversion::ton_address_to_h256(&self.merkle_tree_hook_address);
 
         let parse_fn = |message: Message| {
             parse_merkle_tree_insertion(&message.message_content.body)
@@ -300,7 +299,11 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
         let tip = self.get_finalized_block_number().await?;
         let response = self
             .provider
-            .run_get_method(&self.merkle_tree_hook_address.to_hex(), "get_count", None)
+            .run_get_method(
+                self.merkle_tree_hook_address.to_string().as_str(),
+                "get_count",
+                None,
+            )
             .await
             .map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::ApiRequestFailed(format!(
@@ -309,24 +312,24 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TonMerkleTreeHookIndexer {
                 )))
             })?;
 
-        let sequence =
-            ConversionUtils::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
-                HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse stack item to u32 for sequence:{:?}",
-                    e
-                ))
-            })?;
+        let sequence = parsers::parse_stack_item_to_u32(&response.stack, 0).map_err(|e| {
+            HyperlaneTonError::ParsingError(format!(
+                "Failed to parse stack item to u32 for sequence:{:?}",
+                e
+            ))
+        })?;
 
         Ok((Some(sequence), tip))
     }
 }
 fn parse_merkle_tree_insertion(body: &str) -> ChainResult<MerkleTreeInsertion> {
-    let cell = ConversionUtils::parse_root_cell_from_boc(body).map_err(|e| {
+    let cell = parsers::parse_root_cell_from_boc(body).map_err(|e| {
         warn!("Failed to parse root cell from BOC: {:?}", e);
         ChainCommunicationError::from(HyperlaneTonError::ApiInvalidResponse(
             "Failed to parse root cell from BOC".to_string(),
         ))
     })?;
+    info!("Cell:{:?}", cell);
 
     let mut parser = cell.parser();
 
@@ -336,6 +339,8 @@ fn parse_merkle_tree_insertion(body: &str) -> ChainResult<MerkleTreeInsertion> {
             "Failed to load message_id".to_string(),
         ))
     })?;
+    info!("message_id:{:?}", message_id);
+
     let message_id_h256 = H256::from_slice(message_id.to_bytes_be().as_slice());
 
     let index = parser.load_uint(32).map_err(|e| {

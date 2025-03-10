@@ -6,7 +6,7 @@ use hyperlane_core::{
     HyperlaneProvider, RoutingIsm, H256,
 };
 
-use crate::{client::provider::TonProvider, utils::conversion::ConversionUtils};
+use crate::{client::provider::TonProvider, utils::conversion::*};
 
 #[derive(Debug)]
 /// A reference to a RoutingIsm contract on some TON chain
@@ -24,7 +24,7 @@ impl TonRoutingIsm {
 
 impl HyperlaneContract for TonRoutingIsm {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.address)
+        conversion::ton_address_to_h256(&self.address)
     }
 }
 

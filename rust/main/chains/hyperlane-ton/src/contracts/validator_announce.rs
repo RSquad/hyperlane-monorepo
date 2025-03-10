@@ -24,7 +24,7 @@ use crate::{
     run_get_method::{StackItem, StackValue},
     signer::signer::TonSigner,
     traits::ton_api_center::TonApiCenter,
-    utils::conversion::ConversionUtils,
+    utils::{cell_builders::*, conversion::*, parsers::*},
 };
 
 pub struct TonValidatorAnnounce {
@@ -72,15 +72,9 @@ impl TonValidatorAnnounce {
         let signature_cell = CellBuilder::new()
             .store_uint(8, &BigUint::from(announcement.signature.v))
             .map_err(|e| format!("Failed to store signature v: {:?}", e))?
-            .store_uint(
-                256,
-                &ConversionUtils::u256_to_biguint(announcement.signature.r),
-            )
+            .store_uint(256, &conversion::u256_to_biguint(announcement.signature.r))
             .map_err(|e| format!("Failed to store signature r: {:?}", e))?
-            .store_uint(
-                256,
-                &ConversionUtils::u256_to_biguint(announcement.signature.s),
-            )
+            .store_uint(256, &conversion::u256_to_biguint(announcement.signature.s))
             .map_err(|e| format!("Failed to store signature s: {:?}", e))?
             .build()
             .map_err(|e| format!("Failed to finalize signature_cell: {:?}", e))?;
@@ -105,7 +99,7 @@ impl TonValidatorAnnounce {
 }
 impl HyperlaneContract for TonValidatorAnnounce {
     fn address(&self) -> H256 {
-        ConversionUtils::ton_address_to_h256(&self.address)
+        conversion::ton_address_to_h256(&self.address)
     }
 }
 
@@ -132,7 +126,7 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
         let function_name = "get_announced_storage_locations";
         let validator_announce_hex = self.address.to_hex();
         let validators_cell =
-            ConversionUtils::create_address_linked_cells(&validators).map_err(|e| {
+            cell_builders::create_address_linked_cells(&validators).map_err(|e| {
                 ChainCommunicationError::from(HyperlaneTonError::FailedBuildingCell(format!(
                     "Failed to create address linked cells {:?}",
                     e
@@ -211,13 +205,12 @@ impl ValidatorAnnounce for TonValidatorAnnounce {
             )))
         })?;
 
-        let storage_locations =
-            ConversionUtils::parse_address_storage_locations(&cell).map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse address storage locations: {}",
-                    e
-                )))
-            })?;
+        let storage_locations = parsers::parse_address_storage_locations(&cell).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse address storage locations: {}",
+                e
+            )))
+        })?;
 
         let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
         Ok(locations_vec)

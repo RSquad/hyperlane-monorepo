@@ -3,7 +3,10 @@ use hyperlane_core::{ChainCommunicationError, ChainResult};
 use serde::{Deserialize, Serialize};
 use tonlib_core::cell::ArcCell;
 
-use crate::{error::HyperlaneTonError, ConversionUtils};
+use crate::{
+    error::HyperlaneTonError,
+    utils::{conversion::*, parsers::*},
+};
 
 #[derive(Deserialize, Debug, Default)]
 pub struct RunGetMethodResponse {
@@ -30,8 +33,8 @@ impl StackItem {
             ));
         }
 
-        let boc = ConversionUtils::extract_boc_from_stack_item(&self)?;
-        ConversionUtils::parse_root_cell_from_boc(&boc).map_err(|e| {
+        let boc = conversion::extract_boc_from_stack_item(&self)?;
+        parsers::parse_root_cell_from_boc(&boc).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse root cell: {:?}",
                 e

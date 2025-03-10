@@ -12,9 +12,12 @@ use tracing::{info, warn};
 use url::Url;
 
 use crate::{
-    error::HyperlaneTonError, ton_api_center::TonApiCenter, ConversionUtils, TonConnectionConf,
-    TonInterchainGasPaymaster, TonInterchainSecurityModule, TonMailbox, TonMerkleTreeHook,
-    TonMerkleTreeHookIndexer, TonMultisigIsm, TonProvider, TonSigner, TonValidatorAnnounce,
+    error::HyperlaneTonError,
+    ton_api_center::TonApiCenter,
+    utils::{conversion::*, parsers::*},
+    TonConnectionConf, TonInterchainGasPaymaster, TonInterchainSecurityModule, TonMailbox,
+    TonMerkleTreeHook, TonMerkleTreeHookIndexer, TonMultisigIsm, TonProvider, TonSigner,
+    TonValidatorAnnounce,
 };
 
 pub struct TestContext {
@@ -123,7 +126,7 @@ impl TestContext {
         let ton_address =
             TonAddress::from_base64_url("EQBxuFfnP5UVFIeWBiZJ9UStEGEVW_DqIgETU36GSkrhWuzD")
                 .unwrap();
-        let h256_address = ConversionUtils::ton_address_to_h256(&ton_address);
+        let h256_address = conversion::ton_address_to_h256(&ton_address);
         let is_contract = self.provider.is_contract(&h256_address).await.unwrap();
 
         println!("is_contract:{:?}", is_contract);
@@ -138,7 +141,7 @@ impl TestContext {
     }
 
     pub async fn test_mailbox_recipient_ism(&self) -> Result<(), anyhow::Error> {
-        let recipient = ConversionUtils::ton_address_to_h256(
+        let recipient = conversion::ton_address_to_h256(
             &TonAddress::from_base64_url("EQCb3n0SkpKTNyNlhKEnndYSG0DQ2nK6za0oFhl5bRr3n4hc")
                 .unwrap(),
         );
@@ -228,13 +231,12 @@ impl TestContext {
 
         let cell = boc.single_root().unwrap();
 
-        let storage_locations =
-            ConversionUtils::parse_address_storage_locations(&cell).map_err(|e| {
-                ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
-                    "Failed to parse address storage locations: {}",
-                    e
-                )))
-            })?;
+        let storage_locations = parsers::parse_address_storage_locations(&cell).map_err(|e| {
+            ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
+                "Failed to parse address storage locations: {}",
+                e
+            )))
+        })?;
         info!("storage_locations:{:?}", storage_locations);
         let locations_vec: Vec<Vec<String>> = storage_locations.into_values().collect();
         info!("locations_vec:{:?}", locations_vec);
@@ -243,11 +245,11 @@ impl TestContext {
 
     pub async fn test_validator_announce_announce(&self) -> Result<(), anyhow::Error> {
         let announcement = Announcement {
-            validator: ConversionUtils::parse_eth_address_to_h160(
+            validator: parsers::parse_eth_address_to_h160(
                 "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65",
             )
             .unwrap(),
-            mailbox_address: ConversionUtils::ton_address_to_h256(&self.mailbox.mailbox_address),
+            mailbox_address: conversion::ton_address_to_h256(&self.mailbox.mailbox_address),
             mailbox_domain: 777001,
             storage_location: "file://./persistent_data/checkpoint".to_string(),
         };

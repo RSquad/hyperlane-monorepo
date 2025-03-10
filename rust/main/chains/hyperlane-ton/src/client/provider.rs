@@ -34,7 +34,7 @@ use crate::{
         transaction::TransactionResponse,
         wallet_state::{WalletInformation, WalletStatesResponse},
     },
-    utils::conversion::ConversionUtils,
+    utils::{conversion::*, parsers::*},
 };
 
 #[derive(Clone, new)]
@@ -180,7 +180,7 @@ impl HyperlaneProvider for TonProvider {
             )))
         })?;
 
-        let hash = ConversionUtils::base64_to_h256(block.root_hash.as_str()).map_err(|e| {
+        let hash = conversion::base64_to_h256(block.root_hash.as_str()).map_err(|e| {
             ChainCommunicationError::from(HyperlaneTonError::ParsingError(format!(
                 "Failed to parse hash timestamp: {:?}",
                 e
@@ -213,7 +213,7 @@ impl HyperlaneProvider for TonProvider {
             })?;
 
         if let Some(transaction) = response.transactions.first() {
-            let txn_info = ConversionUtils::parse_transaction(transaction)?;
+            let txn_info = parsers::parse_transaction(transaction)?;
             info!("Successfully retrieved transaction: {:?}", txn_info);
             Ok(txn_info)
         } else {
@@ -224,7 +224,7 @@ impl HyperlaneProvider for TonProvider {
 
     async fn is_contract(&self, address: &H256) -> ChainResult<bool> {
         info!("Checking if contract exists at address: {:?}", address);
-        let ton_address = ConversionUtils::h256_to_ton_address(address, 0).to_string();
+        let ton_address = conversion::h256_to_ton_address(address, 0).to_string();
 
         let account_state = self
             .get_account_state(ton_address.to_string(), true)
@@ -589,7 +589,7 @@ impl TonApiCenter for TonProvider {
                 HyperlaneTonError::ParsingError(format!("Failed to parse H256 address: {:?}", e))
             })?;
 
-            account = ConversionUtils::h256_to_ton_address(&h256, 0).to_string();
+            account = conversion::h256_to_ton_address(&h256, 0).to_string();
         }
 
         let query_params = [("address", account)];
@@ -720,7 +720,7 @@ impl TonProvider {
                         );
 
                         if let Some(transaction) = response.transactions.first() {
-                            let transaction_id = ConversionUtils::base64_to_h512(&transaction.hash)
+                            let transaction_id = conversion::base64_to_h512(&transaction.hash)
                                 .map_err(|e| {
                                     HyperlaneTonError::ParsingError(format!(
                                         "Failed to convert hash to H512: {:?}",
@@ -1070,7 +1070,7 @@ mod tests {
         let contract_address =
             TonAddress::from_base64_url("0QCSES0TZYqcVkgoguhIb8iMEo4cvaEwmIrU5qbQgnN8fo2A")
                 .expect("msg");
-        let contract_address = ConversionUtils::ton_address_to_h256(&contract_address);
+        let contract_address = conversion::ton_address_to_h256(&contract_address);
 
         let result = provider.is_contract(&contract_address).await;
         println!("is_contract({:?}) returned: {:?}", contract_address, result);
